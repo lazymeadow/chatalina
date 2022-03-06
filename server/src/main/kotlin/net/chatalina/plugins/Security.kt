@@ -5,34 +5,10 @@ import io.ktor.application.*
 import io.ktor.auth.*
 import io.ktor.auth.jwt.*
 import java.net.URL
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
-/*** TODO: REMOVE THIS WHEN AUTH IS IN PROD ***/
-class TrustAllX509TrustManager : X509TrustManager {
-    override fun getAcceptedIssuers(): Array<X509Certificate?> {
-        return arrayOfNulls(0)
-    }
-
-    override fun checkClientTrusted(certs: Array<X509Certificate?>?, authType: String?) {}
-
-    override fun checkServerTrusted(certs: Array<X509Certificate?>?, authType: String?) {}
-}
-/***/
 
 fun Application.configureSecurity() {
-    /*** TODO: REMOVE THIS WHEN AUTH IS IN PROD ***/
-    val sc: SSLContext = SSLContext.getInstance("TLS")
-    sc.init(null, arrayOf(TrustAllX509TrustManager()), SecureRandom())
-    HttpsURLConnection.setDefaultSSLSocketFactory(sc.socketFactory)
-    HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
-    /***/
-
-
     val issuer = environment.config.property("jwt.issuer").getString()
     val audience = environment.config.property("jwt.audience").getString()
 

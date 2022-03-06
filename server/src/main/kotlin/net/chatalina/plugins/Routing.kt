@@ -16,13 +16,21 @@ fun Application.configureRouting() {
                 }
             }
 
-            install(StatusPages) {
-                exception<AuthenticationException> { cause ->
-                    call.respond(HttpStatusCode.Unauthorized)
-                }
-                exception<AuthorizationException> { cause ->
-                    call.respond(HttpStatusCode.Forbidden)
-                }
+        }
+
+        // endpoint for auth server to get public key for jwks
+        route("bec/k_jwks") {
+            get {
+                call.respondFile(File("src/main/resources/keystore.jks"))
+            }
+        }
+
+        install(StatusPages) {
+            exception<AuthenticationException> { cause ->
+                call.respond(HttpStatusCode.Unauthorized)
+            }
+            exception<AuthorizationException> { cause ->
+                call.respond(HttpStatusCode.Forbidden)
             }
         }
     }
