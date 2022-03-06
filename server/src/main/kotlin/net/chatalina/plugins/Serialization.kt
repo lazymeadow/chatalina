@@ -1,14 +1,11 @@
 package net.chatalina.plugins
 
-import io.ktor.serialization.*
-import io.ktor.features.*
 import io.ktor.application.*
-import io.ktor.response.*
-import io.ktor.request.*
-import io.ktor.routing.*
+import io.ktor.features.*
+import io.ktor.jackson.*
 
 fun Application.configureSerialization() {
     install(ContentNegotiation) {
-        json()
+        jackson()
     }
 }
