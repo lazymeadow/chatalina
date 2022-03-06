@@ -48,3 +48,6 @@ gradle-app.setting
 
 # Cache of project
 .gradletasknamecache
+
+# don't save keys generated to the repo folder!!!
+*.key
