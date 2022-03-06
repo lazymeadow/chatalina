@@ -16,7 +16,7 @@ fun Application.configureSockets() {
     }
 
     routing {
-        authenticate("obei-bec-user") {
+        authenticate("obei-bec-parasite") {
             webSocket("/ws") { // websocketSession
                 for (frame in incoming) {
                     when (frame) {

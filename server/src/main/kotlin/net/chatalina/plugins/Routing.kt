@@ -6,11 +6,12 @@ import io.ktor.features.*
 import io.ktor.http.*
 import io.ktor.response.*
 import io.ktor.routing.*
+import java.io.File
 
 fun Application.configureRouting() {
     routing {
-        route("/api") {
-            authenticate("obei-bec-user") {
+        route("/api/v1") {
+            authenticate("obei-bec-parasite") {
                 get("/heehoo") {
                     call.respond(":)")
                 }

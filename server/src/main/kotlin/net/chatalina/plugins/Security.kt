@@ -23,12 +23,12 @@ fun Application.configureSecurity() {
     }
 
     authentication {
-        jwt("obei-bec-user") {
+        jwt("obei-bec-parasite") {
             verifier(jwkProvider, issuer, becVerifier)
             validate { credential ->
                 val access =
                     credential.payload.getClaim("resource_access").asMap()[audience] as Map<String, List<String>>
-                if (access["roles"]?.contains("user") == true) JWTPrincipal(credential.payload) else null
+                if (access["roles"]?.contains("parasite") == true) JWTPrincipal(credential.payload) else null
             }
         }
         jwt("obei-bec-mod") {
