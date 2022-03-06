@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiko:wght@400;600;700&display=swap');
+
+:root {
+  --chatTeal: #25687d;
+}
+
+body {
+  margin: 0;
+  font: 14px Amiko, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body main {
+  display: flex;
+  height: 100vh;
+}
+
+body a {
+  font-weight: bold;
+  text-decoration: none;
+}
+body a:hover {
+  text-decoration: underline;
+}
+body a > svg {
+  margin-left: 5px;
+}

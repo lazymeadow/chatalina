@@ -1,0 +1,47 @@
+.ChatLayout-left {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    width: 200px;
+
+    background-color: var(--chatTeal);
+    color: white;
+}
+
+.ChatLayout-left a {
+    color: white;
+}
+
+.ChatLayout-left > .scrolly-bit {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+}
+
+.ChatLayout-left > .bottom-stuff {
+    display: flex;
+    flex-direction: column;
+}
+
+.ChatLayout-right {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    width: calc(100% - 200px);
+}
+
+.ChatLayout-right > .top-part {
+}
+
+.ChatLayout-right > .log {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: auto;
+}
+
+.ChatLayout-right > .bottom-bar {
+}

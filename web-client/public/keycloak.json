@@ -1,0 +1,8 @@
+{
+  "realm": "OBEI",
+  "auth-server-url": "https://auth.bestevar.com/",
+  "ssl-required": "all",
+  "resource": "bec",
+  "public-client": true,
+  "confidential-port": 0
+}
