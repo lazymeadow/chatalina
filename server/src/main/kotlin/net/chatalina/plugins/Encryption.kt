@@ -1,6 +1,10 @@
 package net.chatalina.plugins
 
 import io.ktor.application.*
+import io.ktor.http.*
+import io.ktor.request.*
+import io.ktor.response.*
+import io.ktor.routing.*
 import io.ktor.util.*
 import java.io.File
 import java.security.KeyFactory
@@ -10,6 +14,31 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.*
 import javax.crypto.KeyAgreement
+
+const val BEC_SERVER_HEADER = "BEC-Server-Key"
+const val BEC_CLIENT_HEADER = "BEC-Client-Key"
+
+val ApplicationRequest.clientKey: String
+    get() = call.request.headers[BEC_CLIENT_HEADER] ?: ""
+
+fun Route.withEncryption(callback: Route.() -> Unit): Route {
+    val routeWithEncryption = this.createChild(object : RouteSelector() {
+        override fun evaluate(context: RoutingResolveContext, segmentIndex: Int): RouteSelectorEvaluation =
+            RouteSelectorEvaluation.Constant
+    })
+
+    routeWithEncryption.intercept(ApplicationCallPipeline.Features) {
+        if (call.request.clientKey.isBlank()) {
+            call.respond(HttpStatusCode.BadRequest, "Missing header $BEC_CLIENT_HEADER")
+            return@intercept finish()
+        }
+        val publicKey = call.application.feature(Encryption).publicKey
+        call.response.header(BEC_SERVER_HEADER, Base64.getEncoder().encodeToString(publicKey))
+    }
+    callback(routeWithEncryption)
+
+    return routeWithEncryption
+}
 
 class Encryption(configuration: PluginConfiguration) {
     private var serverPair: KeyPair
@@ -41,7 +70,7 @@ class Encryption(configuration: PluginConfiguration) {
         }
     }
 
-    val publicKey
+    val publicKey: ByteArray
         get() = serverPair.public.encoded
 
     // TODO: this should be a private function
@@ -58,9 +87,7 @@ class Encryption(configuration: PluginConfiguration) {
 
         override fun install(pipeline: ApplicationCallPipeline, configure: PluginConfiguration.() -> Unit): Encryption {
             val configuration = PluginConfiguration().apply(configure)
-            val feature = Encryption(configuration)
-            // other stuff.
-            return feature
+            return Encryption(configuration)
         }
     }
 }

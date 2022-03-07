@@ -14,8 +14,9 @@ fun Application.configureHTTP() {
         method(HttpMethod.Delete)
         method(HttpMethod.Patch)
         header(HttpHeaders.Authorization)
+        allowHeadersPrefixed("BEC-")
         val clientIsSsl = environment.config.propertyOrNull("bec.client_ssl")?.getString() === "true"
         host(environment.config.property("bec.client_domain").getString(), listOf(if (clientIsSsl) "https" else "http"), listOf())
     }
-
+    install(DefaultHeaders)
 }
