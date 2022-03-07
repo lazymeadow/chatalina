@@ -20,8 +20,7 @@ fun Application.configureRouting() {
 
                     post("/test/server-key") {
                         val publicKey = application.feature(Encryption).publicKey
-                        val derivedKey = application.feature(Encryption).getDerivedKey(call.request.clientKey)
-                        call.respond(mapOf("publicKey" to publicKey, "derivedKey" to derivedKey))
+                        call.respond(mapOf("publicKey" to publicKey))
                     }
                 }
             }

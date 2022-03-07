@@ -1,5 +1,6 @@
 package net.chatalina.plugins
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.ktor.application.*
 import io.ktor.http.*
 import io.ktor.request.*
@@ -10,10 +11,14 @@ import java.io.File
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
+import java.security.SecureRandom
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.*
+import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 const val BEC_SERVER_HEADER = "BEC-Server-Key"
 const val BEC_CLIENT_HEADER = "BEC-Client-Key"
@@ -73,13 +78,37 @@ class Encryption(configuration: PluginConfiguration) {
     val publicKey: ByteArray
         get() = serverPair.public.encoded
 
-    // TODO: this should be a private function
-    fun getDerivedKey(otherKey: String): ByteArray? {
+    private fun getDerivedKey(otherKey: String): ByteArray {
         val pubKey = ecKF.generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(otherKey)))
         val ka = KeyAgreement.getInstance("ECDH")
         ka.init(serverPair.private)
         ka.doPhase(pubKey, true)
         return ka.generateSecret()
+    }
+
+    private fun getAESCipher(key: ByteArray, mode: Int, iv: ByteArray): Cipher {
+        val cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING")
+        cipher.init(mode, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+        return cipher
+    }
+
+    private fun getNonce(): ByteArray {
+        val nonce = ByteArray(16)
+        SecureRandom().nextBytes(nonce)
+        return nonce
+    }
+
+    fun decrypt(content: ByteArray, iv: ByteArray, otherKey: String): ByteArray {
+        val derivedKey = getDerivedKey(otherKey)
+        val cipher = getAESCipher(derivedKey, Cipher.DECRYPT_MODE, iv)
+        return cipher.doFinal(content)
+    }
+
+    fun encrypt(content: ByteArray, otherKey: String): Pair<ByteArray, ByteArray>  {
+        val derivedKey = getDerivedKey(otherKey)
+        val nonce = getNonce()
+        val cipher = getAESCipher(derivedKey, Cipher.ENCRYPT_MODE, nonce)
+        return Pair(nonce, cipher.doFinal(content))
     }
 
     companion object Feature : ApplicationFeature<ApplicationCallPipeline, PluginConfiguration, Encryption> {
