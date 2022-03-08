@@ -1,0 +1,20 @@
+.Settings-root {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    word-wrap: anywhere;
+    margin: 10px 80px;
+}
+
+.Settings-root > .header {
+    display: flex;
+    justify-content: space-between;
+}
+
+.Settings-root > .header > a {
+    margin: 20px;
+}
+
+.Settings-root > .header > h1 {
+    flex: 0 0 auto;
+}

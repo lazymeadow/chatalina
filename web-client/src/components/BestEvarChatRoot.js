@@ -1,8 +1,7 @@
-import './chat/ChatLayout.css'
 import {Landing} from './Landing'
 import {BrowserRouter, useRoutes} from 'react-router-dom'
 import {ChatLayout} from './chat/ChatLayout'
-import {Settings} from './Settings'
+import {Settings} from './settings/Settings'
 import {KeycloakProvider} from '../contexts/keycloak'
 
 
