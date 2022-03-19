@@ -3,6 +3,7 @@ import {BrowserRouter, useRoutes} from 'react-router-dom'
 import {ChatLayout} from './chat/ChatLayout'
 import {Settings} from './settings/Settings'
 import {KeycloakProvider} from '../contexts/keycloak'
+import {SocketProvider} from '../contexts/socket'
 
 
 function BestEvarChatRoutes() {
@@ -35,9 +36,11 @@ function BestEvarChatRoutes() {
 function BestEvarChatRoot() {
 	return (
 		<KeycloakProvider>
-			<BrowserRouter>
-				<BestEvarChatRoutes />
-			</BrowserRouter>
+			<SocketProvider>
+				<BrowserRouter>
+					<BestEvarChatRoutes />
+				</BrowserRouter>
+			</SocketProvider>
 		</KeycloakProvider>
 	)
 }

@@ -3,7 +3,6 @@ import {KeycloakContext} from '../../contexts/keycloak'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
 import {faExternalLink, faX} from '@fortawesome/free-solid-svg-icons'
 import {Link} from 'react-router-dom'
-import {Loading} from '../Loading'
 import {useContext, useState} from 'react'
 
 
@@ -11,13 +10,8 @@ export const Settings = () => {
 	const [message, setMessage] = useState('')
 
 	const {
-		initialized,
 		keycloak: {createAccountUrl, idToken, token, refreshToken, updateToken, isTokenExpired, resourceAccess}
 	} = useContext(KeycloakContext)
-
-	if (!initialized) {
-		return <Loading />
-	}
 
 	return (
 		<div className={'Settings-root'}>
