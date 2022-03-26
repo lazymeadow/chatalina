@@ -98,10 +98,10 @@ class Encryption(configuration: PluginConfiguration) {
         return nonce
     }
 
-    fun decrypt(content: ByteArray, iv: ByteArray, otherKey: String): ByteArray {
+    fun decrypt(content: String, iv: String, otherKey: String): ByteArray {
         val derivedKey = getDerivedKey(otherKey)
-        val cipher = getAESCipher(derivedKey, Cipher.DECRYPT_MODE, iv)
-        return cipher.doFinal(content)
+        val cipher = getAESCipher(derivedKey, Cipher.DECRYPT_MODE, Base64.getDecoder().decode(iv))
+        return cipher.doFinal(Base64.getDecoder().decode(content))
     }
 
     fun encrypt(content: ByteArray, otherKey: String): Pair<ByteArray, ByteArray>  {

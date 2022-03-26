@@ -4,12 +4,12 @@ import {Link} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
 import {faArrowTurnDown} from '@fortawesome/free-solid-svg-icons'
 import {useContext, useRef, useState} from 'react'
+import {SocketContext} from '../../contexts/socket'
 
 const MessageLog = ({messages}) => {
 	return (
 		<div className={'log'}>
-			<p>chat log!!!!!!!!</p>
-			{messages.map((message, index) => <p key={index}><span>message: </span>{message}</p>)}
+			{messages.map((message, index) => <p key={message.id || index}><span style={{fontWeight: "bold"}}>{message.sender || 'sender'}: </span>{message.message}</p>)}
 		</div>
 	)
 }
@@ -17,18 +17,16 @@ const MessageLog = ({messages}) => {
 
 export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState("")
-	const [messageLog, setMessageLog] = useState([])
 
-	const {
-		profile,
-		keycloak: {createLogoutUrl}
-	} = useContext(KeycloakContext)
+	const {profile, getLogoutUrl} = useContext(KeycloakContext)
+
+	const {messageLog, sendMessage} = useContext(SocketContext)
 
 	const textareaEl = useRef(null)
 
 	function handleSubmitChat() {
-		setMessageLog([...messageLog, typedMessage])
-		setTypedMessage("")
+		sendMessage(profile.username, typedMessage)
+		setTypedMessage('')
 	}
 
 	return (
@@ -41,7 +39,7 @@ export const ChatLayout = () => {
 				</div>
 				<div className={'bottom-stuff'}>
 					<Link to={'/settings'}>Settings</Link>
-					<a href={createLogoutUrl()}>Log out</a>
+					<a href={getLogoutUrl()}>Log out</a>
 				</div>
 			</div>
 			<div className={'ChatLayout-right'}>

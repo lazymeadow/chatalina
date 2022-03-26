@@ -1,4 +1,4 @@
-import {createContext, useCallback, useEffect, useState} from 'react'
+import {createContext, useCallback, useEffect, useReducer, useState} from 'react'
 import EncryptionManager from '../util/encryption'
 
 
@@ -9,33 +9,62 @@ let websocket = null
 // the socket is the only place we're encrypting/decrypting messages, so keep the encryption manager here
 const encryptionManager = new EncryptionManager()
 
+function messageReducer(state, action) {
+	switch (action.type) {
+		case 'new':
+			return {...state, messageLog: [...state.messageLog, action.payload]}
+		default:
+			return state
+	}
+}
+
 export const SocketProvider = ({children}) => {
 	const [initialized, setInitialized] = useState(false)
+	const [messagesState, messagesDispatch] = useReducer(messageReducer, {messageLog: []})
 
-	const connectSocket = (accessToken) => {
+	const sendMessage = async (sender, messageText) => {
+		if (encryptionManager.serverKey === null) {
+			console.error('unable to send messages before key exchange')
+		} else {
+			const encrypted = await encryptionManager.encrypt({type: 'text', message: messageText, sender})
+			websocket.send(JSON.stringify({id: '2', type: 'sendMessage', content: encrypted}))
+		}
+	}
+
+	const connectSocket = async (getAccessToken) => {
+		let token = await getAccessToken()
 		if (websocket == null) {
 			websocket = new WebSocket('ws://localhost:6969/chat')
 			websocket.onopen = () => {
+				console.log(':)')
 				// step 1: send access token to server
-				websocket.send(JSON.stringify({id: '1', type: 'authorization', content: accessToken}))
+				websocket.send(JSON.stringify({id: '1', type: 'authorization', content: {token}}))
 			}
+
 			websocket.onclose = () => {
 				console.log(':(')
 				// add timeout
-				websocket = new WebSocket('ws://localhost:6969/chat')
+				websocket = null
+				connectSocket(getAccessToken)
 			}
+
+			websocket.onerror = (event) => {
+				console.error(event)
+			}
+
 			websocket.onmessage = async messageEvent => {
 				const parsedMessage = JSON.parse(messageEvent.data)
 				switch (parsedMessage.type) {
 					case 'keyExchange': {
 						// step 2: when server sends its key, send our key back
 						// TODO: don't let chat be used until this happens
-						await encryptionManager.setServerKey(parsedMessage.content)
-						websocket.send(JSON.stringify({type: 'keyExchange', content: encryptionManager.publicKey}))
+						await encryptionManager.setServerKey(parsedMessage.content.key)
+						websocket.send(JSON.stringify({type: 'keyExchange', content: {key: encryptionManager.publicKey}}))
 						break
 					}
 					case 'newMessage': {
-						console.log(parsedMessage)
+						const decrypted = await encryptionManager.decrypt(parsedMessage.content)
+						messagesDispatch({type: 'new', payload: {id: parsedMessage.content.id, ...decrypted}})
 						break
 					}
 					default: {
@@ -47,13 +76,17 @@ export const SocketProvider = ({children}) => {
 	}
 
 	useEffect(() => {
-		setInitialized(encryptionManager.initialized)
-	}, [encryptionManager.initialized])
+		encryptionManager.init().then(() => {
+			setInitialized(encryptionManager.initialized)
+		})
+	}, [])
 
 	return (
 		<SocketContext.Provider value={{
 			ready: initialized,
-			connectSocket
+			connectSocket,
+			messageLog: messagesState.messageLog,
+			sendMessage
 		}}>
 			{children}
 		</SocketContext.Provider>
