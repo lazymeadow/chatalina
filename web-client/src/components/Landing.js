@@ -6,13 +6,13 @@ import {SocketContext} from '../contexts/socket'
 
 
 export const Landing = () => {
-	const {initialized, isAuthenticated, keycloak} = useContext(KeycloakContext)
+	const {initialized, isAuthenticated, getToken, keycloak} = useContext(KeycloakContext)
 
 	const {connectSocket, ready} = useContext(SocketContext)
 
 	if (initialized && isAuthenticated && ready) {
 		// if we're here, we can try to connect a socket
-		connectSocket(keycloak.token)
+		connectSocket(getToken)
 		return (
 			<main>
 				<Outlet />
@@ -24,6 +24,7 @@ export const Landing = () => {
 		keycloak.logout()
 	}
 
+	// debugger
 	return (
 		<main>
 			<Loading />

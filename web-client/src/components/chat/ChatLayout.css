@@ -33,6 +33,7 @@
 }
 
 .ChatLayout-right > .top-part {
+    border-bottom: 1px solid lightgray;
 }
 
 .ChatLayout-right > .log {
@@ -45,22 +46,29 @@
     white-space: pre-wrap;
 }
 
+.ChatLayout-right > .log > p {
+    margin: 0;
+    padding: 0;
+}
+
 .ChatLayout-right > .bottom-bar {
     display: flex;
     align-items: flex-end;
+    border-top: 1px solid lightgray;
 }
 
 .ChatLayout-right > .bottom-bar > textarea {
     flex: 1 0 auto;
     border: none;
-    border-top: 1px solid lightgray;
 }
 
 
 .ChatLayout-right > .bottom-bar > button {
     padding: 5px 10px;
     border: none;
+    border-left: 1px solid lightgray;
     background-color: transparent;
-    color: var(--chatTeal)
+    color: var(--chatTeal);
+    height: 100%;
 }
 
