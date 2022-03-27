@@ -112,7 +112,7 @@ class Encryption(configuration: PluginConfiguration) {
     }
 
     companion object Feature : ApplicationFeature<ApplicationCallPipeline, PluginConfiguration, Encryption> {
-        override val key = AttributeKey<Encryption>("encryption")
+        override val key = AttributeKey<Encryption>("Encryption")
 
         override fun install(pipeline: ApplicationCallPipeline, configure: PluginConfiguration.() -> Unit): Encryption {
             val configuration = PluginConfiguration().apply(configure)

@@ -1,100 +1,30 @@
 package net.chatalina.plugins
 
-import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
-import com.fasterxml.jackson.annotation.JsonIgnore
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.application.*
-import io.ktor.auth.jwt.*
 import io.ktor.features.*
 import io.ktor.http.cio.websocket.*
 import io.ktor.routing.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
-import java.lang.IllegalStateException
+import net.chatalina.chat.ChatSocketConnection
+import net.chatalina.chat.MessageContent
+import net.chatalina.chat.MessageTypes
+import net.chatalina.chat.RequestBody
 import java.security.InvalidAlgorithmParameterException
 import java.time.Duration
-import java.util.*
-import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.IllegalBlockSizeException
 
-data class RequestBody(
-    val id: String?,
-    val type: MessageTypes,
-    @JsonProperty("content") val contentMap: Map<String, String>
-) {
-    // this will validate the content when we try to access it
-    val messageContent: RequestContent
-        get() = when (type) {
-            MessageTypes.AUTHORIZATION -> contentMap["token"]?.let { AuthContent(it) }
-                ?: throw BadRequestException("token missing from authorization")
-            MessageTypes.KEY_EXCHANGE -> contentMap["key"]?.let { KeyExchangeContent(it) } ?: throw BadRequestException(
-                "key missing from key exchange"
-            )
-            MessageTypes.SEND_MESSAGE -> {
-                val iv = contentMap["iv"] ?: throw BadRequestException("iv missing from encrypted message")
-                val messageContent =
-                    contentMap["content"] ?: throw BadRequestException("content missing from encrypted message")
-                if (messageContent.isBlank()) throw BadRequestException("content missing from encrypted message")
-                MessageContent(iv, messageContent)
-            }
-            MessageTypes.UNKNOWN -> throw BadRequestException("unknown message type")
-        }
-}
 
-data class MessageContent(
-    override val iv: String,
-    override val content: String
-) : RequestContent(iv = iv, content = content)
-
-data class AuthContent(
-    override val token: String
-) : RequestContent(token = token)
-
-data class KeyExchangeContent(
-    override val key: String
-) : RequestContent(key = key)
-
-abstract class RequestContent(
-    open val iv: String? = null,
-    open val content: String? = null,
-    open val token: String? = null,
-    open val key: String? = null
-)
-
-enum class MessageTypes(val value: String) {
-    AUTHORIZATION("authorization"),
-    KEY_EXCHANGE("keyExchange"),
-    SEND_MESSAGE("sendMessage"),
-
-    @JsonEnumDefaultValue
-    UNKNOWN("unknown");
-
-    override fun toString(): String {
-        return value
-    }
-}
-
-
-class Connection(val session: DefaultWebSocketSession) {
-    companion object {
-        var lastId = AtomicInteger(0)
-    }
-
-    // we need to know if the auth is valid
-    var publicKey: String? = null
-
-    // we'll need a public key to do encryption, but there's no headers with browser based WebSockets -_-
-    var principal: JWTPrincipal? = null
-
-    val name = "user${lastId.getAndIncrement()}"
-}
-
-
+/**
+ * The socket will be used for immediate updates to clients that have socket capabilities. Only a subset of actions will
+ * be available via socket messages. The socket will mainly be used to receive updates.
+ *
+ */
 fun Application.configureSockets() {
     install(WebSockets) {
         pingPeriod = Duration.ofSeconds(15)
@@ -104,86 +34,65 @@ fun Application.configureSockets() {
     }
 
     routing {
-        val connections = Collections.synchronizedSet<Connection?>(LinkedHashSet())
         webSocket("/chat") {
-            val thisConnection = Connection(this)
-            connections += thisConnection
+            val chatHandler = feature(ChatHandlerPlugin)
+            // set up a new connection instance for this session
+            val thisChatSocketConnection = ChatSocketConnection(this)
+            // add this connection to the handler
+            chatHandler.currentSocketConnections.add(thisChatSocketConnection)
             try {
                 for (frame in incoming) {
                     val mapper = jacksonMapper
-                    val encryption = application.feature(Encryption)
                     when (frame) {
                         is Frame.Text -> {
                             try {
                                 val received = mapper.readValue<RequestBody>(frame.data)
+                                if (received.type != MessageTypes.AUTHORIZATION && thisChatSocketConnection.principal == null) {
+                                    throw NoAuthException()
+                                }
                                 when (received.type) {
                                     MessageTypes.AUTHORIZATION -> {
-                                        application.log.debug("received auth")
+                                        log.debug("received auth")
                                         // authorization must be first message received. if any message is received
                                         // auth is verified, socket WILL close.
 
-                                        thisConnection.principal = received.messageContent.token?.let {
-                                            application.environment.becAuth?.validateJwt(
-                                                it
-                                            )
-                                        }
-                                        if (thisConnection.principal == null) {
-                                            outgoing.close(AuthenticationException())
-                                        } else {
-                                            // if we have a valid principal, they are authenticated. we'll check roles
-                                            // on every subsequent message. for now, initiate key exchange.
-                                            send(
-                                                mapper.writeValueAsString(
-                                                    mapOf(
-                                                        "type" to MessageTypes.KEY_EXCHANGE,
-                                                        "content" to mapOf("key" to encryption.publicKey)
-                                                    )
+                                        thisChatSocketConnection.principal = received.messageContent.token?.let {
+                                            try {
+                                                environment.becAuth?.validateJwt(
+                                                    it
                                                 )
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                                throw BadAuthException()
+                                            }
+                                        } ?: throw BadAuthException()
+
+                                        val encryption = application.feature(Encryption)
+                                        // if we have a valid principal, they are authenticated. we'll check roles
+                                        // on every subsequent message. for now, initiate key exchange.
+                                        chatHandler.sendToConnection(
+                                            thisChatSocketConnection, mapOf(
+                                                "type" to MessageTypes.KEY_EXCHANGE,
+                                                "content" to mapOf("key" to encryption.publicKey)
                                             )
-                                        }
+                                        )
                                     }
                                     MessageTypes.KEY_EXCHANGE -> {
-                                        application.log.debug("received key exchange")
-                                        if (thisConnection.principal == null) {
-                                            outgoing.close(AuthenticationException())
-                                        }
-                                        thisConnection.publicKey = received.messageContent.key
+                                        log.debug("received key exchange")
+                                        thisChatSocketConnection.publicKey = received.messageContent.key
                                     }
                                     MessageTypes.SEND_MESSAGE -> {
-                                        application.log.debug("received message")
-                                        if (thisConnection.principal == null) {
-                                            outgoing.close(AuthenticationException())
-                                        }
-                                        if (thisConnection.publicKey == null) {
+                                        // TODO: remove this message from socket processing - these will be POST requests instead
+                                        if (thisChatSocketConnection.publicKey == null) {
                                             throw BadRequestException("must perform key exchange")
                                         }
 
-                                        val messageId = UUID.randomUUID()
                                         // first, we need to decrypt the message
                                         try {
-                                            val (iv, content) = received.messageContent as MessageContent
-                                            application.log.debug("received iv: $iv content: $content")
-                                            val decrypted = encryption.decrypt(content, iv, thisConnection.publicKey!!)
-
-                                            connections.forEach {
-                                                // then we need to re-encrypt it for sending to any relevant connections
-                                                val (nonce, encrypted) = encryption.encrypt(
-                                                    decrypted,
-                                                    it.publicKey!!
-                                                )
-                                                val serialized = mapper.writeValueAsString(
-                                                    mapOf(
-                                                        "type" to "newMessage", "content" to
-                                                                mapOf(
-                                                                    "id" to messageId,
-                                                                    "iv" to nonce,
-                                                                    "content" to Base64.getEncoder()
-                                                                        .encodeToString(encrypted)
-                                                                )
-                                                    )
-                                                )
-                                                it.session.send(serialized)
-                                            }
+                                            chatHandler.processNewMessage(
+                                                received.messageContent as MessageContent,
+                                                thisChatSocketConnection
+                                            )
                                         } catch (e: InvalidAlgorithmParameterException) {
                                             e.printStackTrace()
                                             throw BadRequestException("bad iv")
@@ -208,8 +117,11 @@ fun Application.configureSockets() {
                                 outgoing.send(Frame.Text("{\"error\": \"invalid request\"}"))
                             } catch (e: BadRequestException) {
                                 outgoing.send(Frame.Text("{\"error\": \"${e.message}\"}"))
-                            } catch (e: AuthenticationException) {
+                            } catch (e: NoAuthException) {
                                 outgoing.send(Frame.Text("{\"error\": \"${e.message}\"}"))
+                            } catch (e: BadAuthException) {
+                                outgoing.send(Frame.Text("{\"error\": \"${e.message}\"}"))
+                                outgoing.close(e)
                             }
                         }
                         else -> {
@@ -218,12 +130,13 @@ fun Application.configureSockets() {
                     }
                 }
             } catch (e: ClosedReceiveChannelException) {
-                application.log.info("onClose ${closeReason.await()}")
+                log.info("onClose ${closeReason.await()}")
             } finally {
-                connections.remove(thisConnection)
+                chatHandler.currentSocketConnections.remove(thisChatSocketConnection)
             }
         }
     }
-//        }
-//    }
 }
+
+class NoAuthException : Exception("send message with type ${MessageTypes.AUTHORIZATION} and valid token")
+class BadAuthException : Exception("Invalid auth")

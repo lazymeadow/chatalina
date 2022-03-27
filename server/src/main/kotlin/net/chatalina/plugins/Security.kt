@@ -13,7 +13,7 @@ import java.security.interfaces.RSAPublicKey
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-class BecAuthentication(private val issuer: String, private val audience: String, private val jwks: String) {
+class BecAuthentication(private val issuer: String, private val audience: String, jwks: String) {
     val jwkProvider: JwkProvider = JwkProviderBuilder(URL(jwks))
         .cached(10, 24, TimeUnit.HOURS)
         .rateLimited(10, 1, TimeUnit.MINUTES)
@@ -25,22 +25,27 @@ class BecAuthentication(private val issuer: String, private val audience: String
     }
 
     val becVerifier: JWTConfigureFunction = {
-        acceptLeeway(3)
+        acceptLeeway(5)
         withAudience("account")
         withClaim("azp", audience)
     }
 
     fun validateJwt(token: String): JWTPrincipal? {
-        val jwk = jwkProvider.get(JWT.decode(token).keyId)
-        val verifier = JWT.require(Algorithm.RSA256(jwk.publicKey as RSAPublicKey, null))
-            .withIssuer(issuer)
-            .apply(becVerifier)
-            .build()
-        val jwt = verifier.verify(token)
-        val jwtParser = JWTParser()
-        val payload = jwtParser.parsePayload(String(Base64.getUrlDecoder().decode(jwt.payload)))
-        val credentials = JWTCredential(payload)
-        return JWTPrincipal(credentials.payload)
+        return try {
+            val jwk = jwkProvider.get(JWT.decode(token).keyId)
+            val verifier = JWT.require(Algorithm.RSA256(jwk.publicKey as RSAPublicKey, null))
+                .withIssuer(issuer)
+                .apply(becVerifier)
+                .build()
+            val jwt = verifier.verify(token)
+            val jwtParser = JWTParser()
+            val payload = jwtParser.parsePayload(String(Base64.getUrlDecoder().decode(jwt.payload)))
+            val credentials = JWTCredential(payload)
+            JWTPrincipal(credentials.payload)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 }
 

@@ -6,6 +6,7 @@ import net.chatalina.plugins.*
 fun main(args: Array<String>): Unit =
     io.ktor.server.netty.EngineMain.main(args)
 
+
 @Suppress("unused") // application.conf references the main function. This annotation prevents the IDE from marking it as unused.
 fun Application.module() {
     configureEncryption()
@@ -16,4 +17,7 @@ fun Application.module() {
     configureSerialization()
     configureSockets()
     configureAdministration()
+
+    // keep it last! it relies on other features (encryption, sockets
+    configureChatHandler()
 }
