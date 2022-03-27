@@ -8,10 +8,8 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.util.*
 import java.io.File
-import java.security.KeyFactory
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-import java.security.SecureRandom
+import java.security.*
+import java.security.spec.InvalidKeySpecException
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.*
@@ -78,11 +76,19 @@ class Encryption(configuration: PluginConfiguration) {
     val publicKey: ByteArray
         get() = serverPair.public.encoded
 
-    private fun getDerivedKey(otherKey: String): ByteArray {
-        val pubKey = ecKF.generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(otherKey)))
+    fun validateAndGetPublicKey(keyString: String): PublicKey? {
+        return try {
+            ecKF.generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(keyString)))
+        } catch (e: InvalidKeySpecException) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun getDerivedKey(otherKey: PublicKey): ByteArray {
         val ka = KeyAgreement.getInstance("ECDH")
         ka.init(serverPair.private)
-        ka.doPhase(pubKey, true)
+        ka.doPhase(otherKey, true)
         return ka.generateSecret()
     }
 
@@ -98,13 +104,13 @@ class Encryption(configuration: PluginConfiguration) {
         return nonce
     }
 
-    fun decrypt(content: String, iv: String, otherKey: String): ByteArray {
+    fun decrypt(content: String, iv: String, otherKey: PublicKey): ByteArray {
         val derivedKey = getDerivedKey(otherKey)
         val cipher = getAESCipher(derivedKey, Cipher.DECRYPT_MODE, Base64.getDecoder().decode(iv))
         return cipher.doFinal(Base64.getDecoder().decode(content))
     }
 
-    fun encrypt(content: ByteArray, otherKey: String): Pair<ByteArray, ByteArray>  {
+    fun encrypt(content: ByteArray, otherKey: PublicKey): Pair<ByteArray, ByteArray>  {
         val derivedKey = getDerivedKey(otherKey)
         val nonce = getNonce()
         val cipher = getAESCipher(derivedKey, Cipher.ENCRYPT_MODE, nonce)

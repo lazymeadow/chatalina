@@ -18,14 +18,14 @@ const MessageLog = ({messages}) => {
 export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState("")
 
-	const {profile, getLogoutUrl} = useContext(KeycloakContext)
+	const {profile, getLogoutUrl, getToken} = useContext(KeycloakContext)
 
 	const {messageLog, sendMessage} = useContext(SocketContext)
 
 	const textareaEl = useRef(null)
 
-	function handleSubmitChat() {
-		sendMessage(profile.username, typedMessage)
+	async function handleSubmitChat() {
+		sendMessage(profile.username, typedMessage, await getToken())
 		setTypedMessage('')
 	}
 

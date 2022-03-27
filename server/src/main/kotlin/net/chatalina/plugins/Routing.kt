@@ -2,16 +2,67 @@ package net.chatalina.plugins
 
 import io.ktor.application.*
 import io.ktor.auth.*
+import io.ktor.auth.jwt.*
 import io.ktor.features.*
 import io.ktor.http.*
+import io.ktor.request.*
 import io.ktor.response.*
 import io.ktor.routing.*
+import net.chatalina.jsonrpc.JsonRpc
+import net.chatalina.jsonrpc.Request
 import java.io.File
+import java.lang.IllegalArgumentException
+import java.security.PublicKey
 
 
 fun Application.configureRouting() {
     routing {
         route("/api/v1") {
+            route("/rpc") {
+                // respond to everything except POST with 405
+//                handle {
+//                    call.respond(HttpStatusCode.MethodNotAllowed)
+//                }
+
+                post {
+                    suspend fun getBody(): Request {
+                        return call.receive()
+                    }
+
+                    fun getPrincipal(): JWTPrincipal? {
+                        // get the token out of the bearer header
+                        return try {
+                            val authToken = call.request.authorization()?.substringAfter("Bearer ")
+                            authToken?.let {
+                                try {
+                                    environment.becAuth?.validateJwt(it)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    null
+                                }
+                            }
+                        } catch (e: IllegalArgumentException) {
+                            null
+                        }
+                    }
+
+                    fun getClientKey(): PublicKey? {
+                        return application.feature(Encryption).validateAndGetPublicKey(call.request.clientKey)
+                    }
+
+                    val jsonrpc = featureOrNull(JsonRpc)
+                    if (jsonrpc == null) {
+                        log.error("Missing JsonRpc feature, request cannot be completed")
+                        call.respond(HttpStatusCode.InternalServerError)
+                    } else {
+                        val (statusCode, response, _) = jsonrpc.handleRequest(::getBody, ::getPrincipal, ::getClientKey)
+                        call.response.status(statusCode)
+                        response?.let {call.respond(response)} ?: finish()
+
+                    }
+                }
+            }
+
             withEncryption {
                 authenticate("obei-bec-parasite") {
                     get("/heehoo") {
@@ -34,10 +85,10 @@ fun Application.configureRouting() {
         }
 
         install(StatusPages) {
-            exception<AuthenticationException> { cause ->
+            exception<AuthenticationException> {
                 call.respond(HttpStatusCode.Unauthorized)
             }
-            exception<AuthorizationException> { cause ->
+            exception<AuthorizationException> {
                 call.respond(HttpStatusCode.Forbidden)
             }
         }

@@ -9,15 +9,18 @@ fun main(args: Array<String>): Unit =
 
 @Suppress("unused") // application.conf references the main function. This annotation prevents the IDE from marking it as unused.
 fun Application.module() {
-    configureEncryption()
     configureHTTP()
     configureSecurity()
-    configureRouting()
     configureMonitoring()
-    configureSerialization()
-    configureSockets()
     configureAdministration()
 
-    // keep it last! it relies on other features (encryption, sockets
+    configureSerialization()
+    configureEncryption()
+
+    // it relies on other features (encryption, sockets
     configureChatHandler()
+
+    configureRouting()
+    configureJsonRpc()
+    configureSockets()
 }

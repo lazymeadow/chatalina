@@ -6,18 +6,20 @@ import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.application.*
+import io.ktor.auth.jwt.*
 import io.ktor.features.*
 import io.ktor.http.cio.websocket.*
 import io.ktor.routing.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import net.chatalina.chat.ChatSocketConnection
-import net.chatalina.chat.MessageContent
 import net.chatalina.chat.MessageTypes
-import net.chatalina.chat.RequestBody
-import java.security.InvalidAlgorithmParameterException
+import net.chatalina.jsonrpc.JsonRpc
+import net.chatalina.jsonrpc.Request
+import net.chatalina.jsonrpc.endpoints.Authorization
+import net.chatalina.jsonrpc.endpoints.KeyExchange
+import java.security.PublicKey
 import java.time.Duration
-import javax.crypto.IllegalBlockSizeException
 
 
 /**
@@ -35,7 +37,7 @@ fun Application.configureSockets() {
 
     routing {
         webSocket("/chat") {
-            val chatHandler = feature(ChatHandlerPlugin)
+            val chatHandler = feature(ChatHandler)
             // set up a new connection instance for this session
             val thisChatSocketConnection = ChatSocketConnection(this)
             // add this connection to the handler
@@ -46,63 +48,46 @@ fun Application.configureSockets() {
                     when (frame) {
                         is Frame.Text -> {
                             try {
-                                val received = mapper.readValue<RequestBody>(frame.data)
-                                if (received.type != MessageTypes.AUTHORIZATION && thisChatSocketConnection.principal == null) {
-                                    throw NoAuthException()
+                                val body = mapper.readValue<Request>(frame.data)
+                                fun getBody(): Request {
+                                    return body
                                 }
-                                when (received.type) {
-                                    MessageTypes.AUTHORIZATION -> {
-                                        log.debug("received auth")
-                                        // authorization must be first message received. if any message is received
-                                        // auth is verified, socket WILL close.
 
-                                        thisChatSocketConnection.principal = received.messageContent.token?.let {
-                                            try {
-                                                environment.becAuth?.validateJwt(
-                                                    it
-                                                )
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                                throw BadAuthException()
-                                            }
-                                        } ?: throw BadAuthException()
+                                fun getPrincipal(): JWTPrincipal? {
+                                    return thisChatSocketConnection.principal
+                                }
 
+                                fun getClientKey(): PublicKey? {
+                                    return thisChatSocketConnection.publicKey
+                                }
+
+                                val jsonrpc = featureOrNull(JsonRpc)
+                                if (jsonrpc == null) {
+                                    log.error("Missing JsonRpc feature, request cannot be completed")
+                                    outgoing.close()
+                                } else {
+                                    val (_, _, passAlongResult) = jsonrpc.handleRequest(
+                                        ::getBody,
+                                        ::getPrincipal,
+                                        ::getClientKey,
+                                        executingInSocket = true
+                                    )
+                                    if (body.method == Authorization.methodName) {
+                                        // okay this is not great. but when we get a principal result, set it,
+                                        //   then initiate key exchange via socket.
+                                        thisChatSocketConnection.principal =
+                                            passAlongResult as JWTPrincipal? ?: throw BadAuthException()
                                         val encryption = application.feature(Encryption)
-                                        // if we have a valid principal, they are authenticated. we'll check roles
-                                        // on every subsequent message. for now, initiate key exchange.
                                         chatHandler.sendToConnection(
                                             thisChatSocketConnection, mapOf(
                                                 "type" to MessageTypes.KEY_EXCHANGE,
                                                 "content" to mapOf("key" to encryption.publicKey)
                                             )
                                         )
-                                    }
-                                    MessageTypes.KEY_EXCHANGE -> {
-                                        log.debug("received key exchange")
-                                        thisChatSocketConnection.publicKey = received.messageContent.key
-                                    }
-                                    MessageTypes.SEND_MESSAGE -> {
-                                        // TODO: remove this message from socket processing - these will be POST requests instead
-                                        if (thisChatSocketConnection.publicKey == null) {
-                                            throw BadRequestException("must perform key exchange")
-                                        }
-
-                                        // first, we need to decrypt the message
-                                        try {
-                                            chatHandler.processNewMessage(
-                                                received.messageContent as MessageContent,
-                                                thisChatSocketConnection
-                                            )
-                                        } catch (e: InvalidAlgorithmParameterException) {
-                                            e.printStackTrace()
-                                            throw BadRequestException("bad iv")
-                                        } catch (e: IllegalBlockSizeException) {
-                                            e.printStackTrace()
-                                            throw BadRequestException("bad content")
-                                        }
-                                    }
-                                    else -> {
-                                        throw BadRequestException("Unknown message type")
+                                    } else if (body.method == KeyExchange.methodName && passAlongResult != null) {
+                                        val encryption = application.feature(Encryption)
+                                        thisChatSocketConnection.publicKey =
+                                            encryption.validateAndGetPublicKey(passAlongResult.toString())
                                     }
                                 }
                             } catch (e: MissingKotlinParameterException) {

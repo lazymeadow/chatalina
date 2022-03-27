@@ -22,12 +22,25 @@ export const SocketProvider = ({children}) => {
 	const [initialized, setInitialized] = useState(false)
 	const [messagesState, messagesDispatch] = useReducer(messageReducer, {messageLog: []})
 
-	const sendMessage = async (sender, messageText) => {
+	const sendMessage = async (sender, messageText, accessToken) => {
 		if (encryptionManager.serverKey === null) {
 			console.error('unable to send messages before key exchange')
-		} else {
+		}
+		else {
 			const encrypted = await encryptionManager.encrypt({type: 'text', message: messageText, sender})
-			websocket.send(JSON.stringify({id: '2', type: 'sendMessage', content: encrypted}))
+			const response = await fetch('http://localhost:6969/api/v1/rpc', {
+				method: 'POST',
+				headers: {
+					'BEC-Client-Key': encryptionManager.publicKey,
+					'Authorization': 'Bearer ' + accessToken,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'sendMessage', params: encrypted}),
+				mode: 'cors',
+			})
+			if (!response.ok) {
+				console.error('error sending message')
+			}
 		}
 	}
 
@@ -38,14 +51,14 @@ export const SocketProvider = ({children}) => {
 			websocket.onopen = () => {
 				console.log(':)')
 				// step 1: send access token to server
-				websocket.send(JSON.stringify({id: '1', type: 'authorization', content: {token}}))
+				websocket.send(JSON.stringify({method: 'authorization', jsonrpc: '2.0', params: {token}}))
 			}
 
 			websocket.onclose = () => {
 				console.log(':(')
 				// add timeout
 				websocket = null
-				connectSocket(getAccessToken)
+				// connectSocket(getAccessToken)
 			}
 
 			websocket.onerror = (event) => {
@@ -59,7 +72,11 @@ export const SocketProvider = ({children}) => {
 						// step 2: when server sends its key, send our key back
 						// TODO: don't let chat be used until this happens
 						await encryptionManager.setServerKey(parsedMessage.content.key)
-						websocket.send(JSON.stringify({type: 'keyExchange', content: {key: encryptionManager.publicKey}}))
+						websocket.send(JSON.stringify({
+							jsonrpc: '2.0',
+							method: 'keyExchange',
+							params: {key: encryptionManager.publicKey}
+						}))
 						break
 					}
 					case 'newMessage': {

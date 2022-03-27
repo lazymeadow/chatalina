@@ -9,6 +9,29 @@ import java.util.*
 /*** MESSAGE STUFF ***/
 
 
+enum class MessageTypes(private val value: String) {
+    AUTHORIZATION("authorization"),
+    KEY_EXCHANGE("keyExchange"),
+    SEND_MESSAGE("sendMessage"),
+    NEW_MESSAGE("newMessage"),
+
+    @JsonEnumDefaultValue
+    UNKNOWN("unknown");
+
+    override fun toString(): String {
+        return value
+    }
+
+    companion object {
+        fun validValues(): List<String> {
+            return values().filter { it != UNKNOWN }.map { it.value }
+        }
+        fun valueOrNull(string: String): MessageTypes? {
+            return values().find { it.value == string }
+        }
+    }
+}
+
 data class ResponseBody(
     val id: UUID,
     val type: MessageTypes,
@@ -58,17 +81,3 @@ abstract class RequestContent(
     open val token: String? = null,
     open val key: String? = null
 )
-
-enum class MessageTypes(val value: String) {
-    AUTHORIZATION("authorization"),
-    KEY_EXCHANGE("keyExchange"),
-    SEND_MESSAGE("sendMessage"),
-    NEW_MESSAGE("newMessage"),
-
-    @JsonEnumDefaultValue
-    UNKNOWN("unknown");
-
-    override fun toString(): String {
-        return value
-    }
-}

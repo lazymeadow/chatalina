@@ -11,10 +11,15 @@ fun Application.configureHTTP() {
     install(CORS) {
         method(HttpMethod.Options)
         method(HttpMethod.Put)
-        method(HttpMethod.Delete)
         method(HttpMethod.Patch)
+        method(HttpMethod.Delete)
+
         header(HttpHeaders.Authorization)
-        allowHeadersPrefixed("BEC-")
+        header(HttpHeaders.ContentType)
+        header(HttpHeaders.AccessControlAllowOrigin)
+        // stupid cors headers lowercase to normalize but don't do the same when processing prefix predicates
+        allowHeadersPrefixed("bec-")
+
         val clientIsSsl = environment.config.propertyOrNull("bec.client_ssl")?.getString() === "true"
         host(environment.config.property("bec.client_domain").getString(), listOf(if (clientIsSsl) "https" else "http"), listOf())
     }
