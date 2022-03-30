@@ -1,2 +1,3 @@
-# bestest-evar-chat
-Best Evar Chat 5.0+
+# chatalina
+It's the chatalina wine mixer
+aka Best Evar Chat 5.0+
