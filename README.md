@@ -1,4 +1,7 @@
 # chatalina
 It's the chatalina wine mixer
 
+![chatalina](https://user-images.githubusercontent.com/11927977/160942016-11afb9e3-0564-4810-b8be-6ef390e05c9c.gif)
+
 aka Best Evar Chat 5.0+
+
