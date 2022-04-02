@@ -11,6 +11,10 @@ const encryptionManager = new EncryptionManager()
 
 function messageReducer(state, action) {
 	switch (action.type) {
+		case 'add':
+			// filter out the messages that are already in there
+			const msgsToAdd = action.payload.filter(msg => !!state.messageLog.find(m => m.id === msg.id) !== true)
+			return {...state, messageLog: [...state.messageLog, ...msgsToAdd]}
 		case 'new':
 			return {...state, messageLog: [...state.messageLog, action.payload]}
 		default:
@@ -19,6 +23,7 @@ function messageReducer(state, action) {
 }
 
 export const SocketProvider = ({children}) => {
+	const [ready, setReady] = useState(false)
 	const [initialized, setInitialized] = useState(false)
 	const [messagesState, messagesDispatch] = useReducer(messageReducer, {messageLog: []})
 
@@ -27,7 +32,12 @@ export const SocketProvider = ({children}) => {
 			console.error('unable to send messages before key exchange')
 		}
 		else {
-			const encrypted = await encryptionManager.encrypt({type: 'text', message: messageText, sender})
+			const encrypted = await encryptionManager.encrypt({
+				type: 'text',
+				message: messageText,
+				sender,
+				destination: 'bec'
+			})
 			const response = await fetch('http://localhost:6969/api/v1/rpc', {
 				method: 'POST',
 				headers: {
@@ -36,7 +46,7 @@ export const SocketProvider = ({children}) => {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'sendMessage', params: encrypted}),
-				mode: 'cors',
+				mode: 'cors'
 			})
 			if (!response.ok) {
 				console.error('error sending message')
@@ -44,8 +54,7 @@ export const SocketProvider = ({children}) => {
 		}
 	}
 
-	const connectSocket = async (getAccessToken) => {
-		let token = await getAccessToken()
+	const connectSocket = async (token) => {
 		if (websocket == null) {
 			websocket = new WebSocket('ws://localhost:6969/chat')
 			websocket.onopen = () => {
@@ -81,7 +90,7 @@ export const SocketProvider = ({children}) => {
 					}
 					case 'newMessage': {
 						const decrypted = await encryptionManager.decrypt(parsedMessage.content)
-						messagesDispatch({type: 'new', payload: {id: parsedMessage.content.id, ...decrypted}})
+						messagesDispatch({type: 'new', payload: {id: parsedMessage.id, ...decrypted}})
 						break
 					}
 					default: {
@@ -92,16 +101,51 @@ export const SocketProvider = ({children}) => {
 		}
 	}
 
+	const initSocket = useCallback(async (getAccessToken) => {
+		if (!initialized) {
+			let token = await getAccessToken()
+			// first we'll make all the requests that we need to initialize everything
+
+			const response = await fetch('http://localhost:6969/api/v1/rpc', {
+				method: 'POST',
+				headers: {
+					'BEC-Client-Key': encryptionManager.publicKey,
+					'Authorization': 'Bearer ' + token,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'getMessages'}),
+				mode: 'cors'
+			})
+			await encryptionManager.setServerKey(response.headers.get("BEC-Server-Key"))
+			if (response.ok) {
+				const responseBody = await response.json()
+				const messages = responseBody.result.map(async message => {
+					const decrypted = await encryptionManager.decrypt(message.content)
+					return {id: message.id, ...decrypted}
+				})
+				Promise.all(messages).then((msgs) => {
+					messagesDispatch({type: 'add', payload: msgs})
+				})
+			}
+			// then we connect the socket
+			connectSocket(token)
+			// then we're done
+			setInitialized(true)
+		}
+	}, [initialized])
+
+
 	useEffect(() => {
 		encryptionManager.init().then(() => {
-			setInitialized(encryptionManager.initialized)
+			setReady(encryptionManager.initialized)
 		})
 	}, [])
 
 	return (
 		<SocketContext.Provider value={{
-			ready: initialized,
-			connectSocket,
+			ready,
+			initialized,
+			initSocket,
 			messageLog: messagesState.messageLog,
 			sendMessage
 		}}>

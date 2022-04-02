@@ -45,32 +45,42 @@ fun Route.withEncryption(callback: Route.() -> Unit): Route {
 
 class Encryption(configuration: PluginConfiguration) {
     private var serverPair: KeyPair
+    private var dbPair: KeyPair
     private var ecKF = KeyFactory.getInstance("EC")
+    private var rsaKF = KeyFactory.getInstance("RSA")
 
     class PluginConfiguration {
         lateinit var publicKeyPath: String
+        lateinit var dbPublicKeyPath: String
         lateinit var privateKeyPath: String
+        lateinit var dbPrivateKeyPath: String
     }
 
-    init {
-        // the server will need the same key pair on restarts, so we want to read them from files
-        val pubKeyFile = File(configuration.publicKeyPath)
-        val privKeyFile = File(configuration.privateKeyPath)
+    fun readOrGenerateKeyPairs(pubKeyPath: String, privKeyPath: String, kf: KeyFactory, keySize: Int): KeyPair {
+        val pubKeyFile = File(pubKeyPath)
+        val privKeyFile = File(privKeyPath)
         if (pubKeyFile.exists() && privKeyFile.exists()) {
             val pubKey = X509EncodedKeySpec(pubKeyFile.readBytes())
             val privKey = PKCS8EncodedKeySpec(privKeyFile.readBytes())
-            serverPair = KeyPair(ecKF.generatePublic(pubKey), ecKF.generatePrivate(privKey))
+            return KeyPair(kf.generatePublic(pubKey), kf.generatePrivate(privKey))
         } else {
             pubKeyFile.parentFile?.mkdirs()
             pubKeyFile.createNewFile()
             privKeyFile.parentFile?.mkdirs()
             privKeyFile.createNewFile()
-            val keyPairGen = KeyPairGenerator.getInstance("EC")
-            keyPairGen.initialize(256)
-            serverPair = keyPairGen.generateKeyPair()
-            pubKeyFile.writeBytes(serverPair.public.encoded)
-            privKeyFile.writeBytes(serverPair.private.encoded)
+            val keyPairGen = KeyPairGenerator.getInstance(kf.algorithm)
+            keyPairGen.initialize(keySize)
+            val keyPair = keyPairGen.generateKeyPair()
+            pubKeyFile.writeBytes(keyPair.public.encoded)
+            privKeyFile.writeBytes(keyPair.private.encoded)
+            return keyPair
         }
+    }
+
+    init {
+        // the server will need the same key pair on restarts, so we want to read them from files
+        serverPair = readOrGenerateKeyPairs(configuration.publicKeyPath, configuration.privateKeyPath, ecKF, 256)
+        dbPair = readOrGenerateKeyPairs(configuration.dbPublicKeyPath, configuration.dbPrivateKeyPath, rsaKF, 1024)
     }
 
     val publicKey: ByteArray
@@ -117,6 +127,18 @@ class Encryption(configuration: PluginConfiguration) {
         return Pair(nonce, cipher.doFinal(content))
     }
 
+    fun serverEncrypt(content: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+        cipher.init(Cipher.ENCRYPT_MODE, dbPair.public)
+        return cipher.doFinal(content)
+    }
+
+    fun serverDecrypt(content: String): ByteArray {
+        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+        cipher.init(Cipher.DECRYPT_MODE, dbPair.private)
+        return cipher.doFinal(Base64.getDecoder().decode(content))
+    }
+
     companion object Feature : ApplicationFeature<ApplicationCallPipeline, PluginConfiguration, Encryption> {
         override val key = AttributeKey<Encryption>("Encryption")
 
@@ -131,5 +153,7 @@ fun Application.configureEncryption() {
     install(Encryption) {
         publicKeyPath = environment.config.property("encryption.public_key").getString()
         privateKeyPath = environment.config.property("encryption.private_key").getString()
+        dbPublicKeyPath = environment.config.property("encryption.db_public_key").getString()
+        dbPrivateKeyPath = environment.config.property("encryption.db_private_key").getString()
     }
 }

@@ -1,18 +1,25 @@
 import {KeycloakContext} from '../contexts/keycloak'
 import {Outlet} from 'react-router-dom'
-import {useContext} from 'react'
+import {useContext, useEffect, useState} from 'react'
 import {Loading} from './Loading'
 import {SocketContext} from '../contexts/socket'
 
 
 export const Landing = () => {
+	const [loading, setLoading] = useState(false)
+
 	const {initialized, isAuthenticated, getToken, keycloak} = useContext(KeycloakContext)
 
-	const {connectSocket, ready} = useContext(SocketContext)
+	const {initSocket, ready, initialized: socketInitialized} = useContext(SocketContext)
 
-	if (initialized && isAuthenticated && ready) {
-		// if we're here, we can try to connect a socket
-		connectSocket(getToken)
+	useEffect(() => {
+		if (initialized && isAuthenticated && ready) {
+			setLoading(true)
+			initSocket(getToken).then(() => setLoading(false))
+		}
+	}, [initialized, isAuthenticated, ready])
+
+	if (!loading && socketInitialized) {
 		return (
 			<main>
 				<Outlet />
