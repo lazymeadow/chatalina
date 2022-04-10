@@ -1,6 +1,5 @@
 package net.chatalina.plugins
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.ktor.application.*
 import io.ktor.http.*
 import io.ktor.request.*
@@ -15,6 +14,7 @@ import java.security.spec.X509EncodedKeySpec
 import java.util.*
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
+import javax.crypto.KeyGenerator
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
@@ -46,17 +46,22 @@ fun Route.withEncryption(callback: Route.() -> Unit): Route {
 class Encryption(configuration: PluginConfiguration) {
     private var serverPair: KeyPair
     private var dbPair: KeyPair
+    private var aesKey: Key
     private var ecKF = KeyFactory.getInstance("EC")
     private var rsaKF = KeyFactory.getInstance("RSA")
+    private var aesKG = KeyGenerator.getInstance("AES")
+    private val rsaAlg = "RSA/ECB/PKCS1Padding"
+    private val aesAlg = "AES/CBC/PKCS5PADDING"
 
     class PluginConfiguration {
         lateinit var publicKeyPath: String
         lateinit var dbPublicKeyPath: String
         lateinit var privateKeyPath: String
         lateinit var dbPrivateKeyPath: String
+        lateinit var dbAesKeyPath: String
     }
 
-    fun readOrGenerateKeyPairs(pubKeyPath: String, privKeyPath: String, kf: KeyFactory, keySize: Int): KeyPair {
+    private fun readOrGenerateKeyPairs(pubKeyPath: String, privKeyPath: String, kf: KeyFactory, keySize: Int): KeyPair {
         val pubKeyFile = File(pubKeyPath)
         val privKeyFile = File(privKeyPath)
         if (pubKeyFile.exists() && privKeyFile.exists()) {
@@ -81,6 +86,24 @@ class Encryption(configuration: PluginConfiguration) {
         // the server will need the same key pair on restarts, so we want to read them from files
         serverPair = readOrGenerateKeyPairs(configuration.publicKeyPath, configuration.privateKeyPath, ecKF, 256)
         dbPair = readOrGenerateKeyPairs(configuration.dbPublicKeyPath, configuration.dbPrivateKeyPath, rsaKF, 1024)
+        // ok now... the AES key for db encryption
+        val aesKeyFile = File(configuration.dbAesKeyPath)
+        if (aesKeyFile.exists()) {
+            // decrypt the key before saving it
+            val cipher = Cipher.getInstance(rsaAlg)
+            cipher.init(Cipher.DECRYPT_MODE, dbPair.private)
+            val keyContent = cipher.doFinal(aesKeyFile.readBytes())
+            aesKey = SecretKeySpec(keyContent, "AES")
+        } else {
+            aesKey = aesKG.generateKey()
+            // encrypt the key before writing it
+            val cipher = Cipher.getInstance(rsaAlg)
+            cipher.init(Cipher.ENCRYPT_MODE, dbPair.public)
+            val keyContent = cipher.doFinal(aesKey.encoded)
+            aesKeyFile.parentFile?.mkdirs()
+            aesKeyFile.createNewFile()
+            aesKeyFile.writeBytes(keyContent)
+        }
     }
 
     val publicKey: ByteArray
@@ -102,10 +125,14 @@ class Encryption(configuration: PluginConfiguration) {
         return ka.generateSecret()
     }
 
-    private fun getAESCipher(key: ByteArray, mode: Int, iv: ByteArray): Cipher {
-        val cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING")
-        cipher.init(mode, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+    private fun getAESCipher(key: Key, mode: Int, iv: ByteArray): Cipher {
+        val cipher = Cipher.getInstance(aesAlg)
+        cipher.init(mode, key, IvParameterSpec(iv))
         return cipher
+    }
+
+    private fun getAESCipher(key: ByteArray, mode: Int, iv: ByteArray): Cipher {
+        return getAESCipher(SecretKeySpec(key, "AES"), mode, iv)
     }
 
     private fun getNonce(): ByteArray {
@@ -114,28 +141,27 @@ class Encryption(configuration: PluginConfiguration) {
         return nonce
     }
 
-    fun decrypt(content: String, iv: String, otherKey: PublicKey): ByteArray {
+    fun decryptEC(content: String, iv: String, otherKey: PublicKey): ByteArray {
         val derivedKey = getDerivedKey(otherKey)
         val cipher = getAESCipher(derivedKey, Cipher.DECRYPT_MODE, Base64.getDecoder().decode(iv))
         return cipher.doFinal(Base64.getDecoder().decode(content))
     }
 
-    fun encrypt(content: ByteArray, otherKey: PublicKey): Pair<ByteArray, ByteArray>  {
+    fun encryptEC(content: ByteArray, otherKey: PublicKey): Pair<ByteArray, ByteArray>  {
         val derivedKey = getDerivedKey(otherKey)
         val nonce = getNonce()
         val cipher = getAESCipher(derivedKey, Cipher.ENCRYPT_MODE, nonce)
         return Pair(nonce, cipher.doFinal(content))
     }
 
-    fun serverEncrypt(content: ByteArray): ByteArray {
-        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-        cipher.init(Cipher.ENCRYPT_MODE, dbPair.public)
-        return cipher.doFinal(content)
+    fun encryptDB(content: ByteArray): Pair<ByteArray, ByteArray> {
+        val nonce = getNonce()
+        val cipher = getAESCipher(aesKey, Cipher.ENCRYPT_MODE, nonce)
+        return Pair(nonce, cipher.doFinal(content))
     }
 
-    fun serverDecrypt(content: String): ByteArray {
-        val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-        cipher.init(Cipher.DECRYPT_MODE, dbPair.private)
+    fun decryptDB(content: String, iv: String): ByteArray {
+        val cipher = getAESCipher(aesKey, Cipher.DECRYPT_MODE, Base64.getDecoder().decode(iv))
         return cipher.doFinal(Base64.getDecoder().decode(content))
     }
 
@@ -155,5 +181,6 @@ fun Application.configureEncryption() {
         privateKeyPath = environment.config.property("encryption.private_key").getString()
         dbPublicKeyPath = environment.config.property("encryption.db_public_key").getString()
         dbPrivateKeyPath = environment.config.property("encryption.db_private_key").getString()
+        dbAesKeyPath = environment.config.property("encryption.db_aes_key").getString()
     }
 }

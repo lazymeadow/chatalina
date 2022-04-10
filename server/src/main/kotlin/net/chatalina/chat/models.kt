@@ -1,6 +1,7 @@
 package net.chatalina.chat
 
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.ktor.features.*
 import java.util.*
@@ -62,15 +63,18 @@ data class RequestBody(
         }
 }
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class MessageContent(
     override val iv: String,
     override val content: String
 ) : RequestContent(iv = iv, content = content)
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class AuthContent(
     override val token: String
 ) : RequestContent(token = token)
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class KeyExchangeContent(
     override val key: String
 ) : RequestContent(key = key)

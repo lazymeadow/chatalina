@@ -13,7 +13,7 @@ import java.security.interfaces.RSAPublicKey
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-class BecAuthentication(private val issuer: String, private val audience: String, jwks: String) {
+class BecAuthentication(private val issuer: String, private val audience: String, private val clientId: String, jwks: String) {
     val jwkProvider: JwkProvider = JwkProviderBuilder(URL(jwks))
         .cached(10, 24, TimeUnit.HOURS)
         .rateLimited(10, 1, TimeUnit.MINUTES)
@@ -27,7 +27,7 @@ class BecAuthentication(private val issuer: String, private val audience: String
     val becVerifier: JWTConfigureFunction = {
         acceptLeeway(5)
         withAudience("account")
-        withClaim("azp", audience)
+        withClaim("azp", clientId)
     }
 
     fun validateJwt(token: String): JWTPrincipal? {
@@ -59,9 +59,10 @@ var ApplicationEnvironment.becAuth: BecAuthentication?
 fun Application.configureSecurity() {
     val issuer = environment.config.property("jwt.issuer").getString()
     val audience = environment.config.property("jwt.audience").getString()
+    val client = environment.config.property("jwt.client").getString()
     val jwks = environment.config.property("jwt.jwks").getString()
 
-    becAuthentication = BecAuthentication(issuer, audience, jwks)
+    becAuthentication = BecAuthentication(issuer, audience, client, jwks)
 
     authentication {
         jwt("obei-bec-parasite") {

@@ -9,15 +9,16 @@ import io.ktor.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import net.chatalina.chat.*
+import net.chatalina.chat.ChatSocketConnection
+import net.chatalina.chat.MessageContent
+import net.chatalina.chat.MessageTypes
+import net.chatalina.chat.ResponseBody
 import net.chatalina.database.Messages
-import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
 import java.security.PublicKey
-import java.security.Security
 import java.util.*
 
 class ChatHandler(
@@ -50,9 +51,10 @@ class ChatHandler(
         return transaction {
             Messages.select { Messages.destination eq jidDomain }.orderBy(Messages.created).map {
                 // 1. db decrypt
-                val decrypted = encryption.serverDecrypt(it[Messages.data])
+                val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
+                val decrypted = encryption.decryptDB(content, iv)
                 // 2. pub key encrypt, serialize
-                val (nonce, encrypted) = encryption.encrypt(decrypted, publicKey)
+                val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
                 ResponseBody(
                     it[Messages.id].value, MessageTypes.NEW_MESSAGE, MessageContent(
                         Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
@@ -64,23 +66,17 @@ class ChatHandler(
     }
 
     private fun encryptToSend(messageId: UUID, publicKey: PublicKey, decrypted: ByteArray): String {
-        val (nonce, encrypted) = encryption.encrypt(
+        val (nonce, encrypted) = encryption.encryptEC(
             decrypted,
             publicKey
         )
         return serializeToSend(
             mapOf(
-                "type" to MessageTypes.NEW_MESSAGE, "content" to
-                        MessageContent(
-                            Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
-                                .encodeToString(encrypted)
-                        )
-//                        mapOf(
-//                            "id" to messageId,
-//                            "iv" to nonce,
-//                            "content" to Base64.getEncoder()
-//                                .encodeToString(encrypted)
-//                        )
+                "type" to MessageTypes.NEW_MESSAGE,
+                "content" to MessageContent(
+                    Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
+                        .encodeToString(encrypted)
+                )
             )
         )
     }
@@ -89,7 +85,7 @@ class ChatHandler(
         // 1. decrypt message
         val (iv, content) = message
         val decrypted =
-            encryption.decrypt(
+            encryption.decryptEC(
                 content,
                 iv,
                 publicKey
@@ -99,11 +95,16 @@ class ChatHandler(
         // 2. encrypt message for db & insert
         // 2.a. we need the destination for indexing and lookups, but it was encrypted
         val destination = mapper.readValue<MessageData>(decrypted).destination
-        val serverEncrypted = encryption.serverEncrypt(decrypted)
+        val (nonce, encrypted) = encryption.encryptDB(decrypted)
         val messageId = transaction {
             Messages.insertAndGetId {
                 it[Messages.destination] = destination
-                it[Messages.data] = Base64.getEncoder().encodeToString(serverEncrypted)
+                it[Messages.data] = mapper.writeValueAsString(
+                    MessageContent(
+                        Base64.getEncoder().encodeToString(nonce),
+                        Base64.getEncoder().encodeToString(encrypted)
+                    )
+                )
             }
         }.value
 
