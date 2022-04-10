@@ -1,6 +1,7 @@
 package net.chatalina.jsonrpc
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.ktor.application.*
@@ -21,10 +22,18 @@ data class Request(val jsonrpc: String?, val id: String?, val method: String?, v
 
 // Responses
 @JsonInclude(JsonInclude.Include.NON_NULL)
-abstract class Response(open val id: String?, val jsonrpc: String = "2.0")
+abstract class Response(
+    open val id: String?,
+    val jsonrpc: String = "2.0",
+    @JsonIgnore open val isEncryptedEndpoint: Boolean = false
+)
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-data class SuccessResponse(override val id: String?, val result: Any?) : Response(id)
+data class SuccessResponse(
+    override val id: String?,
+    val result: Any?,
+    @JsonIgnore override val isEncryptedEndpoint: Boolean = false
+) : Response(id, isEncryptedEndpoint = isEncryptedEndpoint)
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class JsonRpcError(val code: Int, val message: String, @get:JsonProperty("data") var errorDetails: Any? = null)
@@ -52,14 +61,18 @@ data class ErrorResponse(override val id: String?, val error: JsonRpcError) : Re
 
 
 // Results
-data class Result(val statusCode: HttpStatusCode = HttpStatusCode.OK, val response: Response?, val passAlongResult: Any? = null)
+data class Result(
+    val statusCode: HttpStatusCode = HttpStatusCode.OK,
+    val response: Response?,
+    val passAlongResult: Any? = null
+)
 
 fun generateNotificationResult(result: Any?): Result {
     return Result(response = null, passAlongResult = result)
 }
 
-fun generateSuccessResult(id: String?, result: Any?): Result {
-    return Result(HttpStatusCode.OK, SuccessResponse(id, result))
+fun generateSuccessResult(id: String?, result: Any?, encrypted: Boolean = false): Result {
+    return Result(HttpStatusCode.OK, SuccessResponse(id, result, encrypted))
 }
 
 fun generateErrorResult(id: String?, status: JsonRpcStatus, errorDetails: Any? = null): Result {
@@ -161,7 +174,7 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
                 generateErrorResult(rpcBody.id, executionResult.jsonRpcStatus, executionResult.errorMessage)
             } else {
                 // send the result of execution, or no data if we get here and result is null
-                generateSuccessResult(rpcBody.id, executionResult.result)
+                generateSuccessResult(rpcBody.id, executionResult.result, endpoint.encrypted)
             }
         } catch (e: NotImplementedError) {
             return generateErrorResult(

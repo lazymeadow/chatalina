@@ -13,6 +13,7 @@ import net.chatalina.jsonrpc.Request
 import java.io.File
 import java.lang.IllegalArgumentException
 import java.security.PublicKey
+import java.util.*
 
 
 fun Application.configureRouting() {
@@ -56,6 +57,10 @@ fun Application.configureRouting() {
                         call.respond(HttpStatusCode.InternalServerError)
                     } else {
                         val (statusCode, response, _) = jsonrpc.handleRequest(::getBody, ::getPrincipal, ::getClientKey)
+                        if (response?.isEncryptedEndpoint == true) {
+                            val publicKey = call.application.feature(Encryption).publicKey
+                            call.response.header(BEC_SERVER_HEADER, Base64.getEncoder().encodeToString(publicKey))
+                        }
                         call.response.status(statusCode)
                         response?.let {call.respond(response)} ?: finish()
 
