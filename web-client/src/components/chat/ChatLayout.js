@@ -3,23 +3,31 @@ import {KeycloakContext} from '../../contexts/keycloak'
 import {Link} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
 import {faArrowTurnDown} from '@fortawesome/free-solid-svg-icons'
-import {useContext, useRef, useState} from 'react'
+import {useContext, useLayoutEffect, useRef, useState} from 'react'
 import {useChat} from '../../contexts/chat'
+
 
 const MessageLog = ({messages}) => {
 	return (
 		<div className={'log'}>
-			{messages.map((message, index) => <p key={message.id || index}><span style={{fontWeight: "bold"}}>{message.sender || 'sender'}: </span>{message.message}</p>)}
+			{messages.map((message, index) => (
+				<p key={message.id || index}>
+					<span style={{fontWeight: 'bold'}}>
+						{`${message.sender || 'sender'}: `}
+					</span>
+					{message.message}
+				</p>
+			))}
 		</div>
 	)
 }
 
-
 export const ChatLayout = () => {
-	const [typedMessage, setTypedMessage] = useState("")
+	const [typedMessage, setTypedMessage] = useState('')
+	const [lastCount, setLastCount] = useState(0)  // change was triggering twice
 
 	const {profile, getLogoutUrl, getToken} = useContext(KeycloakContext)
-	const {messageLog, sendMessage} = useChat()
+	const {messageLog, sendMessage, notificationCount} = useChat()
 
 	const textareaEl = useRef(null)
 
@@ -27,6 +35,20 @@ export const ChatLayout = () => {
 		sendMessage(profile.username, typedMessage, await getToken())
 		setTypedMessage('')
 	}
+
+	useLayoutEffect(() => {
+		if (notificationCount !== lastCount) {
+			setLastCount(notificationCount)
+			let faviconPath = 'favicon.ico'
+			let windowTitle = process.env.REACT_APP_TITLE
+			if (notificationCount > 0) {
+				faviconPath = 'favicon2.png'
+				windowTitle = `(${notificationCount}) ` + windowTitle
+			}
+			document.getElementById('favicon').href = faviconPath
+			window.document.title = windowTitle
+		}
+	}, [lastCount, notificationCount])
 
 	return (
 		<>
@@ -48,13 +70,15 @@ export const ChatLayout = () => {
 					e.preventDefault()
 					handleSubmitChat()
 				}}>
-					<textarea ref={textareaEl} placeholder={'...'} rows={2} value={typedMessage} onChange={e => setTypedMessage(e.target.value)} onKeyDown={(e) => {
+					<textarea ref={textareaEl} placeholder={'...'} rows={2} value={typedMessage}
+							  onChange={e => setTypedMessage(e.target.value)} onKeyDown={(e) => {
 						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault()
 							handleSubmitChat()
 						}
-					}}/>
-					<button aria-label={'Send'} disabled={typedMessage.trim().length <= 0}><FontAwesomeIcon icon={faArrowTurnDown} rotation={90} size={'2x'}/></button>
+					}} />
+					<button aria-label={'Send'} disabled={typedMessage.trim().length <= 0}><FontAwesomeIcon
+						icon={faArrowTurnDown} rotation={90} size={'2x'} /></button>
 				</form>
 			</div>
 		</>

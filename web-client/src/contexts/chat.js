@@ -22,11 +22,41 @@ function messageReducer(state, action) {
 	}
 }
 
+function notificationsReducer(state, action) {
+	switch(action.type) {
+		case 'enable':
+			return {...state, enabled: true}
+		case 'disable':
+			return {...state, enabled: false, count: 0}
+		case 'notify':
+			return {...state, count: state.count + 1}
+		default:
+			return state
+	}
+}
+
+function getNotificationsInitialState() {
+	return {
+		enabled: !window.document.hasFocus(),
+		count: 0
+	}
+}
+
 export const ChatProvider = ({children}) => {
 	const [ready, setReady] = useState(false)
 	const [initialized, setInitialized] = useState(false)
 	const [initializing, setInitializing] = useState(false)
+
 	const [messagesState, messagesDispatch] = useReducer(messageReducer, {messageLog: []})
+	const [notificationsState, notificationsDispatch] = useReducer(notificationsReducer, {}, getNotificationsInitialState)
+
+	const handleWindowFocus = useCallback(() => {
+		notificationsDispatch({type: 'disable'})
+	}, [])
+
+	const handleWindowBlur = useCallback(() => {
+		notificationsDispatch({type: 'enable'})
+	}, [])
 
 	const sendMessage = async (sender, messageText, accessToken) => {
 		if (encryptionManager.serverKey === null) {
@@ -39,7 +69,7 @@ export const ChatProvider = ({children}) => {
 				sender,
 				destination: 'bec'
 			})
-			const response = await fetch('http://localhost:6969/api/v1/rpc', {
+			const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
 				method: 'POST',
 				headers: {
 					'BEC-Client-Key': encryptionManager.publicKey,
@@ -55,9 +85,38 @@ export const ChatProvider = ({children}) => {
 		}
 	}
 
-	const connectSocket = async (token) => {
+	const handleMessage = useCallback(async (messageEvent) => {
+		const parsedMessage = JSON.parse(messageEvent.data)
+		switch (parsedMessage.type) {
+			case 'keyExchange': {
+				// step 2: when server sends its key, send our key back
+				// TODO: don't let chat be used until this happens
+				await encryptionManager.setServerKey(parsedMessage.content.key)
+				websocket.send(JSON.stringify({
+					jsonrpc: '2.0',
+					method: 'keyExchange',
+					params: {key: encryptionManager.publicKey}
+				}))
+				break
+			}
+			case 'newMessage': {
+				const decrypted = await encryptionManager.decrypt(parsedMessage.content)
+				messagesDispatch({type: 'new', payload: {id: parsedMessage.id, ...decrypted}})
+				if (notificationsState.enabled) {
+					notificationsDispatch({type: 'notify'})
+				}
+				break
+			}
+			default: {
+				console.log('hmmm', parsedMessage)
+			}
+		}
+	}, [notificationsState.enabled])
+
+	const connectSocket = useCallback((token) => {
 		if (websocket == null) {
-			websocket = new WebSocket('ws://localhost:6969/chat')
+			websocket = new WebSocket(`ws://${process.env.REACT_APP_SERVER_HOST}/chat`)
+
 			websocket.onopen = () => {
 				console.log(':)')
 				// step 1: send access token to server
@@ -68,47 +127,23 @@ export const ChatProvider = ({children}) => {
 				console.log(':(')
 				// add timeout
 				websocket = null
-				// connectSocket(getAccessToken)
 			}
 
 			websocket.onerror = (event) => {
 				console.error(event)
 			}
 
-			websocket.onmessage = async messageEvent => {
-				const parsedMessage = JSON.parse(messageEvent.data)
-				switch (parsedMessage.type) {
-					case 'keyExchange': {
-						// step 2: when server sends its key, send our key back
-						// TODO: don't let chat be used until this happens
-						await encryptionManager.setServerKey(parsedMessage.content.key)
-						websocket.send(JSON.stringify({
-							jsonrpc: '2.0',
-							method: 'keyExchange',
-							params: {key: encryptionManager.publicKey}
-						}))
-						break
-					}
-					case 'newMessage': {
-						const decrypted = await encryptionManager.decrypt(parsedMessage.content)
-						messagesDispatch({type: 'new', payload: {id: parsedMessage.id, ...decrypted}})
-						break
-					}
-					default: {
-						console.log('hmmm', parsedMessage)
-					}
-				}
-			}
+			websocket.onmessage = handleMessage
 		}
-	}
+	}, [handleMessage])
 
 	const initSocket = useCallback(async (getAccessToken) => {
 		if (!initialized && !initializing) {
 			setInitializing(true)
 			let token = await getAccessToken()
-			// first we'll make all the requests that we need to initialize everything
 
-			const response = await fetch('http://localhost:6969/api/v1/rpc', {
+			// first we'll make all the requests that we need to initialize everything
+			const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
 				method: 'POST',
 				headers: {
 					'BEC-Client-Key': encryptionManager.publicKey,
@@ -118,8 +153,8 @@ export const ChatProvider = ({children}) => {
 				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'getMessages'}),
 				mode: 'cors'
 			})
-			await encryptionManager.setServerKey(response.headers.get("BEC-Server-Key"))
 			if (response.ok) {
+				await encryptionManager.setServerKey(response.headers.get("BEC-Server-Key"))
 				const responseBody = await response.json()
 				const messages = responseBody.result.map(async message => {
 					const decrypted = await encryptionManager.decrypt(message.content)
@@ -135,14 +170,22 @@ export const ChatProvider = ({children}) => {
 			setInitialized(true)
 			setInitializing(false)
 		}
-	}, [initialized, initializing])
+	}, [initialized, initializing, connectSocket])
 
 
 	useEffect(() => {
+		window.onblur = handleWindowBlur
+		window.onfocus = handleWindowFocus
+
 		encryptionManager.init().then(() => {
 			setReady(encryptionManager.initialized)
 		})
-	}, [])
+	}, [handleWindowBlur, handleWindowFocus])
+
+	useEffect(() => {
+		// for websocket to know about changed react callback, we must reset the handler when changed
+		if (!!websocket) websocket.onmessage = handleMessage
+	}, [handleMessage])
 
 	return (
 		<ChatContext.Provider value={{
@@ -150,7 +193,8 @@ export const ChatProvider = ({children}) => {
 			initialized,
 			initSocket,
 			messageLog: messagesState.messageLog,
-			sendMessage
+			sendMessage,
+			notificationCount: notificationsState.count
 		}}>
 			{children}
 		</ChatContext.Provider>
