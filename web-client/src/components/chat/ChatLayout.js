@@ -4,7 +4,7 @@ import {Link} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
 import {faArrowTurnDown} from '@fortawesome/free-solid-svg-icons'
 import {useContext, useRef, useState} from 'react'
-import {SocketContext} from '../../contexts/socket'
+import {useChat} from '../../contexts/chat'
 
 const MessageLog = ({messages}) => {
 	return (
@@ -19,8 +19,7 @@ export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState("")
 
 	const {profile, getLogoutUrl, getToken} = useContext(KeycloakContext)
-
-	const {messageLog, sendMessage} = useContext(SocketContext)
+	const {messageLog, sendMessage} = useChat()
 
 	const textareaEl = useRef(null)
 

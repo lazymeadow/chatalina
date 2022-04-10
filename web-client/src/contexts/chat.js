@@ -1,12 +1,12 @@
-import {createContext, useCallback, useEffect, useReducer, useState} from 'react'
+import {createContext, useCallback, useContext, useEffect, useReducer, useState} from 'react'
 import EncryptionManager from '../util/encryption'
 
+const ChatContext = createContext()
+ChatContext.displayName = 'BestEvarChatContext'
 
-export const SocketContext = createContext()
-SocketContext.displayName = 'BestEvarSocketContext'
+export const useChat = () => useContext(ChatContext)
 
 let websocket = null
-// the socket is the only place we're encrypting/decrypting messages, so keep the encryption manager here
 const encryptionManager = new EncryptionManager()
 
 function messageReducer(state, action) {
@@ -22,9 +22,10 @@ function messageReducer(state, action) {
 	}
 }
 
-export const SocketProvider = ({children}) => {
+export const ChatProvider = ({children}) => {
 	const [ready, setReady] = useState(false)
 	const [initialized, setInitialized] = useState(false)
+	const [initializing, setInitializing] = useState(false)
 	const [messagesState, messagesDispatch] = useReducer(messageReducer, {messageLog: []})
 
 	const sendMessage = async (sender, messageText, accessToken) => {
@@ -102,7 +103,8 @@ export const SocketProvider = ({children}) => {
 	}
 
 	const initSocket = useCallback(async (getAccessToken) => {
-		if (!initialized) {
+		if (!initialized && !initializing) {
+			setInitializing(true)
 			let token = await getAccessToken()
 			// first we'll make all the requests that we need to initialize everything
 
@@ -131,8 +133,9 @@ export const SocketProvider = ({children}) => {
 			connectSocket(token)
 			// then we're done
 			setInitialized(true)
+			setInitializing(false)
 		}
-	}, [initialized])
+	}, [initialized, initializing])
 
 
 	useEffect(() => {
@@ -142,7 +145,7 @@ export const SocketProvider = ({children}) => {
 	}, [])
 
 	return (
-		<SocketContext.Provider value={{
+		<ChatContext.Provider value={{
 			ready,
 			initialized,
 			initSocket,
@@ -150,6 +153,6 @@ export const SocketProvider = ({children}) => {
 			sendMessage
 		}}>
 			{children}
-		</SocketContext.Provider>
+		</ChatContext.Provider>
 	)
 }
