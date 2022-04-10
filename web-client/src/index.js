@@ -1,17 +1,45 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
-import './index.css';
-import BestEvarChatRoot from './components/BestEvarChatRoot';
-import reportWebVitals from './reportWebVitals';
+import React from 'react'
+import ReactDOM from 'react-dom'
+import './index.css'
+import BestEvarChatRoot from './components/BestEvarChatRoot'
+import reportWebVitals from './reportWebVitals'
+
 
 ReactDOM.render(
-  <React.StrictMode>
-    <BestEvarChatRoot />
-  </React.StrictMode>,
-  document.getElementById('root')
-);
+	<React.StrictMode>
+		<BestEvarChatRoot />
+	</React.StrictMode>,
+	document.getElementById('root')
+)
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+reportWebVitals()
+
+console.log(
+	' ░▀█▀░▀█▀░█▀▀░░░▀█▀░█░█░█▀▀░░░█▀▀░█░█░█▀▀░█░█░▀█▀░█▀█                  \n'
+	+ ' ░░█░░░█░░▀▀█░░░░█░░█▀█░█▀▀░░░█▀▀░█░█░█░░░█▀▄░░█░░█░█                 \n'
+	+ ' ░▀▀▀░░▀░░▀▀▀░░░░▀░░▀░▀░▀▀▀░░░▀░░░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░▀                 \n'
+	+ '                                                                      \n'
+	+ ' ██████╗██╗  ██╗ █████╗ ████████╗ █████╗ ██╗     ██╗███╗   ██╗ █████╗ \n'
+	+ '██╔════╝██║  ██║██╔══██╗╚══██╔══╝██╔══██╗██║     ██║████╗  ██║██╔══██╗\n'
+	+ '██║     ███████║███████║   ██║   ███████║██║     ██║██╔██╗ ██║███████║\n'
+	+ '██║     ██╔══██║██╔══██║   ██║   ██╔══██║██║     ██║██║╚██╗██║██╔══██║\n'
+	+ '╚██████╗██║  ██║██║  ██║   ██║   ██║  ██║███████╗██║██║ ╚████║██║  ██║\n'
+	+ ' ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝\n'
+	+ '                                                                      \n'
+	+ '██╗    ██╗██╗███╗   ██╗███████╗                                       \n'
+	+ '██║    ██║██║████╗  ██║██╔════╝                                       \n'
+	+ '██║ █╗ ██║██║██╔██╗ ██║█████╗                                         \n'
+	+ '██║███╗██║██║██║╚██╗██║██╔══╝                                         \n'
+	+ '╚███╔███╔╝██║██║ ╚████║███████╗                                       \n'
+	+ ' ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚══════╝                                       \n'
+	+ '                                                                      \n'
+	+ '███╗   ███╗██╗██╗  ██╗███████╗██████╗                                 \n'
+	+ '████╗ ████║██║╚██╗██╔╝██╔════╝██╔══██╗                                \n'
+	+ '██╔████╔██║██║ ╚███╔╝ █████╗  ██████╔╝                                \n'
+	+ '██║╚██╔╝██║██║ ██╔██╗ ██╔══╝  ██╔══██╗                                \n'
+	+ '██║ ╚═╝ ██║██║██╔╝ ██╗███████╗██║  ██║                                \n'
+	+ '╚═╝     ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                                '
+)
