@@ -29,7 +29,7 @@ function notificationsReducer(state, action) {
 		case 'disable':
 			return {...state, enabled: false, count: 0}
 		case 'notify':
-			return {...state, count: state.count + 1}
+			return {...state, count: state.enabled ? (state.count + 1) : 0}
 		default:
 			return state
 	}
@@ -102,16 +102,15 @@ export const ChatProvider = ({children}) => {
 			case 'newMessage': {
 				const decrypted = await encryptionManager.decrypt(parsedMessage.content)
 				messagesDispatch({type: 'new', payload: {id: parsedMessage.id, ...decrypted}})
-				if (notificationsState.enabled) {
-					notificationsDispatch({type: 'notify'})
-				}
+				notificationsDispatch({type: 'notify'})
+
 				break
 			}
 			default: {
 				console.log('hmmm', parsedMessage)
 			}
 		}
-	}, [notificationsState.enabled])
+	}, [])
 
 	const connectSocket = useCallback((token) => {
 		if (websocket == null) {
