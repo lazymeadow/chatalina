@@ -3,7 +3,7 @@ import {KeycloakContext} from '../../contexts/keycloak'
 import {Link} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
 import {faArrowTurnDown} from '@fortawesome/free-solid-svg-icons'
-import {useContext, useLayoutEffect, useRef, useState} from 'react'
+import {useContext, useLayoutEffect, useState} from 'react'
 import {useChat} from '../../contexts/chat'
 
 
@@ -26,13 +26,11 @@ export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState('')
 	const [lastCount, setLastCount] = useState(0)  // change was triggering twice
 
-	const {profile, getLogoutUrl, getToken} = useContext(KeycloakContext)
-	const {messageLog, sendMessage, notificationCount} = useChat()
-
-	const textareaEl = useRef(null)
+	const {getLogoutUrl} = useContext(KeycloakContext)
+	const {messageLog, sendMessage, notificationCount, profile} = useChat()
 
 	async function handleSubmitChat() {
-		sendMessage(profile.username, typedMessage, await getToken())
+		sendMessage(typedMessage)
 		setTypedMessage('')
 	}
 
@@ -70,13 +68,15 @@ export const ChatLayout = () => {
 					e.preventDefault()
 					handleSubmitChat()
 				}}>
-					<textarea ref={textareaEl} placeholder={'...'} rows={2} value={typedMessage}
-							  onChange={e => setTypedMessage(e.target.value)} onKeyDown={(e) => {
-						if (e.key === 'Enter' && !e.shiftKey) {
-							e.preventDefault()
-							handleSubmitChat()
-						}
-					}} />
+					<textarea placeholder={'...'} rows={2} value={typedMessage}
+							  onChange={e => setTypedMessage(e.target.value)}
+							  onKeyDown={(e) => {
+								  if (e.key === 'Enter' && !e.shiftKey) {
+									  e.preventDefault()
+									  handleSubmitChat()
+								  }
+							  }}
+					/>
 					<button aria-label={'Send'} disabled={typedMessage.trim().length <= 0}><FontAwesomeIcon
 						icon={faArrowTurnDown} rotation={90} size={'2x'} /></button>
 				</form>

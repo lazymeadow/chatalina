@@ -1,5 +1,7 @@
-import {createContext, useCallback, useContext, useEffect, useReducer, useState} from 'react'
+import {createContext, useCallback, useContext, useEffect, useReducer, useRef, useState} from 'react'
 import EncryptionManager from '../util/encryption'
+import {KeycloakContext} from './keycloak'
+
 
 const ChatContext = createContext()
 ChatContext.displayName = 'BestEvarChatContext'
@@ -13,23 +15,30 @@ function messageReducer(state, action) {
 	switch (action.type) {
 		case 'add':
 			// filter out the messages that are already in there
-			const msgsToAdd = action.payload.filter(msg => !!state.messageLog.find(m => m.id === msg.id) !== true)
-			return {...state, messageLog: [...state.messageLog, ...msgsToAdd]}
+			const msgsToAdd = action.payload.filter(msg => !!state.log.find(m => m.id === msg.id) !== true)
+			return {...state, log: [...state.log, ...msgsToAdd]}
 		case 'new':
-			return {...state, messageLog: [...state.messageLog, action.payload]}
+			return {...state, log: [...state.log, action.payload]}
 		default:
 			return state
 	}
 }
 
 function notificationsReducer(state, action) {
-	switch(action.type) {
+	switch (action.type) {
+		case 'allowSound':
+			return {...state, allowSound: true}
 		case 'enable':
 			return {...state, enabled: true}
 		case 'disable':
 			return {...state, enabled: false, count: 0}
 		case 'notify':
-			return {...state, count: state.enabled ? (state.count + 1) : 0}
+			return {
+				...state,
+				count: state.enabled ? (
+					state.count + 1
+				) : 0
+			}
 		default:
 			return state
 	}
@@ -38,27 +47,35 @@ function notificationsReducer(state, action) {
 function getNotificationsInitialState() {
 	return {
 		enabled: !window.document.hasFocus(),
+		// if the window isn't focused when this page loads, we won't allow sound until it DOES get focus
+		allowSound: window.document.hasFocus(),
 		count: 0
 	}
 }
 
 export const ChatProvider = ({children}) => {
-	const [ready, setReady] = useState(false)
 	const [initialized, setInitialized] = useState(false)
 	const [initializing, setInitializing] = useState(false)
 
-	const [messagesState, messagesDispatch] = useReducer(messageReducer, {messageLog: []})
-	const [notificationsState, notificationsDispatch] = useReducer(notificationsReducer, {}, getNotificationsInitialState)
+	const {profile, getToken, initialized: authInitialized, isAuthenticated} = useContext(KeycloakContext)
+
+	const [messagesState, messagesDispatch] = useReducer(messageReducer, { log: []})
+	const [notificationsState, notificationsDispatch] = useReducer(
+		notificationsReducer,
+		{},
+		getNotificationsInitialState
+	)
 
 	const handleWindowFocus = useCallback(() => {
 		notificationsDispatch({type: 'disable'})
+		notificationsDispatch({type: 'allowSound'})
 	}, [])
 
 	const handleWindowBlur = useCallback(() => {
 		notificationsDispatch({type: 'enable'})
 	}, [])
 
-	const sendMessage = async (sender, messageText, accessToken) => {
+	const sendMessage = async (messageText) => {
 		if (encryptionManager.serverKey === null) {
 			console.error('unable to send messages before key exchange')
 		}
@@ -66,9 +83,10 @@ export const ChatProvider = ({children}) => {
 			const encrypted = await encryptionManager.encrypt({
 				type: 'text',
 				message: messageText,
-				sender,
+				sender: profile.username,
 				destination: 'bec'
 			})
+			const accessToken = await getToken()
 			const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
 				method: 'POST',
 				headers: {
@@ -97,20 +115,30 @@ export const ChatProvider = ({children}) => {
 					method: 'keyExchange',
 					params: {key: encryptionManager.publicKey}
 				}))
+				// NOW we're done...
+				setInitialized(true)
+				setInitializing(false)
 				break
 			}
 			case 'newMessage': {
 				const decrypted = await encryptionManager.decrypt(parsedMessage.content)
 				messagesDispatch({type: 'new', payload: {id: parsedMessage.id, ...decrypted}})
 				notificationsDispatch({type: 'notify'})
-
+				if (notificationsState.allowSound) {
+					if (decrypted.sender === profile.username) {
+						sentSoundRef.current?.play()
+					}
+					else {
+						receiveSoundRef.current?.play()
+					}
+				}
 				break
 			}
 			default: {
 				console.log('hmmm', parsedMessage)
 			}
 		}
-	}, [])
+	}, [notificationsState.allowSound, profile.username])
 
 	const connectSocket = useCallback((token) => {
 		if (websocket == null) {
@@ -126,6 +154,7 @@ export const ChatProvider = ({children}) => {
 				console.log(':(')
 				// add timeout
 				websocket = null
+				window.confirm(":( your socket disconnected. you should refresh the page.")
 			}
 
 			websocket.onerror = (event) => {
@@ -136,10 +165,10 @@ export const ChatProvider = ({children}) => {
 		}
 	}, [handleMessage])
 
-	const initSocket = useCallback(async (getAccessToken) => {
+	const initSocket = useCallback(async () => {
 		if (!initialized && !initializing) {
 			setInitializing(true)
-			let token = await getAccessToken()
+			let token = await getToken()
 
 			// first we'll make all the requests that we need to initialize everything
 			const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
@@ -153,7 +182,7 @@ export const ChatProvider = ({children}) => {
 				mode: 'cors'
 			})
 			if (response.ok) {
-				await encryptionManager.setServerKey(response.headers.get("BEC-Server-Key"))
+				await encryptionManager.setServerKey(response.headers.get('BEC-Server-Key'))
 				const responseBody = await response.json()
 				const messages = responseBody.result.map(async message => {
 					const decrypted = await encryptionManager.decrypt(message.content)
@@ -166,36 +195,81 @@ export const ChatProvider = ({children}) => {
 			// then we connect the socket
 			connectSocket(token)
 			// then we're done
-			setInitialized(true)
-			setInitializing(false)
+			// setInitialized(true)
+			// setInitializing(false)
+			console.log(
+				' ░▀█▀░▀█▀░█▀▀░░░▀█▀░█░█░█▀▀░░░█▀▀░█░█░█▀▀░█░█░▀█▀░█▀█                  \n'
+				+ ' ░░█░░░█░░▀▀█░░░░█░░█▀█░█▀▀░░░█▀▀░█░█░█░░░█▀▄░░█░░█░█                 \n'
+				+ ' ░▀▀▀░░▀░░▀▀▀░░░░▀░░▀░▀░▀▀▀░░░▀░░░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░▀                 \n'
+				+ '                                                                      \n'
+				+ ' ██████╗██╗  ██╗ █████╗ ████████╗ █████╗ ██╗     ██╗███╗   ██╗ █████╗ \n'
+				+ '██╔════╝██║  ██║██╔══██╗╚══██╔══╝██╔══██╗██║     ██║████╗  ██║██╔══██╗\n'
+				+ '██║     ███████║███████║   ██║   ███████║██║     ██║██╔██╗ ██║███████║\n'
+				+ '██║     ██╔══██║██╔══██║   ██║   ██╔══██║██║     ██║██║╚██╗██║██╔══██║\n'
+				+ '╚██████╗██║  ██║██║  ██║   ██║   ██║  ██║███████╗██║██║ ╚████║██║  ██║\n'
+				+ ' ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝\n'
+				+ '                                                                      \n'
+				+ '██╗    ██╗██╗███╗   ██╗███████╗                                       \n'
+				+ '██║    ██║██║████╗  ██║██╔════╝                                       \n'
+				+ '██║ █╗ ██║██║██╔██╗ ██║█████╗                                         \n'
+				+ '██║███╗██║██║██║╚██╗██║██╔══╝                                         \n'
+				+ '╚███╔███╔╝██║██║ ╚████║███████╗                                       \n'
+				+ ' ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚══════╝                                       \n'
+				+ '                                                                      \n'
+				+ '███╗   ███╗██╗██╗  ██╗███████╗██████╗                                 \n'
+				+ '████╗ ████║██║╚██╗██╔╝██╔════╝██╔══██╗                                \n'
+				+ '██╔████╔██║██║ ╚███╔╝ █████╗  ██████╔╝                                \n'
+				+ '██║╚██╔╝██║██║ ██╔██╗ ██╔══╝  ██╔══██╗                                \n'
+				+ '██║ ╚═╝ ██║██║██╔╝ ██╗███████╗██║  ██║                                \n'
+				+ '╚═╝     ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                                '
+			)
 		}
-	}, [initialized, initializing, connectSocket])
+	}, [initialized, initializing, getToken, connectSocket])
 
 
 	useEffect(() => {
 		window.onblur = handleWindowBlur
 		window.onfocus = handleWindowFocus
 
-		encryptionManager.init().then(() => {
-			setReady(encryptionManager.initialized)
-		})
-	}, [handleWindowBlur, handleWindowFocus])
+		if (!encryptionManager.initialized) {
+			encryptionManager.init()
+		}
+		else if (authInitialized && isAuthenticated) {
+			initSocket()
+		}
+
+	}, [authInitialized, handleWindowBlur, handleWindowFocus, initSocket, isAuthenticated])
 
 	useEffect(() => {
 		// for websocket to know about changed react callback, we must reset the handler when changed
-		if (!!websocket) websocket.onmessage = handleMessage
-	}, [handleMessage])
+		if (!!websocket && initialized) {
+			websocket.onmessage = handleMessage
+		}
+	}, [initialized, handleMessage])
+
+	const sentSoundRef = useRef(null)
+	const receiveSoundRef = useRef(null)
 
 	return (
 		<ChatContext.Provider value={{
-			ready,
+			authInitialized,
+			isAuthenticated,
+			profile,
 			initialized,
 			initSocket,
-			messageLog: messagesState.messageLog,
+			messageLog: messagesState.log,
 			sendMessage,
 			notificationCount: notificationsState.count
 		}}>
 			{children}
+			<audio ref={sentSoundRef}
+				   type={'audio/mpeg'}
+				   src={'https://audio.bestevarchat.com/AIM/message-send.wav'}
+			/>
+			<audio ref={receiveSoundRef}
+				   type={'audio/mpeg'}
+				   src={'https://audio.bestevarchat.com/AIM/message-receive.wav'}
+			/>
 		</ChatContext.Provider>
 	)
 }
