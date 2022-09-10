@@ -1,10 +1,13 @@
 import {Landing} from './Landing'
-import {BrowserRouter, useRoutes} from 'react-router-dom'
+import {BrowserRouter, Navigate, useRoutes} from 'react-router-dom'
 import {ChatLayout} from './chat/ChatLayout'
 import {Settings} from './settings/Settings'
-import {KeycloakProvider} from '../contexts/keycloak'
 import {ChatProvider} from '../contexts/chat'
 
+
+const Login = () => {
+	return <Navigate to={'/'} replace={true} />
+}
 
 function BestEvarChatRoutes() {
 	return useRoutes([
@@ -23,6 +26,10 @@ function BestEvarChatRoutes() {
 			]
 		},
 		{
+			path: '/login',
+			element: <Login />
+		},
+		{
 			path: '/privacy',
 			element: <main><h1>Privacy Policy</h1><p>:)</p></main>
 		},
@@ -35,13 +42,11 @@ function BestEvarChatRoutes() {
 
 function BestEvarChatRoot() {
 	return (
-		<KeycloakProvider>
-			<ChatProvider>
-					<BrowserRouter>
-						<BestEvarChatRoutes />
-					</BrowserRouter>
-			</ChatProvider>
-		</KeycloakProvider>
+		<ChatProvider>
+			<BrowserRouter>
+				<BestEvarChatRoutes />
+			</BrowserRouter>
+		</ChatProvider>
 	)
 }
 

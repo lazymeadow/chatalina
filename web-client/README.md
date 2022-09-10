@@ -68,3 +68,44 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+
+
+#### notes for self
+```
+function strToArr(str) {
+    let raw = atob(str)
+    let array = new Uint8Array(new ArrayBuffer(raw.length))
+    for (i=0; i<raw.length; i++) {
+        array[i] = raw.charCodeAt(i)
+    }
+    return array
+}
+const enc = new TextEncoder()
+const dec = new TextDecoder()
+const curveDefinition = {name: "ECDH", namedCurve: "P-256"}
+```
+- java security utils are generating spki keys, not raw:
+```
+let serverKey = window.crypto.subtle.importKey(
+    "spki",
+    strToArr(serverKeyString),
+    curveDefinition,
+    false,  // no reason to export the server's pubkey
+    []  // MUST be empty when importing pub key :/
+);
+```
+- that means you also need to export keys as spki
+```
+const keyPair = await window.crypto.subtle.generateKey(
+    curveDefinition,
+    true,
+    ["deriveKey", "deriveBits"]
+);
+const publicKeyRaw = await window.crypto.subtle.exportKey(
+    "spki",
+    keyPair.publicKey
+);
+
+console.log(btoa(String.fromCharCode.apply(null, new Uint8Array(publicKeyRaw))))
+```

@@ -1,10 +1,10 @@
 import './ChatLayout.css'
-import {KeycloakContext} from '../../contexts/keycloak'
 import {Link} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
 import {faArrowTurnDown} from '@fortawesome/free-solid-svg-icons'
-import {useContext, useLayoutEffect, useState} from 'react'
+import {useLayoutEffect, useState} from 'react'
 import {useChat} from '../../contexts/chat'
+import {Authentication} from '../../util/authentication'
 
 
 const MessageLog = ({messages}) => {
@@ -26,8 +26,7 @@ export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState('')
 	const [lastCount, setLastCount] = useState(0)  // change was triggering twice
 
-	const {getLogoutUrl} = useContext(KeycloakContext)
-	const {messageLog, sendMessage, notificationCount, profile} = useChat()
+	const {messageLog, sendMessage, notificationCount} = useChat()
 
 	async function handleSubmitChat() {
 		sendMessage(typedMessage)
@@ -52,13 +51,13 @@ export const ChatLayout = () => {
 		<>
 			<div className={'ChatLayout-left'}>
 				<h1> chat :)</h1>
-				<p>hi, {profile.username}</p>
+				<p>hi, {Authentication.getProfile().username || 'there'}</p>
 				<div className={'scrolly-bit'}>
 					<p>scrolly stuff</p>
 				</div>
 				<div className={'bottom-stuff'}>
 					<Link to={'/settings'}>Settings</Link>
-					<a href={getLogoutUrl()}>Log out</a>
+					<a href={Authentication.getLogoutUrl()}>Log out</a>
 				</div>
 			</div>
 			<div className={'ChatLayout-right'}>

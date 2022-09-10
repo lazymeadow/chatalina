@@ -1,6 +1,6 @@
 import {createContext, useCallback, useContext, useEffect, useReducer, useRef, useState} from 'react'
-import EncryptionManager from '../util/encryption'
-import {KeycloakContext} from './keycloak'
+import {useEncryption} from '../util/encryption'
+import {Authentication} from '../util/authentication'
 
 
 const ChatContext = createContext()
@@ -9,7 +9,6 @@ ChatContext.displayName = 'BestEvarChatContext'
 export const useChat = () => useContext(ChatContext)
 
 let websocket = null
-const encryptionManager = new EncryptionManager()
 
 function messageReducer(state, action) {
 	switch (action.type) {
@@ -54,12 +53,11 @@ function getNotificationsInitialState() {
 }
 
 export const ChatProvider = ({children}) => {
+	const {initialized: encryptionInitialized, encryption} = useEncryption()
 	const [initialized, setInitialized] = useState(false)
 	const [initializing, setInitializing] = useState(false)
 
-	const {profile, getToken, initialized: authInitialized, isAuthenticated} = useContext(KeycloakContext)
-
-	const [messagesState, messagesDispatch] = useReducer(messageReducer, { log: []})
+	const [messagesState, messagesDispatch] = useReducer(messageReducer, {log: []})
 	const [notificationsState, notificationsDispatch] = useReducer(
 		notificationsReducer,
 		{},
@@ -76,28 +74,28 @@ export const ChatProvider = ({children}) => {
 	}, [])
 
 	const sendMessage = async (messageText) => {
-		if (encryptionManager.serverKey === null) {
+		if (encryption.serverKey === null) {
 			console.error('unable to send messages before key exchange')
 		}
 		else {
-			const encrypted = await encryptionManager.encrypt({
+			const encrypted = await encryption.encrypt({
 				type: 'text',
 				message: messageText,
-				sender: profile.username,
+				sender: Authentication.getProfile().username,
 				destination: 'bec'
 			})
-			const accessToken = await getToken()
 			const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
 				method: 'POST',
 				headers: {
-					'BEC-Client-Key': encryptionManager.publicKey,
-					'Authorization': 'Bearer ' + accessToken,
+					'BEC-Client-Key': encryption.getPublicKey(),
+					'Authorization': 'Bearer ' + Authentication.getToken(),
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'sendMessage', params: encrypted}),
 				mode: 'cors'
 			})
 			if (!response.ok) {
+				console.log(response)
 				console.error('error sending message')
 			}
 		}
@@ -109,11 +107,11 @@ export const ChatProvider = ({children}) => {
 			case 'keyExchange': {
 				// step 2: when server sends its key, send our key back
 				// TODO: don't let chat be used until this happens
-				await encryptionManager.setServerKey(parsedMessage.content.key)
+				await encryption.setServerKey(parsedMessage.content.key)
 				websocket.send(JSON.stringify({
 					jsonrpc: '2.0',
 					method: 'keyExchange',
-					params: {key: encryptionManager.publicKey}
+					params: {key: encryption.getPublicKey()}
 				}))
 				// NOW we're done...
 				setInitialized(true)
@@ -121,11 +119,11 @@ export const ChatProvider = ({children}) => {
 				break
 			}
 			case 'newMessage': {
-				const decrypted = await encryptionManager.decrypt(parsedMessage.content)
+				const decrypted = await encryption.decrypt(parsedMessage.content)
 				messagesDispatch({type: 'new', payload: {id: parsedMessage.id, ...decrypted}})
 				notificationsDispatch({type: 'notify'})
 				if (notificationsState.allowSound) {
-					if (decrypted.sender === profile.username) {
+					if (decrypted.sender === Authentication.getProfile().username) {
 						sentSoundRef.current?.play()
 					}
 					else {
@@ -138,7 +136,7 @@ export const ChatProvider = ({children}) => {
 				console.log('hmmm', parsedMessage)
 			}
 		}
-	}, [notificationsState.allowSound, profile.username])
+	}, [notificationsState.allowSound, encryption])
 
 	const connectSocket = useCallback((token) => {
 		if (websocket == null) {
@@ -154,7 +152,7 @@ export const ChatProvider = ({children}) => {
 				console.log(':(')
 				// add timeout
 				websocket = null
-				window.confirm(":( your socket disconnected. you should refresh the page.")
+				window.confirm(':( your socket disconnected. you should refresh the page.')
 			}
 
 			websocket.onerror = (event) => {
@@ -165,80 +163,82 @@ export const ChatProvider = ({children}) => {
 		}
 	}, [handleMessage])
 
-	const initSocket = useCallback(async () => {
-		if (!initialized && !initializing) {
-			setInitializing(true)
-			let token = await getToken()
+	const initChat = useCallback(async () => {
+			if (encryptionInitialized && !initialized && !initializing) {
+				window.onblur = handleWindowBlur
+				window.onfocus = handleWindowFocus
 
-			// first we'll make all the requests that we need to initialize everything
-			const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
-				method: 'POST',
-				headers: {
-					'BEC-Client-Key': encryptionManager.publicKey,
-					'Authorization': 'Bearer ' + token,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'getMessages'}),
-				mode: 'cors'
-			})
-			if (response.ok) {
-				await encryptionManager.setServerKey(response.headers.get('BEC-Server-Key'))
-				const responseBody = await response.json()
-				const messages = responseBody.result.map(async message => {
-					const decrypted = await encryptionManager.decrypt(message.content)
-					return {id: message.id, ...decrypted}
+				setInitializing(true)
+				// first we'll make all the requests that we need to initialize everything
+				const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
+					method: 'POST',
+					headers: {
+						'BEC-Client-Key': encryption.getPublicKey(),
+						'Authorization': 'Bearer ' + Authentication.getToken(),
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'getMessages'}),
+					mode: 'cors'
 				})
-				Promise.all(messages).then((msgs) => {
-					messagesDispatch({type: 'add', payload: msgs})
-				})
+				if (response.ok) {
+					await encryption.setServerKey(response.headers.get('BEC-Server-Key'))
+					const responseBody = await response.json()
+					const messages = responseBody.result.map(async message => {
+						const decrypted = await encryption.decrypt(message.content)
+						return {id: message.id, ...decrypted}
+					})
+					Promise.all(messages).then((msgs) => {
+						messagesDispatch({type: 'add', payload: msgs})
+					})
+				}
+				// then we connect the socket
+				connectSocket(Authentication.getToken())
+				// then we're done
+				// setInitialized(true)
+				// setInitializing(false)
+				console.log(
+					' ░▀█▀░▀█▀░█▀▀░░░▀█▀░█░█░█▀▀░░░█▀▀░█░█░█▀▀░█░█░▀█▀░█▀█                  \n'
+					+ ' ░░█░░░█░░▀▀█░░░░█░░█▀█░█▀▀░░░█▀▀░█░█░█░░░█▀▄░░█░░█░█                 \n'
+					+ ' ░▀▀▀░░▀░░▀▀▀░░░░▀░░▀░▀░▀▀▀░░░▀░░░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░▀                 \n'
+					+ '                                                                      \n'
+					+ ' ██████╗██╗  ██╗ █████╗ ████████╗ █████╗ ██╗     ██╗███╗   ██╗ █████╗ \n'
+					+ '██╔════╝██║  ██║██╔══██╗╚══██╔══╝██╔══██╗██║     ██║████╗  ██║██╔══██╗\n'
+					+ '██║     ███████║███████║   ██║   ███████║██║     ██║██╔██╗ ██║███████║\n'
+					+ '██║     ██╔══██║██╔══██║   ██║   ██╔══██║██║     ██║██║╚██╗██║██╔══██║\n'
+					+ '╚██████╗██║  ██║██║  ██║   ██║   ██║  ██║███████╗██║██║ ╚████║██║  ██║\n'
+					+ ' ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝\n'
+					+ '                                                                      \n'
+					+ '██╗    ██╗██╗███╗   ██╗███████╗                                       \n'
+					+ '██║    ██║██║████╗  ██║██╔════╝                                       \n'
+					+ '██║ █╗ ██║██║██╔██╗ ██║█████╗                                         \n'
+					+ '██║███╗██║██║██║╚██╗██║██╔══╝                                         \n'
+					+ '╚███╔███╔╝██║██║ ╚████║███████╗                                       \n'
+					+ ' ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚══════╝                                       \n'
+					+ '                                                                      \n'
+					+ '███╗   ███╗██╗██╗  ██╗███████╗██████╗                                 \n'
+					+ '████╗ ████║██║╚██╗██╔╝██╔════╝██╔══██╗                                \n'
+					+ '██╔████╔██║██║ ╚███╔╝ █████╗  ██████╔╝                                \n'
+					+ '██║╚██╔╝██║██║ ██╔██╗ ██╔══╝  ██╔══██╗                                \n'
+					+ '██║ ╚═╝ ██║██║██╔╝ ██╗███████╗██║  ██║                                \n'
+					+ '╚═╝     ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                                '
+				)
 			}
-			// then we connect the socket
-			connectSocket(token)
-			// then we're done
-			// setInitialized(true)
-			// setInitializing(false)
-			console.log(
-				' ░▀█▀░▀█▀░█▀▀░░░▀█▀░█░█░█▀▀░░░█▀▀░█░█░█▀▀░█░█░▀█▀░█▀█                  \n'
-				+ ' ░░█░░░█░░▀▀█░░░░█░░█▀█░█▀▀░░░█▀▀░█░█░█░░░█▀▄░░█░░█░█                 \n'
-				+ ' ░▀▀▀░░▀░░▀▀▀░░░░▀░░▀░▀░▀▀▀░░░▀░░░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░▀                 \n'
-				+ '                                                                      \n'
-				+ ' ██████╗██╗  ██╗ █████╗ ████████╗ █████╗ ██╗     ██╗███╗   ██╗ █████╗ \n'
-				+ '██╔════╝██║  ██║██╔══██╗╚══██╔══╝██╔══██╗██║     ██║████╗  ██║██╔══██╗\n'
-				+ '██║     ███████║███████║   ██║   ███████║██║     ██║██╔██╗ ██║███████║\n'
-				+ '██║     ██╔══██║██╔══██║   ██║   ██╔══██║██║     ██║██║╚██╗██║██╔══██║\n'
-				+ '╚██████╗██║  ██║██║  ██║   ██║   ██║  ██║███████╗██║██║ ╚████║██║  ██║\n'
-				+ ' ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝\n'
-				+ '                                                                      \n'
-				+ '██╗    ██╗██╗███╗   ██╗███████╗                                       \n'
-				+ '██║    ██║██║████╗  ██║██╔════╝                                       \n'
-				+ '██║ █╗ ██║██║██╔██╗ ██║█████╗                                         \n'
-				+ '██║███╗██║██║██║╚██╗██║██╔══╝                                         \n'
-				+ '╚███╔███╔╝██║██║ ╚████║███████╗                                       \n'
-				+ ' ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚══════╝                                       \n'
-				+ '                                                                      \n'
-				+ '███╗   ███╗██╗██╗  ██╗███████╗██████╗                                 \n'
-				+ '████╗ ████║██║╚██╗██╔╝██╔════╝██╔══██╗                                \n'
-				+ '██╔████╔██║██║ ╚███╔╝ █████╗  ██████╔╝                                \n'
-				+ '██║╚██╔╝██║██║ ██╔██╗ ██╔══╝  ██╔══██╗                                \n'
-				+ '██║ ╚═╝ ██║██║██╔╝ ██╗███████╗██║  ██║                                \n'
-				+ '╚═╝     ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                                '
-			)
-		}
-	}, [initialized, initializing, getToken, connectSocket])
+		},
+		[
+			initialized,
+			initializing,
+			handleWindowBlur,
+			handleWindowFocus,
+			connectSocket,
+			encryptionInitialized,
+			encryption
+		]
+	)
 
 
 	useEffect(() => {
-		window.onblur = handleWindowBlur
-		window.onfocus = handleWindowFocus
-
-		if (!encryptionManager.initialized) {
-			encryptionManager.init()
-		}
-		else if (authInitialized && isAuthenticated) {
-			initSocket()
-		}
-
-	}, [authInitialized, handleWindowBlur, handleWindowFocus, initSocket, isAuthenticated])
+		initChat()
+	}, [initChat, encryptionInitialized])
 
 	useEffect(() => {
 		// for websocket to know about changed react callback, we must reset the handler when changed
@@ -252,11 +252,8 @@ export const ChatProvider = ({children}) => {
 
 	return (
 		<ChatContext.Provider value={{
-			authInitialized,
-			isAuthenticated,
-			profile,
 			initialized,
-			initSocket,
+			initSocket: initChat,
 			messageLog: messagesState.log,
 			sendMessage,
 			notificationCount: notificationsState.count
