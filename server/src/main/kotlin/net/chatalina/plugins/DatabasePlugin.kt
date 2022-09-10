@@ -1,6 +1,6 @@
 package net.chatalina.plugins
 
-import io.ktor.application.*
+import io.ktor.server.application.*
 import io.ktor.util.*
 import net.chatalina.database.Messages
 import net.chatalina.database.Settings
@@ -18,6 +18,7 @@ import javax.sql.DataSource
 class DatabasePlugin(configuration: PluginConfiguration) {
     private var dataSource: DataSource = PGSimpleDataSource().apply {
         setURL(configuration.url)
+        databaseName = configuration.database
         user = configuration.user
         password = configuration.password
     }
@@ -65,7 +66,7 @@ class DatabasePlugin(configuration: PluginConfiguration) {
         }
     }
 
-    companion object Feature : ApplicationFeature<ApplicationCallPipeline, PluginConfiguration, DatabasePlugin> {
+    companion object Feature : BaseApplicationPlugin<ApplicationCallPipeline, PluginConfiguration, DatabasePlugin> {
         override val key = AttributeKey<DatabasePlugin>("flyway")
 
         override fun install(

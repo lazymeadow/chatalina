@@ -1,17 +1,15 @@
 package net.chatalina.plugins
 
-import io.ktor.application.*
-import io.ktor.auth.*
-import io.ktor.auth.jwt.*
-import io.ktor.features.*
 import io.ktor.http.*
-import io.ktor.request.*
-import io.ktor.response.*
-import io.ktor.routing.*
-import net.chatalina.jsonrpc.JsonRpc
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import net.chatalina.jsonrpc.Request
 import java.io.File
-import java.lang.IllegalArgumentException
 import java.security.PublicKey
 import java.util.*
 
@@ -36,7 +34,7 @@ fun Application.configureRouting() {
                             val authToken = call.request.authorization()?.substringAfter("Bearer ")
                             authToken?.let {
                                 try {
-                                    environment.becAuth?.validateJwt(it)
+                                    application.environment.becAuth?.validateJwt(it)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                     null
@@ -48,23 +46,17 @@ fun Application.configureRouting() {
                     }
 
                     fun getClientKey(): PublicKey? {
-                        return application.feature(Encryption).validateAndGetPublicKey(call.request.clientKey)
+                        return application.encryption.validateAndGetPublicKey(call.request.clientKey)
                     }
 
-                    val jsonrpc = featureOrNull(JsonRpc)
-                    if (jsonrpc == null) {
-                        log.error("Missing JsonRpc feature, request cannot be completed")
-                        call.respond(HttpStatusCode.InternalServerError)
-                    } else {
-                        val (statusCode, response, _) = jsonrpc.handleRequest(::getBody, ::getPrincipal, ::getClientKey)
-                        if (response?.isEncryptedEndpoint == true) {
-                            val publicKey = call.application.feature(Encryption).publicKey
-                            call.response.header(BEC_SERVER_HEADER, Base64.getEncoder().encodeToString(publicKey))
-                        }
-                        call.response.status(statusCode)
-                        response?.let {call.respond(response)} ?: finish()
-
+                    val jsonrpc = application.jsonRpc
+                    val (statusCode, response, _) = jsonrpc.handleRequest(::getBody, ::getPrincipal, ::getClientKey)
+                    if (response?.isEncryptedEndpoint == true) {
+                        val publicKey = call.application.encryption.publicKey
+                        call.response.header(BEC_SERVER_HEADER, Base64.getEncoder().encodeToString(publicKey))
                     }
+                    call.response.status(statusCode)
+                    response?.let { call.respond(response) } ?: finish()
                 }
             }
 
@@ -75,7 +67,7 @@ fun Application.configureRouting() {
                     }
 
                     post("/test/server-key") {
-                        val publicKey = application.feature(Encryption).publicKey
+                        val publicKey = application.encryption.publicKey
                         call.respond(mapOf("publicKey" to publicKey))
                     }
                 }
@@ -88,14 +80,14 @@ fun Application.configureRouting() {
                 call.respondFile(File("src/main/resources/keystore.jks"))
             }
         }
+    }
 
-        install(StatusPages) {
-            exception<AuthenticationException> {
-                call.respond(HttpStatusCode.Unauthorized)
-            }
-            exception<AuthorizationException> {
-                call.respond(HttpStatusCode.Forbidden)
-            }
+    install(StatusPages) {
+        exception<AuthenticationException> { call, _ ->
+            call.respond(HttpStatusCode.Unauthorized)
+        }
+        exception<AuthorizationException> { call, _ ->
+            call.respond(HttpStatusCode.Forbidden)
         }
     }
 }

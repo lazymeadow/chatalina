@@ -4,14 +4,14 @@ package net.chatalina.jsonrpc
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import io.ktor.application.*
-import io.ktor.auth.jwt.*
-import io.ktor.config.*
 import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.config.*
 import io.ktor.util.*
 import io.ktor.utils.io.errors.*
 import net.chatalina.jsonrpc.endpoints.Endpoint
-import net.chatalina.plugins.ChatHandler
+import net.chatalina.plugins.chatHandler
 import org.slf4j.Logger
 import java.security.PublicKey
 
@@ -183,16 +183,17 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
                 "method '${rpcBody.method}' has not yet been implemented."
             )
         } catch (e: Throwable) {
-            logger.error(e)
+            logger.error("Error processing request")
+            e.printStackTrace()
             return generateErrorResult(rpcBody.id, JsonRpcStatus.SERVER_ERROR)
         }
     }
 
-    companion object Feature : ApplicationFeature<Application, Configuration, JsonRpc> {
+    companion object Feature : BaseApplicationPlugin<Application, Configuration, JsonRpc> {
         override val key = AttributeKey<JsonRpc>("JsonRPC")
 
         override fun install(pipeline: Application, configure: Configuration.() -> Unit): JsonRpc {
-            val chatHandler = pipeline.feature(ChatHandler)
+            val chatHandler = pipeline.chatHandler
             pipeline.log.debug("Reticulating JSON-RPC Endpoints...")
             // skip all the abstract classes, they're important but also irrelevant.
             val endpoints: Map<String, Endpoint> = Endpoint::class.sealedSubclasses.filter { !it.isAbstract }

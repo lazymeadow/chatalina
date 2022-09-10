@@ -29,14 +29,14 @@ object SendMessage : EncryptedEndpoint(), Endpoint {
                 )
             }
             if (response == null) {
-                ExecutionResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "invalid key")
+                ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "invalid key")
             } else {
-                ExecutionResult(JsonRpcStatus.EXCELLENT, response)
+                ExecutionResult.createResult(JsonRpcStatus.EXCELLENT, response)
             }
         } catch (e: InvalidAlgorithmParameterException) {
-            ExecutionResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad iv")
+            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad iv")
         } catch (e: IllegalBlockSizeException) {
-            ExecutionResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad content")
+            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad content")
         }
     }
 }

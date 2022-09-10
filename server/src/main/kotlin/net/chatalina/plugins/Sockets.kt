@@ -5,16 +5,15 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import com.fasterxml.jackson.module.kotlin.readValue
-import io.ktor.application.*
-import io.ktor.auth.jwt.*
-import io.ktor.features.*
-import io.ktor.http.cio.websocket.*
-import io.ktor.routing.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.*
+import io.ktor.server.routing.*
+import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import net.chatalina.chat.ChatSocketConnection
 import net.chatalina.chat.MessageTypes
-import net.chatalina.jsonrpc.JsonRpc
 import net.chatalina.jsonrpc.Request
 import net.chatalina.jsonrpc.endpoints.Authorization
 import net.chatalina.jsonrpc.endpoints.KeyExchange
@@ -37,14 +36,14 @@ fun Application.configureSockets() {
 
     routing {
         webSocket("/chat") {
-            val chatHandler = feature(ChatHandler)
+            val chatHandler = application.chatHandler
             // set up a new connection instance for this session
             val thisChatSocketConnection = ChatSocketConnection(this)
             // add this connection to the handler
             chatHandler.currentSocketConnections.add(thisChatSocketConnection)
             try {
                 for (frame in incoming) {
-                    val mapper = jacksonMapper
+                    val mapper = application.jacksonMapper
                     when (frame) {
                         is Frame.Text -> {
                             try {
@@ -61,34 +60,29 @@ fun Application.configureSockets() {
                                     return thisChatSocketConnection.publicKey
                                 }
 
-                                val jsonrpc = featureOrNull(JsonRpc)
-                                if (jsonrpc == null) {
-                                    log.error("Missing JsonRpc feature, request cannot be completed")
-                                    outgoing.close()
-                                } else {
-                                    val (_, _, passAlongResult) = jsonrpc.handleRequest(
-                                        ::getBody,
-                                        ::getPrincipal,
-                                        ::getClientKey,
-                                        executingInSocket = true
-                                    )
-                                    if (body.method == Authorization.methodName) {
-                                        // okay this is not great. but when we get a principal result, set it,
-                                        //   then initiate key exchange via socket.
-                                        thisChatSocketConnection.principal =
-                                            passAlongResult as JWTPrincipal? ?: throw BadAuthException()
-                                        val encryption = application.feature(Encryption)
-                                        chatHandler.sendToConnection(
-                                            thisChatSocketConnection, mapOf(
-                                                "type" to MessageTypes.KEY_EXCHANGE,
-                                                "content" to mapOf("key" to encryption.publicKey)
-                                            )
+                                val jsonrpc = application.jsonRpc
+                                val (_, _, passAlongResult) = jsonrpc.handleRequest(
+                                    ::getBody,
+                                    ::getPrincipal,
+                                    ::getClientKey,
+                                    executingInSocket = true
+                                )
+                                if (body.method == Authorization.methodName) {
+                                    // okay this is not great. but when we get a principal result, set it,
+                                    //   then initiate key exchange via socket.
+                                    thisChatSocketConnection.principal =
+                                        passAlongResult as JWTPrincipal? ?: throw BadAuthException()
+                                    val encryption = application.encryption
+                                    chatHandler.sendToConnection(
+                                        thisChatSocketConnection, mapOf(
+                                            "type" to MessageTypes.KEY_EXCHANGE,
+                                            "content" to mapOf("key" to encryption.publicKey)
                                         )
-                                    } else if (body.method == KeyExchange.methodName && passAlongResult != null) {
-                                        val encryption = application.feature(Encryption)
-                                        thisChatSocketConnection.publicKey =
-                                            encryption.validateAndGetPublicKey(passAlongResult.toString())
-                                    }
+                                    )
+                                } else if (body.method == KeyExchange.methodName && passAlongResult != null) {
+                                    val encryption = application.encryption
+                                    thisChatSocketConnection.publicKey =
+                                        encryption.validateAndGetPublicKey(passAlongResult.toString())
                                 }
                             } catch (e: MissingKotlinParameterException) {
                                 outgoing.send(Frame.Text("{\"error\": \"missing field: ${e.parameter.name}, ${e.parameter.type}\"}"))
@@ -109,13 +103,14 @@ fun Application.configureSockets() {
                                 outgoing.close(e)
                             }
                         }
+
                         else -> {
                             outgoing.send(Frame.Text("huh???"))
                         }
                     }
                 }
             } catch (e: ClosedReceiveChannelException) {
-                log.info("onClose ${closeReason.await()}")
+                application.log.info("onClose ${closeReason.await()}")
             } finally {
                 chatHandler.currentSocketConnections.remove(thisChatSocketConnection)
             }

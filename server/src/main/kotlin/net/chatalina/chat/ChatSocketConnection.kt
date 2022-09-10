@@ -1,8 +1,8 @@
 package net.chatalina.chat
 
-import io.ktor.application.*
-import io.ktor.auth.jwt.*
-import io.ktor.http.cio.websocket.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import java.security.PublicKey

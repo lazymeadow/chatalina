@@ -1,6 +1,6 @@
 package net.chatalina
 
-import io.ktor.application.*
+import io.ktor.server.application.*
 import net.chatalina.plugins.*
 
 fun main(args: Array<String>): Unit =
@@ -14,7 +14,6 @@ fun Application.module() {
     configureHTTP()
     configureSecurity()
     configureMonitoring()
-    configureAdministration()
 
     configureSerialization()
     configureEncryption()

@@ -5,15 +5,20 @@ import com.auth0.jwk.JwkProviderBuilder
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.impl.JWTParser
-import io.ktor.application.*
-import io.ktor.auth.*
-import io.ktor.auth.jwt.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
 import java.net.URL
 import java.security.interfaces.RSAPublicKey
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-class BecAuthentication(private val issuer: String, private val audience: String, private val clientId: String, jwks: String) {
+class BecAuthentication(
+    private val issuer: String,
+    private val audience: String,
+    private val clientId: String,
+    jwks: String
+) {
     val jwkProvider: JwkProvider = JwkProviderBuilder(URL(jwks))
         .cached(10, 24, TimeUnit.HOURS)
         .rateLimited(10, 1, TimeUnit.MINUTES)

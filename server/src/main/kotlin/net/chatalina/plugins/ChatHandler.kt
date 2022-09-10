@@ -2,9 +2,9 @@ package net.chatalina.plugins
 
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import io.ktor.application.*
-import io.ktor.auth.jwt.*
-import io.ktor.config.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.config.*
 import io.ktor.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -128,12 +128,12 @@ class ChatHandler(
         return ResponseBody(messageId, MessageTypes.NEW_MESSAGE, message)
     }
 
-    companion object Feature : ApplicationFeature<Application, PluginConfiguration, ChatHandler> {
+    companion object Feature : BaseApplicationPlugin<Application, PluginConfiguration, ChatHandler> {
         override val key = AttributeKey<ChatHandler>("chatHandler")
 
         override fun install(pipeline: Application, configure: PluginConfiguration.() -> Unit): ChatHandler {
             val configuration = PluginConfiguration().apply(configure)
-            val encryption = pipeline.feature(Encryption)
+            val encryption = pipeline.encryption
             val jacksonMapper = pipeline.jacksonMapper
             val log = pipeline.log
             val becAuth = pipeline.environment.becAuth
@@ -155,3 +155,6 @@ fun Application.configureChatHandler() {
         jidDomain = environment.config.property("bec.jid_domain").getString()
     }
 }
+
+val Application.chatHandler: ChatHandler
+    get() = this.plugin(ChatHandler)

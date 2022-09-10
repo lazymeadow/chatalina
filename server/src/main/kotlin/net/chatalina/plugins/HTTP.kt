@@ -1,26 +1,30 @@
 package net.chatalina.plugins
 
-import io.ktor.application.*
-import io.ktor.features.*
 import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.plugins.conditionalheaders.*
+import io.ktor.server.plugins.cors.routing.*
+import io.ktor.server.plugins.defaultheaders.*
 
 fun Application.configureHTTP() {
+    val clientIsSsl = environment.config.propertyOrNull("bec.client_ssl")?.getString() === "true"
+    val clientDomain = environment.config.property("bec.client_domain").getString()
+
     install(ConditionalHeaders)
     install(CORS) {
-        method(HttpMethod.Options)
-        method(HttpMethod.Put)
-        method(HttpMethod.Patch)
-        method(HttpMethod.Delete)
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Patch)
+        allowMethod(HttpMethod.Delete)
 
-        header(HttpHeaders.Authorization)
-        header(HttpHeaders.ContentType)
-        header(HttpHeaders.AccessControlAllowOrigin)
+        allowHeader(HttpHeaders.Authorization)
+        allowHeader(HttpHeaders.ContentType)
+        allowHeader(HttpHeaders.AccessControlAllowOrigin)
         // stupid cors headers lowercase to normalize but don't do the same when processing prefix predicates
         allowHeadersPrefixed("bec-")
         exposeHeader(BEC_SERVER_HEADER)
 
-        val clientIsSsl = environment.config.propertyOrNull("bec.client_ssl")?.getString() === "true"
-        host(environment.config.property("bec.client_domain").getString(), listOf(if (clientIsSsl) "https" else "http"), listOf())
+        allowHost(clientDomain, listOf(if (clientIsSsl) "https" else "http"), listOf())
     }
     install(DefaultHeaders)
 }

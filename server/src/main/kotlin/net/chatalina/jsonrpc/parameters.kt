@@ -1,7 +1,6 @@
 package net.chatalina.jsonrpc
 
 import io.ktor.util.reflect.*
-import net.chatalina.chat.MessageTypes
 import java.util.*
 
 

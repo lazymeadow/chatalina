@@ -1,7 +1,7 @@
 package net.chatalina.jsonrpc.endpoints
 
 
-import io.ktor.auth.jwt.*
+import io.ktor.server.auth.jwt.*
 import net.chatalina.jsonrpc.JsonRpcStatus
 import net.chatalina.jsonrpc.Parameter
 import net.chatalina.plugins.ChatHandler
@@ -34,16 +34,27 @@ data class ExecutionResult(
             return resultList ?: resultMap ?: resultAny
         }
 
-    constructor(jsonRpcStatus: JsonRpcStatus, result: Any?) : this(jsonRpcStatus, null, null, result, null)
-    constructor(jsonRpcStatus: JsonRpcStatus, result: Map<String, Any>) : this(jsonRpcStatus, result, null, null, null)
-    constructor(jsonRpcStatus: JsonRpcStatus, result: List<Any>) : this(jsonRpcStatus, null, result, null, null)
-    constructor(jsonRpcStatus: JsonRpcStatus, result: Any?, errorMessage: String) : this(
-        jsonRpcStatus,
-        null,
-        null,
-        result,
-        errorMessage
-    )
+    companion object Factory {
+        fun createMapResult(
+            jsonRpcStatus: JsonRpcStatus,
+            result: Map<String, Any>,
+            errorMessage: String? = null
+        ): ExecutionResult {
+            return ExecutionResult(jsonRpcStatus, result, null, null, errorMessage)
+        }
+
+        fun createListResult(
+            jsonRpcStatus: JsonRpcStatus,
+            result: List<Any>,
+            errorMessage: String? = null
+        ): ExecutionResult {
+            return ExecutionResult(jsonRpcStatus, null, result, null, errorMessage)
+        }
+
+        fun createResult(jsonRpcStatus: JsonRpcStatus, result: Any?, errorMessage: String? = null): ExecutionResult {
+            return ExecutionResult(jsonRpcStatus, null, null, result, errorMessage)
+        }
+    }
 }
 
 typealias ParameterList = List<Parameter>

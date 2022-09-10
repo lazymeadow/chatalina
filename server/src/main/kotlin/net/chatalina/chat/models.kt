@@ -3,7 +3,7 @@ package net.chatalina.chat
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import io.ktor.features.*
+import io.ktor.server.plugins.*
 import java.util.*
 
 
@@ -27,6 +27,7 @@ enum class MessageTypes(private val value: String) {
         fun validValues(): List<String> {
             return values().filter { it != UNKNOWN }.map { it.value }
         }
+
         fun valueOrNull(string: String): MessageTypes? {
             return values().find { it.value == string }
         }
@@ -49,9 +50,11 @@ data class RequestBody(
         get() = when (type) {
             MessageTypes.AUTHORIZATION -> contentMap["token"]?.let { AuthContent(it) }
                 ?: throw BadRequestException("token missing from authorization")
+
             MessageTypes.KEY_EXCHANGE -> contentMap["key"]?.let { KeyExchangeContent(it) } ?: throw BadRequestException(
                 "key missing from key exchange"
             )
+
             MessageTypes.SEND_MESSAGE -> {
                 val iv = contentMap["iv"] ?: throw BadRequestException("iv missing from encrypted message")
                 val messageContent =
@@ -59,6 +62,7 @@ data class RequestBody(
                 if (messageContent.isBlank()) throw BadRequestException("content missing from encrypted message")
                 MessageContent(iv, messageContent)
             }
+
             else -> throw BadRequestException("invalid message type for request")
         }
 }

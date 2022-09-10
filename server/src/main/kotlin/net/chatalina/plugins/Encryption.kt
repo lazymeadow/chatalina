@@ -1,10 +1,10 @@
 package net.chatalina.plugins
 
-import io.ktor.application.*
 import io.ktor.http.*
-import io.ktor.request.*
-import io.ktor.response.*
-import io.ktor.routing.*
+import io.ktor.server.application.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import io.ktor.util.*
 import java.io.File
 import java.security.*
@@ -30,12 +30,12 @@ fun Route.withEncryption(callback: Route.() -> Unit): Route {
             RouteSelectorEvaluation.Constant
     })
 
-    routeWithEncryption.intercept(ApplicationCallPipeline.Features) {
+    routeWithEncryption.intercept(ApplicationCallPipeline.Setup) {
         if (call.request.clientKey.isBlank()) {
             call.respond(HttpStatusCode.BadRequest, "Missing header $BEC_CLIENT_HEADER")
             return@intercept finish()
         }
-        val publicKey = call.application.feature(Encryption).publicKey
+        val publicKey = application.encryption.publicKey
         call.response.header(BEC_SERVER_HEADER, Base64.getEncoder().encodeToString(publicKey))
     }
     callback(routeWithEncryption)
@@ -165,7 +165,7 @@ class Encryption(configuration: PluginConfiguration) {
         return cipher.doFinal(Base64.getDecoder().decode(content))
     }
 
-    companion object Feature : ApplicationFeature<ApplicationCallPipeline, PluginConfiguration, Encryption> {
+    companion object Feature : BaseApplicationPlugin<ApplicationCallPipeline, PluginConfiguration, Encryption> {
         override val key = AttributeKey<Encryption>("Encryption")
 
         override fun install(pipeline: ApplicationCallPipeline, configure: PluginConfiguration.() -> Unit): Encryption {
@@ -184,3 +184,6 @@ fun Application.configureEncryption() {
         dbAesKeyPath = environment.config.property("encryption.db_aes_key").getString()
     }
 }
+
+val Application.encryption: Encryption
+    get() = this.plugin(Encryption)
