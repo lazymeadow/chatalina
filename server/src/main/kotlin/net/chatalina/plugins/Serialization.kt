@@ -3,6 +3,7 @@ package net.chatalina.plugins
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonMapperBuilder
 import io.ktor.http.*
 import io.ktor.serialization.jackson.*
@@ -16,7 +17,7 @@ val Application.jacksonMapper: JsonMapper
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
         .enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE)
         .enable(DeserializationFeature.READ_ENUMS_USING_TO_STRING)
-        .findAndAddModules()
+        .addModule(JavaTimeModule())
         .build()
 
 fun Application.configureSerialization() {
