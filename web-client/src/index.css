@@ -27,3 +27,7 @@ body a:hover {
 body a > svg {
   margin-left: 5px;
 }
+
+input, textarea {
+  font: 14px Amiko, sans-serif;
+}
