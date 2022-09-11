@@ -25,6 +25,8 @@ const MessageLog = ({messages}) => {
 	)
 }
 
+let autoScroll = true
+
 export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState('')
 	const [lastCount, setLastCount] = useState(0)  // change was triggering twice
@@ -35,6 +37,19 @@ export const ChatLayout = () => {
 		sendMessage(typedMessage)
 		setTypedMessage('')
 	}
+
+	function updateAutoScroll(event) {
+		const eventLog = event.currentTarget
+		const scrollThreshold = ((eventLog.scrollHeight / 4) > 100) ? (eventLog.scrollHeight / 4) : 100
+		autoScroll = Math.abs(eventLog.scrollTopMax - eventLog.scrollTop) < scrollThreshold
+	}
+
+	useLayoutEffect(() => {
+		if (autoScroll) {
+			const log = document.getElementById('middle')
+			!!log && log.scrollTo({top: log.scrollTopMax})
+		}
+	}, [messageLog])
 
 	useLayoutEffect(() => {
 		if (notificationCount !== lastCount) {
@@ -65,7 +80,9 @@ export const ChatLayout = () => {
 			</div>
 			<div className={'ChatLayout-right'}>
 				<div className={'top-part'}>context</div>
-				<MessageLog messages={messageLog} />
+				<div className={'middle-guy'} id={'middle'} onScrollCapture={updateAutoScroll}>
+					<MessageLog messages={messageLog} />
+				</div>
 				<form className={'bottom-bar'} onSubmit={e => {
 					e.preventDefault()
 					handleSubmitChat()

@@ -37,17 +37,22 @@
     border-bottom: 1px solid lightgray;
 }
 
-.ChatLayout-right > .log {
+.ChatLayout-right > .middle-guy {
     flex: 1 1 auto;
     display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    overflow: auto;
-
     white-space: pre-wrap;
+    overflow: auto;
 }
 
-.ChatLayout-right > .log > p {
+.ChatLayout-right > .middle-guy > .log {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: min-content;
+    margin-top: auto;
+}
+
+.ChatLayout-right > .middle-guy > .log > p {
     margin: 0;
     padding: 0;
 }
