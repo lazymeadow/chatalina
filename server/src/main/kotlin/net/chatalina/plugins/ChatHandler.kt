@@ -50,7 +50,7 @@ class ChatHandler(
 
     fun getMessages(publicKey: PublicKey): List<ResponseBody> {
         return transaction {
-            Messages.select { Messages.destination eq jidDomain }.orderBy(Messages.created).map {
+            Messages.select { Messages.destination eq jidDomain }.orderBy(Messages.created).limit(100).map {
                 // 1. db decrypt
                 val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
                 val decrypted = encryption.decryptDB(content, iv)
@@ -96,20 +96,20 @@ class ChatHandler(
 
         // 2. encrypt message for db & insert
         // 2.a. we need the destination for indexing and lookups, but it was encrypted
-        val destination = mapper.readValue<MessageData>(decrypted).destination
+        val dest = mapper.readValue<MessageData>(decrypted).destination
         val (nonce, encrypted) = encryption.encryptDB(decrypted)
         val now = Instant.now()
         val messageId = transaction {
             Messages.insertAndGetId {
-                it[Messages.destination] = destination
-                it[Messages.data] = mapper.writeValueAsString(
+                it[destination] = dest
+                it[data] = mapper.writeValueAsString(
                     MessageContent(
                         Base64.getEncoder().encodeToString(nonce),
                         Base64.getEncoder().encodeToString(encrypted)
                     )
                 )
-                it[Messages.created] = now
-                it[Messages.updated] = now
+                it[created] = now
+                it[updated] = now
             }
         }.value
 
