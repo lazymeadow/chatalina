@@ -13,8 +13,10 @@ import io.ktor.server.plugins.contentnegotiation.*
 val Application.jacksonMapper: JsonMapper
     get() = jacksonMapperBuilder()
         .enable(SerializationFeature.WRITE_ENUMS_USING_TO_STRING)
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
         .enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE)
         .enable(DeserializationFeature.READ_ENUMS_USING_TO_STRING)
+        .findAndAddModules()
         .build()
 
 fun Application.configureSerialization() {

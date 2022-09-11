@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import io.ktor.server.plugins.*
+import java.time.Instant
 import java.util.*
 
 
@@ -37,7 +38,8 @@ enum class MessageTypes(private val value: String) {
 data class ResponseBody(
     val id: UUID,
     val type: MessageTypes,
-    val content: MessageContent
+    val content: MessageContent,
+    val time: Instant
 )
 
 data class RequestBody(
