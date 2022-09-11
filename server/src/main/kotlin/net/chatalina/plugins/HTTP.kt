@@ -7,7 +7,7 @@ import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.defaultheaders.*
 
 fun Application.configureHTTP() {
-    val clientIsSsl = environment.config.propertyOrNull("bec.client_ssl")?.getString() === "true"
+    val clientIsSsl = environment.config.propertyOrNull("bec.client_ssl")?.getString().toBoolean()
     val clientDomain = environment.config.property("bec.client_domain").getString()
 
     install(ConditionalHeaders)
@@ -23,6 +23,8 @@ fun Application.configureHTTP() {
         // stupid cors headers lowercase to normalize but don't do the same when processing prefix predicates
         allowHeadersPrefixed("bec-")
         exposeHeader(BEC_SERVER_HEADER)
+
+        allowCredentials = true
 
         allowHost(clientDomain, listOf(if (clientIsSsl) "https" else "http"), listOf())
     }

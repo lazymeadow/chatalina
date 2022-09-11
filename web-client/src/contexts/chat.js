@@ -8,6 +8,8 @@ ChatContext.displayName = 'BestEvarChatContext'
 
 export const useChat = () => useContext(ChatContext)
 
+const apiUri = `http${process.env.REACT_APP_SERVER_SECURE ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`
+const wsUri = `ws${process.env.REACT_APP_SERVER_SECURE ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/chat`
 let websocket = null
 
 function messageReducer(state, action) {
@@ -84,7 +86,7 @@ export const ChatProvider = ({children}) => {
 				sender: Authentication.getProfile().username,
 				destination: 'bec'
 			})
-			const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
+			const response = await fetch(apiUri, {
 				method: 'POST',
 				headers: {
 					'BEC-Client-Key': encryption.getPublicKey(),
@@ -140,7 +142,7 @@ export const ChatProvider = ({children}) => {
 
 	const connectSocket = useCallback((token) => {
 		if (websocket == null) {
-			websocket = new WebSocket(`ws://${process.env.REACT_APP_SERVER_HOST}/chat`)
+			websocket = new WebSocket(wsUri)
 
 			websocket.onopen = () => {
 				console.log(':)')
@@ -170,7 +172,7 @@ export const ChatProvider = ({children}) => {
 
 				setInitializing(true)
 				// first we'll make all the requests that we need to initialize everything
-				const response = await fetch(`http://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`, {
+				const response = await fetch(apiUri, {
 					method: 'POST',
 					headers: {
 						'BEC-Client-Key': encryption.getPublicKey(),
