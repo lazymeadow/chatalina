@@ -14,6 +14,7 @@ import net.chatalina.chat.MessageContent
 import net.chatalina.chat.MessageTypes
 import net.chatalina.chat.ResponseBody
 import net.chatalina.database.Messages
+import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -50,19 +51,21 @@ class ChatHandler(
 
     fun getMessages(publicKey: PublicKey): List<ResponseBody> {
         return transaction {
-            Messages.select { Messages.destination eq jidDomain }.orderBy(Messages.created).limit(100).map {
-                // 1. db decrypt
-                val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
-                val decrypted = encryption.decryptDB(content, iv)
-                // 2. pub key encrypt, serialize
-                val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
-                ResponseBody(
-                    it[Messages.id].value, MessageTypes.NEW_MESSAGE, MessageContent(
-                        Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
-                            .encodeToString(encrypted)
-                    ), it[Messages.created]
-                )
-            }
+            Messages.select { Messages.destination eq jidDomain }
+                .orderBy(Messages.created, SortOrder.DESC)
+                .limit(100).map {
+                    // 1. db decrypt
+                    val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
+                    val decrypted = encryption.decryptDB(content, iv)
+                    // 2. pub key encrypt, serialize
+                    val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
+                    ResponseBody(
+                        it[Messages.id].value, MessageTypes.NEW_MESSAGE, MessageContent(
+                            Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
+                                .encodeToString(encrypted)
+                        ), it[Messages.created]
+                    )
+                }
         }
     }
 
@@ -72,7 +75,8 @@ class ChatHandler(
             publicKey
         )
         return serializeToSend(
-            ResponseBody( messageId,
+            ResponseBody(
+                messageId,
                 MessageTypes.NEW_MESSAGE,
                 MessageContent(
                     Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()

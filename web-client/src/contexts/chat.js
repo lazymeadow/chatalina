@@ -206,8 +206,9 @@ export const ChatProvider = ({children}) => {
 					const responseBody = await response.json()
 					const messages = responseBody.result.map(async message => {
 						const decrypted = await encryption.decrypt(message.content)
-						return {id: message.id, time: message.time, ...decrypted}
+						return {id: message.id, time: new Date(message.time), ...decrypted}
 					})
+					messages.sort((a, b) => a.time - b.time)
 					Promise.all(messages).then((msgs) => {
 						messagesDispatch({type: 'add', payload: msgs})
 					})
