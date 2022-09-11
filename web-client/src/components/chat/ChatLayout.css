@@ -48,8 +48,8 @@
     flex: 1 0 auto;
     display: flex;
     flex-direction: column;
-    min-height: min-content;
     margin-top: auto;
+    width: 100%;
 }
 
 .ChatLayout-right > .middle-guy > .log > p {
