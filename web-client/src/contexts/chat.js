@@ -208,8 +208,8 @@ export const ChatProvider = ({children}) => {
 						const decrypted = await encryption.decrypt(message.content)
 						return {id: message.id, time: new Date(message.time), ...decrypted}
 					})
-					messages.sort((a, b) => a.time - b.time)
 					Promise.all(messages).then((msgs) => {
+						msgs.sort((a, b) => a.time - b.time)
 						messagesDispatch({type: 'add', payload: msgs})
 					})
 				}
