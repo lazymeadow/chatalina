@@ -1,5 +1,8 @@
-export const Loading = () => {
+export const Loading = ({message}) => {
 	return (
-		<h1>Loading...</h1>
+		<div>
+			<h1>Loading...</h1>
+			<p style={{fontStyle: 'italic', whiteSpace: "pre-line"}}>{message}</p>
+		</div>
 	)
 }

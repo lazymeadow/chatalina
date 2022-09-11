@@ -54,10 +54,13 @@ function getNotificationsInitialState() {
 	}
 }
 
+let initMessage = ""
+
 export const ChatProvider = ({children}) => {
 	const {initialized: encryptionInitialized, encryption} = useEncryption()
 	const [initialized, setInitialized] = useState(false)
 	const [initializing, setInitializing] = useState(false)
+	const [initState, setInitState] = useState(initMessage)
 
 	const [messagesState, messagesDispatch] = useReducer(messageReducer, {log: []})
 	const [notificationsState, notificationsDispatch] = useReducer(
@@ -107,6 +110,8 @@ export const ChatProvider = ({children}) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
 		switch (parsedMessage.type) {
 			case 'keyExchange': {
+				initMessage = initMessage + "Activating encryption...\n"
+				setInitState(initMessage)
 				// step 2: when server sends its key, send our key back
 				// TODO: don't let chat be used until this happens
 				await encryption.setServerKey(parsedMessage.content.key)
@@ -116,13 +121,14 @@ export const ChatProvider = ({children}) => {
 					params: {key: encryption.getPublicKey()}
 				}))
 				// NOW we're done...
+				setInitState("")
 				setInitialized(true)
 				setInitializing(false)
 				break
 			}
 			case 'newMessage': {
 				const decrypted = await encryption.decrypt(parsedMessage.content)
-				messagesDispatch({type: 'new', payload: {id: parsedMessage.id, ...decrypted}})
+				messagesDispatch({type: 'new', payload: {id: parsedMessage.id, time: parsedMessage.time, ...decrypted}})
 				notificationsDispatch({type: 'notify'})
 				if (notificationsState.allowSound) {
 					if (decrypted.sender === Authentication.getProfile().username) {
@@ -142,11 +148,16 @@ export const ChatProvider = ({children}) => {
 
 	const connectSocket = useCallback((token) => {
 		if (websocket == null) {
+
+			initMessage = initMessage + "Reticulating splines...\n"
+			setInitState(initMessage)
 			websocket = new WebSocket(wsUri)
 
 			websocket.onopen = () => {
 				console.log(':)')
 				// step 1: send access token to server
+				initMessage = initMessage + "Authenticating socket...\n"
+				setInitState(initMessage)
 				websocket.send(JSON.stringify({method: 'authorization', jsonrpc: '2.0', params: {token}}))
 			}
 
@@ -154,23 +165,31 @@ export const ChatProvider = ({children}) => {
 				console.log(':(')
 				// add timeout
 				websocket = null
-				window.confirm(':( your socket disconnected. you should refresh the page.')
+				const answer = window.confirm(':( your socket disconnected. you should refresh the page.')
+				if (answer) {
+					window.location.reload()
+				}
 			}
 
 			websocket.onerror = (event) => {
 				console.error(event)
+				setInitState("There was an error.")
 			}
 
 			websocket.onmessage = handleMessage
 		}
 	}, [handleMessage])
 
-	const initChat = useCallback(async () => {
+	const initChat = useCallback(
+		async () => {
 			if (encryptionInitialized && !initialized && !initializing) {
 				window.onblur = handleWindowBlur
 				window.onfocus = handleWindowFocus
 
 				setInitializing(true)
+
+				initMessage = "Authenticating with server...\nRetrieving chat data...\n"
+				setInitState(initMessage)
 				// first we'll make all the requests that we need to initialize everything
 				const response = await fetch(apiUri, {
 					method: 'POST',
@@ -187,7 +206,7 @@ export const ChatProvider = ({children}) => {
 					const responseBody = await response.json()
 					const messages = responseBody.result.map(async message => {
 						const decrypted = await encryption.decrypt(message.content)
-						return {id: message.id, ...decrypted}
+						return {id: message.id, time: message.time, ...decrypted}
 					})
 					Promise.all(messages).then((msgs) => {
 						messagesDispatch({type: 'add', payload: msgs})
@@ -195,35 +214,6 @@ export const ChatProvider = ({children}) => {
 				}
 				// then we connect the socket
 				connectSocket(Authentication.getToken())
-				// then we're done
-				// setInitialized(true)
-				// setInitializing(false)
-				console.log(
-					' ░▀█▀░▀█▀░█▀▀░░░▀█▀░█░█░█▀▀░░░█▀▀░█░█░█▀▀░█░█░▀█▀░█▀█                  \n'
-					+ ' ░░█░░░█░░▀▀█░░░░█░░█▀█░█▀▀░░░█▀▀░█░█░█░░░█▀▄░░█░░█░█                 \n'
-					+ ' ░▀▀▀░░▀░░▀▀▀░░░░▀░░▀░▀░▀▀▀░░░▀░░░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░▀                 \n'
-					+ '                                                                      \n'
-					+ ' ██████╗██╗  ██╗ █████╗ ████████╗ █████╗ ██╗     ██╗███╗   ██╗ █████╗ \n'
-					+ '██╔════╝██║  ██║██╔══██╗╚══██╔══╝██╔══██╗██║     ██║████╗  ██║██╔══██╗\n'
-					+ '██║     ███████║███████║   ██║   ███████║██║     ██║██╔██╗ ██║███████║\n'
-					+ '██║     ██╔══██║██╔══██║   ██║   ██╔══██║██║     ██║██║╚██╗██║██╔══██║\n'
-					+ '╚██████╗██║  ██║██║  ██║   ██║   ██║  ██║███████╗██║██║ ╚████║██║  ██║\n'
-					+ ' ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝\n'
-					+ '                                                                      \n'
-					+ '██╗    ██╗██╗███╗   ██╗███████╗                                       \n'
-					+ '██║    ██║██║████╗  ██║██╔════╝                                       \n'
-					+ '██║ █╗ ██║██║██╔██╗ ██║█████╗                                         \n'
-					+ '██║███╗██║██║██║╚██╗██║██╔══╝                                         \n'
-					+ '╚███╔███╔╝██║██║ ╚████║███████╗                                       \n'
-					+ ' ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚══════╝                                       \n'
-					+ '                                                                      \n'
-					+ '███╗   ███╗██╗██╗  ██╗███████╗██████╗                                 \n'
-					+ '████╗ ████║██║╚██╗██╔╝██╔════╝██╔══██╗                                \n'
-					+ '██╔████╔██║██║ ╚███╔╝ █████╗  ██████╔╝                                \n'
-					+ '██║╚██╔╝██║██║ ██╔██╗ ██╔══╝  ██╔══██╗                                \n'
-					+ '██║ ╚═╝ ██║██║██╔╝ ██╗███████╗██║  ██║                                \n'
-					+ '╚═╝     ╚═╝╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                                '
-				)
 			}
 		},
 		[
@@ -255,6 +245,7 @@ export const ChatProvider = ({children}) => {
 	return (
 		<ChatContext.Provider value={{
 			initialized,
+			initState,
 			initSocket: initChat,
 			messageLog: messagesState.log,
 			sendMessage,

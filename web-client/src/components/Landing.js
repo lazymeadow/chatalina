@@ -4,7 +4,7 @@ import {useChat} from '../contexts/chat'
 
 
 export const Landing = () => {
-	const {initialized} = useChat()
+	const {initialized, initState} = useChat()
 
 	if (initialized) {
 		return (
@@ -16,7 +16,7 @@ export const Landing = () => {
 
 	return (
 		<main>
-			<Loading />
+			<Loading message={initState} />
 		</main>
 	)
 }

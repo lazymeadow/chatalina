@@ -14,7 +14,7 @@ const initAuth = (callback) => {
 	keycloak.init({
 		onLoad: 'login-required',  // check-sso is breaking in modern browsers T^T
 		checkLoginIframe: false,  // disabled for modern browers
-		enableLogging: true,
+		// enableLogging: true,
 		silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html'
 	})
 		.then(async authenticated => {

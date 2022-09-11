@@ -12,6 +12,9 @@ const MessageLog = ({messages}) => {
 		<div className={'log'}>
 			{messages.map((message, index) => (
 				<p key={message.id || index}>
+					<span style={{fontStyle: 'italic'}}>
+						[{new Date(message.time).toLocaleString()}]&nbsp;&nbsp;
+					</span>
 					<span style={{fontWeight: 'bold'}}>
 						{`${message.sender || 'sender'}: `}
 					</span>
