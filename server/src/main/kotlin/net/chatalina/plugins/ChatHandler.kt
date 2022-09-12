@@ -6,9 +6,11 @@ import io.ktor.server.application.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.config.*
 import io.ktor.util.*
+import io.ktor.websocket.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import net.chatalina.chat.ChatSocketConnection
 import net.chatalina.chat.MessageContent
 import net.chatalina.chat.MessageTypes
@@ -147,7 +149,23 @@ class ChatHandler(
             val log = pipeline.log
             val becAuth = pipeline.environment.becAuth
                 ?: throw ApplicationConfigurationException("Security must be configured before chat handler")
-            return ChatHandler(configuration, encryption, jacksonMapper, becAuth, log)
+
+            val chatHandler = ChatHandler(configuration, encryption, jacksonMapper, becAuth, log)
+
+            pipeline.environment.monitor.subscribe(ApplicationStopPreparing) { call ->
+                log.debug("Closing socket connections...")
+                synchronized(chatHandler.currentSocketConnections) {
+                    chatHandler.currentSocketConnections.forEach {
+                        log.debug("Closing socket ${it.name}")
+                        runBlocking {
+                            it.session.close(CloseReason(CloseReason.Codes.GOING_AWAY, "Server shutting down"))
+                        }
+                    }
+                }
+                log.debug("Sockets closed.")
+            }
+
+            return chatHandler
         }
     }
 }
