@@ -17,9 +17,9 @@ ChatContext.displayName = 'BestEvarChatContext'
 
 export const useChat = () => useContext(ChatContext)
 
-const apiUri = `http${process.env.REACT_APP_SERVER_SECURE ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`
-const wsUri = `ws${process.env.REACT_APP_SERVER_SECURE ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/chat`
-
+const secureServer = process.env.REACT_APP_SERVER_SECURE === 'true'
+const apiUri = `http${secureServer ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`
+const wsUri = `ws${secureServer ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/chat`
 
 function messageReducer(state, action) {
 	switch (action.type) {
