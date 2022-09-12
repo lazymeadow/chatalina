@@ -1,6 +1,15 @@
 import {createContext, useCallback, useContext, useEffect, useReducer, useRef, useState} from 'react'
 import {useEncryption} from '../util/encryption'
 import {Authentication} from '../util/authentication'
+import {
+	attempt,
+	attemptReconnect,
+	getNewWebsocket,
+	resetReconnect,
+	sendWebsocketRpc,
+	setWebsocketOnMessage
+} from '../util/socket'
+import {Modal} from '../components/Modal'
 
 
 const ChatContext = createContext()
@@ -10,7 +19,7 @@ export const useChat = () => useContext(ChatContext)
 
 const apiUri = `http${process.env.REACT_APP_SERVER_SECURE ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`
 const wsUri = `ws${process.env.REACT_APP_SERVER_SECURE ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/chat`
-let websocket = null
+
 
 function messageReducer(state, action) {
 	switch (action.type) {
@@ -54,13 +63,17 @@ function getNotificationsInitialState() {
 	}
 }
 
-let initMessage = ""
+let initMessage = ''
 
 export const ChatProvider = ({children}) => {
 	const {initialized: encryptionInitialized, encryption} = useEncryption()
+
 	const [initialized, setInitialized] = useState(false)
 	const [initializing, setInitializing] = useState(false)
 	const [initState, setInitState] = useState(initMessage)
+	const [showModal, setShowModal] = useState(false)
+	const [showRetry, setShowRetry] = useState(false)
+	const [error, setError] = useState(null)
 
 	const [messagesState, messagesDispatch] = useReducer(messageReducer, {log: []})
 	const [notificationsState, notificationsDispatch] = useReducer(
@@ -106,24 +119,21 @@ export const ChatProvider = ({children}) => {
 		}
 	}
 
-	const handleMessage = useCallback(async (messageEvent) => {
+	const wsOnMessage = useCallback(async (messageEvent) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
 		switch (parsedMessage.type) {
 			case 'keyExchange': {
-				initMessage = initMessage + "Activating encryption...\n"
+				initMessage = initMessage + 'Activating encryption...\n'
 				setInitState(initMessage)
 				// step 2: when server sends its key, send our key back
-				// TODO: don't let chat be used until this happens
 				await encryption.setServerKey(parsedMessage.content.key)
-				websocket.send(JSON.stringify({
-					jsonrpc: '2.0',
-					method: 'keyExchange',
-					params: {key: encryption.getPublicKey()}
-				}))
+				sendWebsocketRpc('keyExchange', {key: encryption.getPublicKey()})
 				// NOW we're done...
-				setInitState("")
+				setInitState('')
+				// TODO: at this point, we need to request messages from the socket to show what's current
 				setInitialized(true)
 				setInitializing(false)
+				setShowModal(false)
 				break
 			}
 			case 'newMessage': {
@@ -146,39 +156,33 @@ export const ChatProvider = ({children}) => {
 		}
 	}, [notificationsState.allowSound, encryption])
 
-	const connectSocket = useCallback((token) => {
-		if (websocket == null) {
+	const wsOnOpen = useCallback(() => {
+		console.log(':)')
+		resetReconnect()
+		// step 1: send access token to server
+		initMessage = initMessage + 'Authenticating socket...\n'
+		setInitState(initMessage)
+		sendWebsocketRpc('authorization', {token: Authentication.getToken()})
+	}, [])
 
-			initMessage = initMessage + "Reticulating splines...\n"
-			setInitState(initMessage)
-			websocket = new WebSocket(wsUri)
-
-			websocket.onopen = () => {
-				console.log(':)')
-				// step 1: send access token to server
-				initMessage = initMessage + "Authenticating socket...\n"
-				setInitState(initMessage)
-				websocket.send(JSON.stringify({method: 'authorization', jsonrpc: '2.0', params: {token}}))
-			}
-
-			websocket.onclose = () => {
-				console.log(':(')
-				// add timeout
-				websocket = null
-				const answer = window.confirm(':( your socket disconnected. you should refresh the page.')
-				if (answer) {
-					window.location.reload()
-				}
-			}
-
-			websocket.onerror = (event) => {
-				console.error(event)
-				setInitState("There was an error.")
-			}
-
-			websocket.onmessage = handleMessage
+	const reconnectSocket = useCallback(() => {
+		setShowModal(true)
+		const willRetryAgain = attemptReconnect(() => getNewWebsocket(wsUri, wsOnOpen, reconnectSocket, wsOnMessage))
+		if (!willRetryAgain) {
+			setError(':( Error connecting socket. Retry?')
+			setShowRetry(true)
 		}
-	}, [handleMessage])
+		else {
+			setError(`Socket disconnected! Attempting reconnect #${attempt}`)
+			setShowRetry(false)
+		}
+	}, [wsOnOpen, wsOnMessage])
+
+	const connectSocket = useCallback(() => {
+		initMessage = initMessage + 'Reticulating splines...\n'
+		setInitState(initMessage)
+		getNewWebsocket(wsUri, wsOnOpen, reconnectSocket, wsOnMessage)
+	}, [wsOnOpen, wsOnMessage, reconnectSocket])
 
 	const initChat = useCallback(
 		async () => {
@@ -188,7 +192,7 @@ export const ChatProvider = ({children}) => {
 
 				setInitializing(true)
 
-				initMessage = "Authenticating with server...\nRetrieving chat data...\n"
+				initMessage = 'Authenticating with server...\nRetrieving chat data...\n'
 				setInitState(initMessage)
 				// first we'll make all the requests that we need to initialize everything
 				const response = await fetch(apiUri, {
@@ -212,9 +216,15 @@ export const ChatProvider = ({children}) => {
 						msgs.sort((a, b) => a.time - b.time)
 						messagesDispatch({type: 'add', payload: msgs})
 					})
+					// then we connect the socket
+					connectSocket()
 				}
-				// then we connect the socket
-				connectSocket(Authentication.getToken())
+				else {
+					console.error('get messages failed', response)
+					setError(':( Error connecting with server. Retry?')
+					setShowModal(true)
+					setShowRetry(true)
+				}
 			}
 		},
 		[
@@ -234,11 +244,11 @@ export const ChatProvider = ({children}) => {
 	}, [initChat, encryptionInitialized])
 
 	useEffect(() => {
-		// for websocket to know about changed react callback, we must reset the handler when changed
-		if (!!websocket && initialized) {
-			websocket.onmessage = handleMessage
+		// for websocket to know about changed react callback, we must reset the handler
+		if (initialized) {
+			setWebsocketOnMessage(wsOnMessage)
 		}
-	}, [initialized, handleMessage])
+	}, [initialized, wsOnMessage])
 
 	const sentSoundRef = useRef(null)
 	const receiveSoundRef = useRef(null)
@@ -247,12 +257,21 @@ export const ChatProvider = ({children}) => {
 		<ChatContext.Provider value={{
 			initialized,
 			initState,
-			initSocket: initChat,
 			messageLog: messagesState.log,
 			sendMessage,
 			notificationCount: notificationsState.count
 		}}>
 			{children}
+			<Modal show={showModal}>
+				<p>
+					{error}
+				</p>
+				{!!showRetry && (
+					<button onClick={() => window.location.reload()}>
+						Reload
+					</button>
+				)}
+			</Modal>
 			<audio ref={sentSoundRef}
 				   type={'audio/mpeg'}
 				   src={'https://audio.bestevarchat.com/AIM/message-send.wav'}
