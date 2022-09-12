@@ -10,10 +10,13 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.config.*
 import io.ktor.util.*
 import io.ktor.utils.io.errors.*
+import net.chatalina.database.Parasite
 import net.chatalina.jsonrpc.endpoints.Endpoint
 import net.chatalina.plugins.chatHandler
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
 import java.security.PublicKey
+import java.util.*
 
 
 // Requests
@@ -151,6 +154,18 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
         try {
             if (endpoint.authenticated) {
                 val principal = getPrincipal() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.UNAUTHORIZED)
+                // we know this is a valid parasite, based on their token.
+                val userId = try {
+                    UUID.fromString(principal.subject)
+                } catch (e: IllegalArgumentException) {
+                    return generateErrorResult(rpcBody.id, JsonRpcStatus.UNAUTHORIZED)
+                }
+                transaction {
+                    // find or add the parasite. no need to pass it on (yet)
+                    Parasite.findById(userId) ?: Parasite.new(userId) {
+                        this.displayName = principal.get("preferred_username") ?: ""
+                    }
+                }
                 endpoint.principal = principal
             }
             if (endpoint.encrypted) {

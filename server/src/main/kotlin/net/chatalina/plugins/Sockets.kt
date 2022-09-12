@@ -14,11 +14,14 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import net.chatalina.chat.ChatSocketConnection
 import net.chatalina.chat.MessageTypes
+import net.chatalina.database.Parasite
 import net.chatalina.jsonrpc.Request
 import net.chatalina.jsonrpc.endpoints.Authorization
 import net.chatalina.jsonrpc.endpoints.KeyExchange
+import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.PublicKey
 import java.time.Duration
+import java.util.*
 
 
 /**
@@ -61,6 +64,8 @@ fun Application.configureSockets() {
                                 }
 
                                 val jsonrpc = application.jsonRpc
+                                // we send the socket principal for processing because the method will handle checking
+                                // validity (if authorization call) and necessary permissions (for all others)
                                 val (_, _, passAlongResult) = jsonrpc.handleRequest(
                                     ::getBody,
                                     ::getPrincipal,
@@ -68,17 +73,32 @@ fun Application.configureSockets() {
                                     executingInSocket = true
                                 )
                                 if (body.method == Authorization.methodName) {
-                                    // okay this is not great. but when we get a principal result, set it,
-                                    //   then initiate key exchange via socket.
-                                    thisChatSocketConnection.principal =
-                                        passAlongResult as JWTPrincipal? ?: throw BadAuthException()
-                                    val encryption = application.encryption
-                                    chatHandler.sendToConnection(
-                                        thisChatSocketConnection, mapOf(
-                                            "type" to MessageTypes.KEY_EXCHANGE,
-                                            "content" to mapOf("key" to encryption.publicKey)
+                                    val principal = passAlongResult as JWTPrincipal?
+                                    if (principal == null) {
+                                        throw BadAuthException()
+                                    } else {
+                                        thisChatSocketConnection.principal = principal
+                                        // we know this is a valid parasite, based on their token.
+                                        val userId = try {
+                                            UUID.fromString(principal.subject)
+                                        } catch (e: IllegalArgumentException) {
+                                            throw BadAuthException()
+                                        }
+                                        val thisParasite = transaction {
+                                            // find or add the parasite
+                                            Parasite.findById(userId) ?: Parasite.new(userId) {
+                                                this.displayName = principal.get("preferred_username") ?: ""
+                                            }
+                                        }
+                                        thisChatSocketConnection.parasite = thisParasite
+                                        val encryption = application.encryption
+                                        chatHandler.sendToConnection(
+                                            thisChatSocketConnection, mapOf(
+                                                "type" to MessageTypes.KEY_EXCHANGE,
+                                                "content" to mapOf("key" to encryption.publicKey)
+                                            )
                                         )
-                                    )
+                                    }
                                 } else if (body.method == KeyExchange.methodName && passAlongResult != null) {
                                     val encryption = application.encryption
                                     thisChatSocketConnection.publicKey =

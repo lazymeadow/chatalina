@@ -5,6 +5,7 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedSendChannelException
+import net.chatalina.database.Parasite
 import java.security.PublicKey
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -15,6 +16,7 @@ class ChatSocketConnection(val session: DefaultWebSocketServerSession) {
     }
 
     val name = "ws-${lastId.getAndIncrement()}"
+    lateinit var parasite: Parasite
 
     // we need to know if the auth is valid
     var publicKey: PublicKey? = null
