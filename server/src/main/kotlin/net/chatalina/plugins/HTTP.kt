@@ -12,10 +12,7 @@ fun Application.configureHTTP() {
 
     install(ConditionalHeaders)
     install(CORS) {
-        allowMethod(HttpMethod.Options)
-        allowMethod(HttpMethod.Put)
-        allowMethod(HttpMethod.Patch)
-        allowMethod(HttpMethod.Delete)
+        allowMethod(HttpMethod.Options)  // default allowed are GET, HEAD, POST
 
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)

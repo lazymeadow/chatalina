@@ -2,7 +2,6 @@ package net.chatalina.plugins
 
 import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
@@ -18,11 +17,6 @@ fun Application.configureRouting() {
     routing {
         route("/api/v1") {
             route("/rpc") {
-                // respond to everything except POST with 405
-//                handle {
-//                    call.respond(HttpStatusCode.MethodNotAllowed)
-//                }
-
                 post {
                     suspend fun getBody(): Request {
                         return call.receive()
@@ -58,18 +52,10 @@ fun Application.configureRouting() {
                     call.response.status(statusCode)
                     response?.let { call.respond(response) } ?: finish()
                 }
-            }
 
-            withEncryption {
-                authenticate("obei-bec-parasite") {
-                    get("/heehoo") {
-                        call.respond(":)")
-                    }
-
-                    post("/test/server-key") {
-                        val publicKey = application.encryption.publicKey
-                        call.respond(mapOf("publicKey" to publicKey))
-                    }
+                // respond to everything except POST with 403 (same thing CORS plugin returns)
+                handle {
+                    call.respond(HttpStatusCode.Forbidden)
                 }
             }
         }
@@ -78,6 +64,10 @@ fun Application.configureRouting() {
         route("bec/k_jwks") {
             get {
                 call.respondFile(File("src/main/resources/keystore.jks"))
+            }
+            // respond to everything except POST with 403 (same thing CORS plugin returns)
+            handle {
+                call.respond(HttpStatusCode.Forbidden)
             }
         }
     }
