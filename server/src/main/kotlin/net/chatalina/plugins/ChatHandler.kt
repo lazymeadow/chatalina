@@ -15,8 +15,9 @@ import net.chatalina.chat.ChatSocketConnection
 import net.chatalina.chat.MessageContent
 import net.chatalina.chat.MessageTypes
 import net.chatalina.chat.ResponseBody
-import net.chatalina.database.Messages
+import net.chatalina.database.*
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -51,11 +52,18 @@ class ChatHandler(
         return token?.let { becAuth.validateJwt(it) }
     }
 
-    fun getMessages(publicKey: PublicKey): List<ResponseBody> {
+    fun getMessages(publicKey: PublicKey, parasite: Parasite): List<ResponseBody> {
         return transaction {
-            Messages.select { Messages.destination eq jidDomain }
+            // find groups that this user is allowed to see messages
+            val parasiteJID = JID(DestinationType.PARASITE, parasite.jid, jidDomain)
+            val groupJIDs = GroupParasites.slice(GroupParasites.group).select {
+                (GroupParasites.parasite eq parasite.id) and (GroupParasites.role neq GroupRoles.NONE)
+            }.map { JID(DestinationType.GROUP, it[GroupParasites.group].value, jidDomain) }
+            // TODO: when we have 1-1 messages, how are we going to get the messages sent by this parasite?
+            Messages.select { Messages.destination inList (groupJIDs + parasiteJID).map { it.toString() } }
                 .orderBy(Messages.created, SortOrder.DESC)
-                .limit(100).map {
+                .limit(100)
+                .map {
                     // 1. db decrypt
                     val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
                     val decrypted = encryption.decryptDB(content, iv)
@@ -89,20 +97,30 @@ class ChatHandler(
         )
     }
 
-    suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey): ResponseBody {
+    suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey, parasite: Parasite): ResponseBody {
         // 1. decrypt message
         val (iv, content) = message
-        val decrypted =
-            encryption.decryptEC(
-                content,
-                iv,
-                publicKey
-            )
-
+        val decrypted = encryption.decryptEC(content, iv, publicKey)
 
         // 2. encrypt message for db & insert
         // 2.a. we need the destination for indexing and lookups, but it was encrypted
         val dest = mapper.readValue<MessageData>(decrypted).destination
+        val jid = JID.parseJid(dest, jidDomain)
+        val allowed = when (jid.type) {
+            DestinationType.PARASITE -> {
+                true  // for now, anyone can send private messages to anyone else
+            }
+            DestinationType.GROUP -> {
+                transaction {
+                    GroupParasites.slice(GroupParasites.group).select {
+                        (GroupParasites.parasite eq parasite.id) and (GroupParasites.group eq jid.id) and (GroupParasites.role neq GroupRoles.NONE)
+                    }.count() > 0
+                }
+            }
+        }
+        if (!allowed) {
+            throw AuthorizationException()
+        }
         val (nonce, encrypted) = encryption.encryptDB(decrypted)
         val now = Instant.now()
         val messageId = transaction {
@@ -120,9 +138,20 @@ class ChatHandler(
         }.value
 
         // 3. for every appropriate socket, encrypt and send
+        val recipientJids = transaction {
+            if (jid.type == DestinationType.GROUP) {
+                GroupParasites.innerJoin(Parasites).slice(Parasites.jid).select {
+                    (GroupParasites.group eq jid.id) and (GroupParasites.role neq GroupRoles.NONE)
+                }.map {
+                    it[Parasites.jid]
+                }
+            } else {
+                listOf(parasite.jid, jid.id)
+            }
+        }
         synchronized(currentSocketConnections) {
             // Must be in the synchronized block
-            val i: Iterator<ChatSocketConnection> = currentSocketConnections.iterator()
+            val i: Iterator<ChatSocketConnection> = currentSocketConnections.filter { recipientJids.contains(it.parasite.jid) }.iterator()
             i.forEach {
                 it.publicKey?.let { pubKey ->
                     log.debug("sending new message to ${it.name}")
@@ -166,6 +195,46 @@ class ChatHandler(
             }
 
             return chatHandler
+        }
+    }
+}
+
+
+private enum class DestinationType() {
+    PARASITE,
+    GROUP
+}
+
+private class JID(val type: DestinationType, val id: Int, val domain: String) {
+    companion object {
+        fun parseJid(destination: String, domain: String): JID {
+            /* allowed formats (to user or to group only):
+                1@bec -> direct to a user
+                bec/1 -> a whole group
+               YES this is misusing the JID standard, NO i do not care. you're not my real dad
+             */
+            // split the string on the regex
+            val parts = Regex("[@/]").split(destination)
+            // now check how many parts we have. we only allow 2
+             if (parts.size == 2) {
+                // if 2 parts, we need to determine if its going to a user or a group
+                if (parts.first() == domain && destination.contains("/")) {
+                    val id = parts.last().toIntOrNull() ?: throw IllegalArgumentException("Bad destination JID")
+                    return JID(DestinationType.GROUP, id, domain)
+                } else if (parts.last() == domain && destination.contains("@")) {
+                    val id = parts.first().toIntOrNull() ?: throw IllegalArgumentException("Bad destination JID")
+                    return JID(DestinationType.PARASITE, id, domain)
+                }
+            }
+            // anything else is wrong
+            throw IllegalArgumentException("Bad destination JID")
+        }
+    }
+
+    override fun toString(): String {
+        return when (type) {
+            DestinationType.PARASITE -> "${id}@${domain}"
+            DestinationType.GROUP -> "${domain}/${id}"
         }
     }
 }

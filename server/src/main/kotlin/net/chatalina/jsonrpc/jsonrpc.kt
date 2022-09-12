@@ -51,6 +51,7 @@ enum class JsonRpcStatus(val rpcCode: Int, val rpcMessage: String?, val statusCo
     SERVER_ERROR(-32500, "Server Error", HttpStatusCode.InternalServerError),
     KEY_EXCHANGE(-32003, "Key Exchange Needed", HttpStatusCode.BadRequest),
     ENCRYPTION_ERROR(-32004, "Encryption Error", HttpStatusCode.BadRequest),
+    DESTINATION_ERROR(-32005, "Destination Error", HttpStatusCode.BadRequest),
     UNAUTHORIZED(-32001, "Unauthorized", HttpStatusCode.Unauthorized),
     FORBIDDEN(-32002, "Forbidden", HttpStatusCode.Forbidden)
 }
@@ -152,25 +153,26 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
         )
 
         try {
+            var principal: JWTPrincipal? = null
+            var parasite: Parasite? = null
+            var clientKey: PublicKey? = null
             if (endpoint.authenticated) {
-                val principal = getPrincipal() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.UNAUTHORIZED)
+                principal = getPrincipal() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.UNAUTHORIZED)
                 // we know this is a valid parasite, based on their token.
-                val userId = try {
+                val parasiteId = try {
                     UUID.fromString(principal.subject)
                 } catch (e: IllegalArgumentException) {
                     return generateErrorResult(rpcBody.id, JsonRpcStatus.UNAUTHORIZED)
                 }
-                transaction {
+                parasite = transaction {
                     // find or add the parasite. no need to pass it on (yet)
-                    Parasite.findById(userId) ?: Parasite.new(userId) {
+                    Parasite.findById(parasiteId) ?: Parasite.new(parasiteId) {
                         this.displayName = principal.get("preferred_username") ?: ""
                     }
                 }
-                endpoint.principal = principal
             }
             if (endpoint.encrypted) {
-                val clientKey = getClientKey() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.KEY_EXCHANGE)
-                endpoint.clientKey = clientKey
+                clientKey = getClientKey() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.KEY_EXCHANGE)
             }
 
             // call endpoint class's validate function for request parameters
@@ -181,7 +183,7 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
                 return generateErrorResult(rpcBody.id, validationResult.jsonRpcStatus, validationResult.getErrorData())
             }
             // call endpoint class's execute function with validated parameters
-            val executionResult = endpoint.execute(requestParams)
+            val executionResult = endpoint.execute(requestParams, principal, parasite, clientKey)
 
             return if (executionResult.jsonRpcStatus == JsonRpcStatus.NOTIFICATION) {
                 generateNotificationResult(executionResult.result)

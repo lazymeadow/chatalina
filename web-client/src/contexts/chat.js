@@ -100,7 +100,7 @@ export const ChatProvider = ({children}) => {
 				type: 'text',
 				message: messageText,
 				sender: Authentication.getProfile().username,
-				destination: 'bec'
+				destination: 'bec/1'
 			})
 			const response = await fetch(apiUri, {
 				method: 'POST',

@@ -24,25 +24,6 @@ const val BEC_CLIENT_HEADER = "BEC-Client-Key"
 val ApplicationRequest.clientKey: String
     get() = call.request.headers[BEC_CLIENT_HEADER] ?: ""
 
-fun Route.withEncryption(callback: Route.() -> Unit): Route {
-    val routeWithEncryption = this.createChild(object : RouteSelector() {
-        override fun evaluate(context: RoutingResolveContext, segmentIndex: Int): RouteSelectorEvaluation =
-            RouteSelectorEvaluation.Constant
-    })
-
-    routeWithEncryption.intercept(ApplicationCallPipeline.Setup) {
-        if (call.request.clientKey.isBlank()) {
-            call.respond(HttpStatusCode.BadRequest, "Missing header $BEC_CLIENT_HEADER")
-            return@intercept finish()
-        }
-        val publicKey = application.encryption.publicKey
-        call.response.header(BEC_SERVER_HEADER, Base64.getEncoder().encodeToString(publicKey))
-    }
-    callback(routeWithEncryption)
-
-    return routeWithEncryption
-}
-
 class Encryption(configuration: PluginConfiguration) {
     private var serverPair: KeyPair
     private var dbPair: KeyPair
@@ -147,7 +128,7 @@ class Encryption(configuration: PluginConfiguration) {
         return cipher.doFinal(Base64.getDecoder().decode(content))
     }
 
-    fun encryptEC(content: ByteArray, otherKey: PublicKey): Pair<ByteArray, ByteArray>  {
+    fun encryptEC(content: ByteArray, otherKey: PublicKey): Pair<ByteArray, ByteArray> {
         val derivedKey = getDerivedKey(otherKey)
         val nonce = getNonce()
         val cipher = getAESCipher(derivedKey, Cipher.ENCRYPT_MODE, nonce)

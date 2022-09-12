@@ -2,6 +2,7 @@ package net.chatalina.jsonrpc.endpoints
 
 
 import io.ktor.server.auth.jwt.*
+import net.chatalina.database.Parasite
 import net.chatalina.jsonrpc.JsonRpcStatus
 import net.chatalina.jsonrpc.Parameter
 import net.chatalina.plugins.ChatHandler
@@ -59,19 +60,12 @@ data class ExecutionResult(
 
 typealias ParameterList = List<Parameter>
 
-abstract class OpenEndpoint() : Endpoint {
-    override val authenticated = false
-    override val encrypted = false
-    override var principal: JWTPrincipal? = null
-    override var clientKey: PublicKey? = null
-}
-
-abstract class OpenSocketEndpoint() : OpenEndpoint() {
+abstract class OpenSocketEndpoint() : Endpoint {
     override val executeInSocket = true
     override val isNotification = true
 }
 
-abstract class AuthenticatedEndpoint() : OpenEndpoint() {
+abstract class AuthenticatedEndpoint() : Endpoint {
     override val authenticated = true
 }
 
@@ -86,10 +80,8 @@ sealed interface Endpoint {
 
     val authenticated: Boolean
         get() = false
-    var principal: JWTPrincipal?
     val encrypted: Boolean
         get() = false
-    var clientKey: PublicKey?
 
     val methodName: String
     val requiredParams: ParameterList
@@ -181,9 +173,15 @@ sealed interface Endpoint {
     }
 
     /**
-     * This is called after [validate]
+     * This is called after [validate]. If the endpoint requires any of the arguments to run, it must validate that
+     * they are not null, or respond with the appropriate error.
      *
      *  @param params parameters for this request
      */
-    suspend fun execute(params: Map<String, Any>? = mapOf()): ExecutionResult
+    suspend fun execute(
+        params: Map<String, Any>? = mapOf(),
+        principal: JWTPrincipal?,
+        parasite: Parasite?,
+        clientKey: PublicKey?
+    ): ExecutionResult
 }

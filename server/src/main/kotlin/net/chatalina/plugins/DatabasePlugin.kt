@@ -2,9 +2,7 @@ package net.chatalina.plugins
 
 import io.ktor.server.application.*
 import io.ktor.util.*
-import net.chatalina.database.Messages
-import net.chatalina.database.Settings
-import net.chatalina.database.Parasites
+import net.chatalina.database.*
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.Schema
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -36,7 +34,7 @@ class DatabasePlugin(configuration: PluginConfiguration) {
     init {
         TransactionManager.defaultDatabase = exposedDb
 
-        val tables = listOf(Parasites, Settings, Messages).toTypedArray()
+        val tables = listOf(Parasites, Settings, Messages, Groups, GroupParasites).toTypedArray()
 
         transaction {
             SchemaUtils.createSchema(Schema("chatalina"))
