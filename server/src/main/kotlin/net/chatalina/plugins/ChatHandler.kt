@@ -59,8 +59,9 @@ class ChatHandler(
             val groupJIDs = GroupParasites.slice(GroupParasites.group).select {
                 (GroupParasites.parasite eq parasite.id) and (GroupParasites.role neq GroupRoles.NONE)
             }.map { JID(DestinationType.GROUP, it[GroupParasites.group].value, jidDomain) }
-            // TODO: when we have 1-1 messages, how are we going to get the messages sent by this parasite?
-            Messages.select { Messages.destination inList (groupJIDs + parasiteJID).map { it.toString() } }
+            Messages.slice(Messages.id, Messages.data, Messages.created).select {
+                Messages.destinations overlaps (groupJIDs + parasiteJID).map { it.toString() }.toTypedArray()
+            }
                 .orderBy(Messages.created, SortOrder.DESC)
                 .limit(100)
                 .map {
@@ -105,15 +106,16 @@ class ChatHandler(
         // 2. encrypt message for db & insert
         // 2.a. we need the destination for indexing and lookups, but it was encrypted
         val dest = mapper.readValue<MessageData>(decrypted).destination
-        val jid = JID.parseJid(dest, jidDomain)
-        val allowed = when (jid.type) {
+        val destJID = JID.parseJid(dest, jidDomain)
+        val allowed = when (destJID.type) {
             DestinationType.PARASITE -> {
                 true  // for now, anyone can send private messages to anyone else
             }
+
             DestinationType.GROUP -> {
                 transaction {
                     GroupParasites.slice(GroupParasites.group).select {
-                        (GroupParasites.parasite eq parasite.id) and (GroupParasites.group eq jid.id) and (GroupParasites.role neq GroupRoles.NONE)
+                        (GroupParasites.parasite eq parasite.id) and (GroupParasites.group eq destJID.id) and (GroupParasites.role neq GroupRoles.NONE)
                     }.count() > 0
                 }
             }
@@ -121,11 +123,24 @@ class ChatHandler(
         if (!allowed) {
             throw AuthorizationException()
         }
+        val destinationsToSave = when (destJID.type) {
+            DestinationType.GROUP -> {
+                arrayOf(destJID)
+            }
+
+            DestinationType.PARASITE -> {
+                if (destJID.id == parasite.jid) {
+                    arrayOf(destJID)  // sending message to self
+                } else {
+                    arrayOf(destJID, JID(DestinationType.PARASITE, parasite.jid, jidDomain))
+                }
+            }
+        }
         val (nonce, encrypted) = encryption.encryptDB(decrypted)
         val now = Instant.now()
         val messageId = transaction {
             Messages.insertAndGetId {
-                it[destination] = dest
+                it[destinations] = destinationsToSave.map { it.toString() }.toTypedArray()
                 it[data] = mapper.writeValueAsString(
                     MessageContent(
                         Base64.getEncoder().encodeToString(nonce),
@@ -139,19 +154,20 @@ class ChatHandler(
 
         // 3. for every appropriate socket, encrypt and send
         val recipientJids = transaction {
-            if (jid.type == DestinationType.GROUP) {
+            if (destJID.type == DestinationType.GROUP) {
                 GroupParasites.innerJoin(Parasites).slice(Parasites.jid).select {
-                    (GroupParasites.group eq jid.id) and (GroupParasites.role neq GroupRoles.NONE)
+                    (GroupParasites.group eq destJID.id) and (GroupParasites.role neq GroupRoles.NONE)
                 }.map {
                     it[Parasites.jid]
                 }
             } else {
-                listOf(parasite.jid, jid.id)
+                listOf(parasite.jid, destJID.id)
             }
         }
         synchronized(currentSocketConnections) {
             // Must be in the synchronized block
-            val i: Iterator<ChatSocketConnection> = currentSocketConnections.filter { recipientJids.contains(it.parasite.jid) }.iterator()
+            val i: Iterator<ChatSocketConnection> =
+                currentSocketConnections.filter { recipientJids.contains(it.parasite.jid) }.iterator()
             i.forEach {
                 it.publicKey?.let { pubKey ->
                     log.debug("sending new message to ${it.name}")
@@ -216,7 +232,7 @@ private class JID(val type: DestinationType, val id: Int, val domain: String) {
             // split the string on the regex
             val parts = Regex("[@/]").split(destination)
             // now check how many parts we have. we only allow 2
-             if (parts.size == 2) {
+            if (parts.size == 2) {
                 // if 2 parts, we need to determine if its going to a user or a group
                 if (parts.first() == domain && destination.contains("/")) {
                     val id = parts.last().toIntOrNull() ?: throw IllegalArgumentException("Bad destination JID")
