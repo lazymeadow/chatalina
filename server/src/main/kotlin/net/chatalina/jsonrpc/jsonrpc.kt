@@ -146,11 +146,13 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
             )
         }
 
-        if (!endpoint.isNotification && rpcBody.id.isNullOrBlank()) return generateErrorResult(
-            rpcBody.id,
-            JsonRpcStatus.INVALID_REQUEST,
-            "field 'id' is required"
-        )
+        if (!endpoint.isNotification && rpcBody.id.isNullOrBlank()) {
+            return generateErrorResult(
+                rpcBody.id,
+                JsonRpcStatus.INVALID_REQUEST,
+                "field 'id' is required"
+            )
+        }
 
         try {
             var principal: JWTPrincipal? = null

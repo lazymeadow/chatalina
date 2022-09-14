@@ -66,7 +66,7 @@ fun Application.configureSockets() {
                                 val jsonrpc = application.jsonRpc
                                 // we send the socket principal for processing because the method will handle checking
                                 // validity (if authorization call) and necessary permissions (for all others)
-                                val (_, _, passAlongResult) = jsonrpc.handleRequest(
+                                val (_, response, passAlongResult) = jsonrpc.handleRequest(
                                     ::getBody,
                                     ::getPrincipal,
                                     ::getClientKey,
@@ -103,6 +103,8 @@ fun Application.configureSockets() {
                                     val encryption = application.encryption
                                     thisChatSocketConnection.publicKey =
                                         encryption.validateAndGetPublicKey(passAlongResult.toString())
+                                } else if (response != null) {
+                                    chatHandler.sendToConnection(thisChatSocketConnection, response)
                                 }
                             } catch (e: MissingKotlinParameterException) {
                                 outgoing.send(Frame.Text("{\"error\": \"missing field: ${e.parameter.name}, ${e.parameter.type}\"}"))
