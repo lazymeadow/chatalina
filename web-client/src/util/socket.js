@@ -30,8 +30,7 @@ export function attemptReconnect(callback) {
 				attempt === 1
 			) ? 500 : 3500
 		)
-	}
-	else {
+	} else {
 		console.log(`tried to reconnect ${attempt} time(s), giving up`)
 	}
 	return enabled
@@ -46,6 +45,10 @@ export function resetReconnect() {
 	enabled = true
 }
 
+let messageId = 0
+
 export function sendWebsocketRpc(method, params) {
-	websocket.send(JSON.stringify({jsonrpc: '2.0', method, params}))
+	messageId++
+	websocket.send(JSON.stringify({jsonrpc: '2.0', id: messageId, method, params}))
+	return messageId.toString()
 }

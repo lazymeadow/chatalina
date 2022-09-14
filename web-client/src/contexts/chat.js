@@ -21,6 +21,35 @@ const secureServer = process.env.REACT_APP_SERVER_SECURE === 'true'
 const apiUri = `http${secureServer ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/api/v1/rpc`
 const wsUri = `ws${secureServer ? 's' : ''}://${process.env.REACT_APP_SERVER_HOST}/chat`
 
+function initializationReducer(state, action) {
+	switch (action.type) {
+		case 'step done':
+			const newSteps = {...state.steps, [action.payload]: true}
+			const done = Object.values(newSteps).reduce((acc, curr) => acc && curr, true)
+			return {...state, done, steps: newSteps}
+		case 'start':
+			return {...state, working: true}
+		case 'reset':
+			return getInitializationInitialState()
+		default:
+			return state
+	}
+}
+
+function getInitializationInitialState() {
+	return {
+		working: false,
+		done: false,
+		steps: {
+			socket: false,
+			keyExchange: false,
+			messages: false
+		}
+	}
+}
+
+let getMessagesId
+
 function messageReducer(state, action) {
 	switch (action.type) {
 		case 'add':
@@ -32,6 +61,10 @@ function messageReducer(state, action) {
 		default:
 			return state
 	}
+}
+
+function getMessagesInitialState() {
+	return {log: []}
 }
 
 function notificationsReducer(state, action) {
@@ -63,19 +96,20 @@ function getNotificationsInitialState() {
 	}
 }
 
-let initMessage = ''
-
 export const ChatProvider = ({children}) => {
 	const {initialized: encryptionInitialized, encryption} = useEncryption()
 
-	const [initialized, setInitialized] = useState(false)
-	const [initializing, setInitializing] = useState(false)
-	const [initState, setInitState] = useState(initMessage)
 	const [showModal, setShowModal] = useState(false)
 	const [showRetry, setShowRetry] = useState(false)
 	const [error, setError] = useState(null)
+	const [initMessage, setInitMessage] = useState('')
 
-	const [messagesState, messagesDispatch] = useReducer(messageReducer, {log: []})
+	const [initializationState, initializationDispatch] = useReducer(
+		initializationReducer,
+		{},
+		getInitializationInitialState
+	)
+	const [messagesState, messagesDispatch] = useReducer(messageReducer, {}, getMessagesInitialState)
 	const [notificationsState, notificationsDispatch] = useReducer(
 		notificationsReducer,
 		{},
@@ -94,14 +128,14 @@ export const ChatProvider = ({children}) => {
 	const sendMessage = async (messageText) => {
 		if (encryption.serverKey === null) {
 			console.error('unable to send messages before key exchange')
-		}
-		else {
+		} else {
 			const encrypted = await encryption.encrypt({
 				type: 'text',
 				message: messageText,
 				sender: Authentication.getProfile().username,
 				destination: 'bec/1'
 			})
+			// we send messages via http. the response is usually faster than the socket, so we save it.
 			const response = await fetch(apiUri, {
 				method: 'POST',
 				headers: {
@@ -123,17 +157,10 @@ export const ChatProvider = ({children}) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
 		switch (parsedMessage.type) {
 			case 'keyExchange': {
-				initMessage = initMessage + 'Activating encryption...\n'
-				setInitState(initMessage)
 				// step 2: when server sends its key, send our key back
 				await encryption.setServerKey(parsedMessage.content.key)
 				sendWebsocketRpc('keyExchange', {key: encryption.getPublicKey()})
-				// NOW we're done...
-				setInitState('')
-				// TODO: at this point, we need to request messages from the socket to show what's current
-				setInitialized(true)
-				setInitializing(false)
-				setShowModal(false)
+				initializationDispatch({type: 'step done', payload: 'keyExchange'})
 				break
 			}
 			case 'newMessage': {
@@ -143,15 +170,29 @@ export const ChatProvider = ({children}) => {
 				if (notificationsState.allowSound) {
 					if (decrypted.sender === Authentication.getProfile().username) {
 						sentSoundRef.current?.play()
-					}
-					else {
+					} else {
 						receiveSoundRef.current?.play()
 					}
 				}
 				break
 			}
+			case undefined: {
+				// messages without a type are responses, so they have an id
+				if (parsedMessage.id === getMessagesId) {
+					const messages = parsedMessage.result.map(async message => {
+						const decrypted = await encryption.decrypt(message.content)
+						return {id: message.id, time: new Date(message.time), ...decrypted}
+					})
+					Promise.all(messages).then((msgs) => {
+						msgs.sort((a, b) => a.time - b.time)
+						messagesDispatch({type: 'add', payload: msgs})
+					})
+					initializationDispatch({type: 'step done', payload: 'messages'})
+				}
+				break
+			}
 			default: {
-				console.log('hmmm', parsedMessage)
+				console.log('hmmm', parsedMessage, parsedMessage.type)
 			}
 		}
 	}, [notificationsState.allowSound, encryption])
@@ -159,9 +200,8 @@ export const ChatProvider = ({children}) => {
 	const wsOnOpen = useCallback(() => {
 		console.log(':)')
 		resetReconnect()
+		initializationDispatch({type: 'step done', payload: 'socket'})
 		// step 1: send access token to server
-		initMessage = initMessage + 'Authenticating socket...\n'
-		setInitState(initMessage)
 		sendWebsocketRpc('authorization', {token: Authentication.getToken()})
 	}, [])
 
@@ -171,92 +211,65 @@ export const ChatProvider = ({children}) => {
 		if (!willRetryAgain) {
 			setError(':( Error connecting socket. Retry?')
 			setShowRetry(true)
-		}
-		else {
+		} else {
 			setError(`Socket disconnected! Attempting reconnect #${attempt}`)
 			setShowRetry(false)
 		}
 	}, [wsOnOpen, wsOnMessage])
 
 	const connectSocket = useCallback(() => {
-		initMessage = initMessage + 'Reticulating splines...\n'
-		setInitState(initMessage)
 		getNewWebsocket(wsUri, wsOnOpen, reconnectSocket, wsOnMessage)
 	}, [wsOnOpen, wsOnMessage, reconnectSocket])
 
 	const initChat = useCallback(
 		async () => {
-			if (encryptionInitialized && !initialized && !initializing) {
-				window.onblur = handleWindowBlur
-				window.onfocus = handleWindowFocus
+			initializationDispatch({type: 'start'})
+			window.onblur = handleWindowBlur
+			window.onfocus = handleWindowFocus
 
-				setInitializing(true)
-
-				initMessage = 'Authenticating with server...\nRetrieving chat data...\n'
-				setInitState(initMessage)
-				// first we'll make all the requests that we need to initialize everything
-				const response = await fetch(apiUri, {
-					method: 'POST',
-					headers: {
-						'BEC-Client-Key': encryption.getPublicKey(),
-						'Authorization': 'Bearer ' + Authentication.getToken(),
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'getMessages'}),
-					mode: 'cors'
-				})
-				if (response.ok) {
-					await encryption.setServerKey(response.headers.get('BEC-Server-Key'))
-					const responseBody = await response.json()
-					const messages = responseBody.result.map(async message => {
-						const decrypted = await encryption.decrypt(message.content)
-						return {id: message.id, time: new Date(message.time), ...decrypted}
-					})
-					Promise.all(messages).then((msgs) => {
-						msgs.sort((a, b) => a.time - b.time)
-						messagesDispatch({type: 'add', payload: msgs})
-					})
-					// then we connect the socket
-					connectSocket()
-				}
-				else {
-					console.error('get messages failed', response)
-					setError(':( Error connecting with server. Retry?')
-					setShowModal(true)
-					setShowRetry(true)
-				}
-			}
+			// start by connecting the socket. that's where we'll do our key exchange.
+			connectSocket()
 		},
 		[
-			initialized,
-			initializing,
 			handleWindowBlur,
 			handleWindowFocus,
-			connectSocket,
-			encryptionInitialized,
-			encryption
+			connectSocket
 		]
 	)
 
-
 	useEffect(() => {
-		initChat()
-	}, [initChat, encryptionInitialized])
+		if (encryptionInitialized && !initializationState.done && !initializationState.working) {
+			initChat()
+		}
+	}, [initChat, encryptionInitialized, initializationState.done, initializationState.working])
 
 	useEffect(() => {
 		// for websocket to know about changed react callback, we must reset the handler
-		if (initialized) {
+		if (initializationState.done) {
 			setWebsocketOnMessage(wsOnMessage)
 		}
-	}, [initialized, wsOnMessage])
+	}, [initializationState.done, wsOnMessage])
+
+	useEffect(() => {
+		// once the key exchange is done, we can send the rest of the intialization messages
+		if (initializationState.working && initializationState.steps.keyExchange && !initializationState.steps.messages) {
+			getMessagesId = sendWebsocketRpc('getMessages')
+		}
+	}, [initializationState.working, initializationState.steps])
+
+	useEffect(() => {
+		if (initializationState.working) {
+			setInitMessage('Reticulating splines...\n' + JSON.stringify(initializationState.steps))
+		}
+	}, [initializationState.working, initializationState.steps])
 
 	const sentSoundRef = useRef(null)
 	const receiveSoundRef = useRef(null)
 
 	return (
 		<ChatContext.Provider value={{
-			initialized,
-			initState,
+			initialized: initializationState.done,
+			initMessage,
 			messageLog: messagesState.log,
 			sendMessage,
 			notificationCount: notificationsState.count
@@ -267,7 +280,8 @@ export const ChatProvider = ({children}) => {
 					{error}
 				</p>
 				{!!showRetry && (
-					<button onClick={() => window.location.reload()}>
+					<button onClick={() => initializationDispatch({type: 'reset'})}>
+					{/*<button onClick={() => window.location.reload()}>*/}
 						Reload
 					</button>
 				)}
