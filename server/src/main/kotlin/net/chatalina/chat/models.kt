@@ -35,6 +35,12 @@ enum class MessageTypes(private val value: String) {
     }
 }
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class ParasiteObject(
+    val jid: String,
+    val displayName: String
+)
+
 data class ResponseBody(
     val id: UUID,
     val type: MessageTypes,

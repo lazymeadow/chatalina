@@ -11,10 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import net.chatalina.chat.ChatSocketConnection
-import net.chatalina.chat.MessageContent
-import net.chatalina.chat.MessageTypes
-import net.chatalina.chat.ResponseBody
+import net.chatalina.chat.*
 import net.chatalina.database.*
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
@@ -182,6 +179,18 @@ class ChatHandler(
             }
         }
         return ResponseBody(messageId, MessageTypes.NEW_MESSAGE, message, now)
+    }
+
+    fun getParasites(): List<ParasiteObject> {
+        // parasite list is not encrypted
+        return transaction {
+            Parasites.slice(Parasites.jid, Parasites.displayName)
+                .select { Parasites.active eq true }
+                .map {
+                    val parasiteJid = JID(DestinationType.PARASITE, it[Parasites.jid], jidDomain)
+                ParasiteObject(parasiteJid.toString(), it[Parasites.displayName])
+            }
+        }
     }
 
     companion object Feature : BaseApplicationPlugin<Application, PluginConfiguration, ChatHandler> {
