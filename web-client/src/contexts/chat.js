@@ -43,28 +43,41 @@ function getInitializationInitialState() {
 		steps: {
 			socket: false,
 			keyExchange: false,
-			messages: false
+			messages: false,
+			parasites: false,
+			groups: false
 		}
 	}
 }
 
-let getMessagesId
+let getMessagesId, getParasitesId, getGroupsId
 
-function messageReducer(state, action) {
+function chatDataReducer(state, action) {
 	switch (action.type) {
-		case 'add':
+		case 'messages':
 			// filter out the messages that are already in there
-			const msgsToAdd = action.payload.filter(msg => !!state.log.find(m => m.id === msg.id) !== true)
-			return {...state, log: [...state.log, ...msgsToAdd]}
-		case 'new':
-			return {...state, log: [...state.log, action.payload]}
+			const msgsToAdd = action.payload.filter(msg => !!state.messages.find(m => m.id === msg.id) !== true)
+			return {...state, messages: [...state.messages, ...msgsToAdd]}
+		case 'new message':
+			return {...state, messages: [...state.messages, action.payload]}
+		case 'parasites':
+			const parasitesToAdd = action.payload.filter(parasite => !!state.parasites.find(p => p.jid === parasite.jid)
+				!== true)
+			return {...state, parasites: [...state.parasites, ...parasitesToAdd]}
+		case 'groups':
+			const groupsToAdd = action.payload.filter(group => !!state.groups.find(g => g.jid === group.jid) !== true)
+			return {...state, groups: [...state.groups, ...groupsToAdd]}
 		default:
 			return state
 	}
 }
 
-function getMessagesInitialState() {
-	return {log: []}
+function getChatDataInitialState() {
+	return {
+		messages: [],
+		parasites: [],
+		groups: []
+	}
 }
 
 function notificationsReducer(state, action) {
@@ -109,7 +122,7 @@ export const ChatProvider = ({children}) => {
 		{},
 		getInitializationInitialState
 	)
-	const [messagesState, messagesDispatch] = useReducer(messageReducer, {}, getMessagesInitialState)
+	const [chatDataState, chatDataDispatch] = useReducer(chatDataReducer, {}, getChatDataInitialState)
 	const [notificationsState, notificationsDispatch] = useReducer(
 		notificationsReducer,
 		{},
@@ -165,7 +178,10 @@ export const ChatProvider = ({children}) => {
 			}
 			case 'newMessage': {
 				const decrypted = await encryption.decrypt(parsedMessage.content)
-				messagesDispatch({type: 'new', payload: {id: parsedMessage.id, time: parsedMessage.time, ...decrypted}})
+				chatDataDispatch({
+					type: 'new message',
+					payload: {id: parsedMessage.id, time: parsedMessage.time, ...decrypted}
+				})
 				notificationsDispatch({type: 'notify'})
 				if (notificationsState.allowSound) {
 					if (decrypted.sender === Authentication.getProfile().username) {
@@ -185,9 +201,15 @@ export const ChatProvider = ({children}) => {
 					})
 					Promise.all(messages).then((msgs) => {
 						msgs.sort((a, b) => a.time - b.time)
-						messagesDispatch({type: 'add', payload: msgs})
+						chatDataDispatch({type: 'messages', payload: msgs})
 					})
 					initializationDispatch({type: 'step done', payload: 'messages'})
+				} else if (parsedMessage.id === getParasitesId) {
+					chatDataDispatch({type: 'parasites', payload: parsedMessage.result})
+					initializationDispatch({type: 'step done', payload: 'parasites'})
+				} else if (parsedMessage.id === getGroupsId) {
+					chatDataDispatch({type: 'groups', payload: parsedMessage.result})
+					initializationDispatch({type: 'step done', payload: 'groups'})
 				}
 				break
 			}
@@ -201,6 +223,7 @@ export const ChatProvider = ({children}) => {
 		console.log(':)')
 		resetReconnect()
 		initializationDispatch({type: 'step done', payload: 'socket'})
+		setShowModal(false)
 		// step 1: send access token to server
 		sendWebsocketRpc('authorization', {token: Authentication.getToken()})
 	}, [])
@@ -252,8 +275,12 @@ export const ChatProvider = ({children}) => {
 
 	useEffect(() => {
 		// once the key exchange is done, we can send the rest of the intialization messages
-		if (initializationState.working && initializationState.steps.keyExchange && !initializationState.steps.messages) {
+		if (initializationState.working
+			&& initializationState.steps.keyExchange
+			&& !initializationState.steps.messages) {
 			getMessagesId = sendWebsocketRpc('getMessages')
+			getParasitesId = sendWebsocketRpc('getParasites')
+			getGroupsId = sendWebsocketRpc('getGroups')
 		}
 	}, [initializationState.working, initializationState.steps])
 
@@ -270,7 +297,9 @@ export const ChatProvider = ({children}) => {
 		<ChatContext.Provider value={{
 			initialized: initializationState.done,
 			initMessage,
-			messageLog: messagesState.log,
+			messages: chatDataState.messages,
+			parasites: chatDataState.parasites,
+			groups: chatDataState.groups,
 			sendMessage,
 			notificationCount: notificationsState.count
 		}}>
@@ -281,7 +310,6 @@ export const ChatProvider = ({children}) => {
 				</p>
 				{!!showRetry && (
 					<button onClick={() => initializationDispatch({type: 'reset'})}>
-					{/*<button onClick={() => window.location.reload()}>*/}
 						Reload
 					</button>
 				)}

@@ -13,11 +13,35 @@
     color: white;
 }
 
+.ChatLayout-left > h1 {
+    margin: 5px 0;
+}
+
+.ChatLayout-left > p {
+    margin: 5px 0;
+}
+
 .ChatLayout-left > .scrolly-bit {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     overflow: auto;
+}
+
+.ChatLayout-left > .scrolly-bit h2 {
+    font-size: 1rem;
+    margin-bottom: 5px;
+}
+
+.ChatLayout-left > .scrolly-bit ul {
+    margin: 0;
+    padding: 0;
+}
+
+.ChatLayout-left > .scrolly-bit ul > li {
+    margin: 0;
+    list-style: none;
+    padding: 5px 0;
 }
 
 .ChatLayout-left > .bottom-stuff {
@@ -35,6 +59,8 @@
 
 .ChatLayout-right > .top-part {
     border-bottom: 1px solid lightgray;
+    padding: 5px;
+    margin-top: 3px;
 }
 
 .ChatLayout-right > .middle-guy {

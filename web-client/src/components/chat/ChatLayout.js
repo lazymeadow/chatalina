@@ -25,13 +25,44 @@ const MessageLog = ({messages}) => {
 	)
 }
 
+const LeftBar = ({username, logoutUrl, parasites, groups}) => {
+	return (
+		<>
+			<h1>{process.env.REACT_APP_TITLE}</h1>
+			<p>hi, {username}</p>
+			<div className={'scrolly-bit'}>
+				<h2>Groups</h2>
+				<ul>
+					{groups.map(group => (
+						<li key={group.jid}>
+							{group.name}
+						</li>
+					))}
+				</ul>
+				<h2>Parasites</h2>
+				<ul>
+					{parasites.map(parasite => (
+						<li key={parasite.jid}>
+							{parasite.displayName}
+						</li>
+					))}
+				</ul>
+			</div>
+			<div className={'bottom-stuff'}>
+				<Link to={'/settings'}>Settings</Link>
+				<a href={logoutUrl}>Log out</a>
+			</div>
+		</>
+	)
+}
+
 let autoScroll = true
 
 export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState('')
 	const [lastCount, setLastCount] = useState(0)  // change was triggering twice
 
-	const {messageLog, sendMessage, notificationCount} = useChat()
+	const {messages, parasites, groups, sendMessage, notificationCount} = useChat()
 
 	async function handleSubmitChat() {
 		sendMessage(typedMessage)
@@ -40,7 +71,13 @@ export const ChatLayout = () => {
 
 	function updateAutoScroll(event) {
 		const eventLog = event.currentTarget
-		const scrollThreshold = ((eventLog.scrollHeight / 4) > 100) ? (eventLog.scrollHeight / 4) : 100
+		const scrollThreshold = (
+			(
+				eventLog.scrollHeight / 4
+			) > 100
+		) ? (
+			eventLog.scrollHeight / 4
+		) : 100
 		autoScroll = Math.abs(eventLog.scrollTopMax - eventLog.scrollTop) < scrollThreshold
 	}
 
@@ -49,7 +86,7 @@ export const ChatLayout = () => {
 			const log = document.getElementById('middle')
 			!!log && log.scrollTo({top: log.scrollTopMax})
 		}
-	}, [messageLog])
+	}, [messages])
 
 	useLayoutEffect(() => {
 		if (notificationCount !== lastCount) {
@@ -68,20 +105,18 @@ export const ChatLayout = () => {
 	return (
 		<>
 			<div className={'ChatLayout-left'}>
-				<h1> chat :)</h1>
-				<p>hi, {Authentication.getProfile().username || 'there'}</p>
-				<div className={'scrolly-bit'}>
-					<p>scrolly stuff</p>
-				</div>
-				<div className={'bottom-stuff'}>
-					<Link to={'/settings'}>Settings</Link>
-					<a href={Authentication.getLogoutUrl()}>Log out</a>
-				</div>
+				<LeftBar username={Authentication.getProfile().username || 'there'}
+						 logoutUrl={Authentication.getLogoutUrl()}
+						 parasites={parasites}
+						 groups={groups}
+				/>
 			</div>
 			<div className={'ChatLayout-right'}>
-				<div className={'top-part'}>context</div>
+				<div className={'top-part'}>
+					{groups[0].name}
+				</div>
 				<div className={'middle-guy'} id={'middle'} onScrollCapture={updateAutoScroll}>
-					<MessageLog messages={messageLog} />
+					<MessageLog messages={messages} />
 				</div>
 				<form className={'bottom-bar'} onSubmit={e => {
 					e.preventDefault()
