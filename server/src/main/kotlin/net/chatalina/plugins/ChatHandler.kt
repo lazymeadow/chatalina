@@ -13,10 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import net.chatalina.chat.*
 import net.chatalina.database.*
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insertAndGetId
-import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
 import java.security.PublicKey
@@ -188,8 +185,36 @@ class ChatHandler(
                 .select { Parasites.active eq true }
                 .map {
                     val parasiteJid = JID(DestinationType.PARASITE, it[Parasites.jid], jidDomain)
-                ParasiteObject(parasiteJid.toString(), it[Parasites.displayName])
-            }
+                    ParasiteObject(parasiteJid.toString(), it[Parasites.displayName])
+                }
+        }
+    }
+
+    fun getGroups(parasite: Parasite): List<GroupObject> {
+        // parasite list is not encrypted
+        val parasiteJidsList: ExpressionAlias<Array<Int>> = Parasites.jid.intArrayAgg().alias("jids")
+        val parasiteJidsQuery = GroupParasites.innerJoin(Parasites, {GroupParasites.parasite}, {Parasites.id})
+            .slice(GroupParasites.group, parasiteJidsList)
+            .selectAll()
+            .andWhere { Parasites.active eq true}
+            .groupBy(GroupParasites.group)
+            .alias("p")
+
+        return transaction {
+            Groups.innerJoin(parasiteJidsQuery, { id }, { parasiteJidsQuery[GroupParasites.group] })
+                .slice(Groups.id, Groups.name, parasiteJidsQuery[parasiteJidsList])
+                .selectAll()
+                .andWhere { parasiteJidsQuery[parasiteJidsList] any intParam(parasite.jid) }
+                .map {
+                    val groupJID = JID(DestinationType.GROUP, it[Groups.id].value, jidDomain)
+                    val jidList: Array<Int> = it[parasiteJidsQuery[parasiteJidsList]]
+                    GroupObject(
+                        groupJID.toString(),
+                        it[Groups.name],
+                        jidList.map { jid ->
+                            JID(DestinationType.PARASITE, jid, jidDomain).toString()
+                        })
+                }
         }
     }
 
@@ -206,7 +231,7 @@ class ChatHandler(
 
             val chatHandler = ChatHandler(configuration, encryption, jacksonMapper, becAuth, log)
 
-            pipeline.environment.monitor.subscribe(ApplicationStopPreparing) { call ->
+            pipeline.environment.monitor.subscribe(ApplicationStopPreparing) {
                 log.debug("Closing socket connections...")
                 synchronized(chatHandler.currentSocketConnections) {
                     chatHandler.currentSocketConnections.forEach {

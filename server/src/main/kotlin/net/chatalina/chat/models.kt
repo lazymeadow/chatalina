@@ -2,8 +2,6 @@ package net.chatalina.chat
 
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.annotation.JsonProperty
-import io.ktor.server.plugins.*
 import java.time.Instant
 import java.util.*
 
@@ -41,6 +39,13 @@ data class ParasiteObject(
     val displayName: String
 )
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class GroupObject(
+    val jid: String,
+    val name: String,
+    val parasites: List<String>
+)
+
 data class ResponseBody(
     val id: UUID,
     val type: MessageTypes,
@@ -48,48 +53,11 @@ data class ResponseBody(
     val time: Instant
 )
 
-data class RequestBody(
-    val id: String?,
-    val type: MessageTypes,
-    @JsonProperty("content") val contentMap: Map<String, String>
-) {
-    // this will validate the content when we try to access it
-    val messageContent: RequestContent
-        get() = when (type) {
-            MessageTypes.AUTHORIZATION -> contentMap["token"]?.let { AuthContent(it) }
-                ?: throw BadRequestException("token missing from authorization")
-
-            MessageTypes.KEY_EXCHANGE -> contentMap["key"]?.let { KeyExchangeContent(it) } ?: throw BadRequestException(
-                "key missing from key exchange"
-            )
-
-            MessageTypes.SEND_MESSAGE -> {
-                val iv = contentMap["iv"] ?: throw BadRequestException("iv missing from encrypted message")
-                val messageContent =
-                    contentMap["content"] ?: throw BadRequestException("content missing from encrypted message")
-                if (messageContent.isBlank()) throw BadRequestException("content missing from encrypted message")
-                MessageContent(iv, messageContent)
-            }
-
-            else -> throw BadRequestException("invalid message type for request")
-        }
-}
-
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class MessageContent(
     override val iv: String,
     override val content: String
 ) : RequestContent(iv = iv, content = content)
-
-@JsonInclude(JsonInclude.Include.NON_NULL)
-data class AuthContent(
-    override val token: String
-) : RequestContent(token = token)
-
-@JsonInclude(JsonInclude.Include.NON_NULL)
-data class KeyExchangeContent(
-    override val key: String
-) : RequestContent(key = key)
 
 abstract class RequestContent(
     open val iv: String? = null,

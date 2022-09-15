@@ -3,11 +3,12 @@ package net.chatalina.database
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.statements.jdbc.JdbcConnectionImpl
 import org.jetbrains.exposed.sql.transactions.TransactionManager
+import java.util.*
 
 // from https://github.com/LorittaBot/Loritta
 
-class TextArrayColumnType(private val type: ColumnType) : ColumnType() {
-    override fun sqlType(): String = "TEXT ARRAY"
+open class ArrayColumnType<T>(private val type: ColumnType) : ColumnType() {
+    override fun sqlType(): String = "${type.sqlType()} ARRAY"
 
     override fun valueToDB(value: Any?): Any? {
         if (value is Array<*>) {
@@ -43,7 +44,9 @@ class TextArrayColumnType(private val type: ColumnType) : ColumnType() {
     }
 }
 
-fun Table.textArray(name: String): Column<Array<String>> = registerColumn(name, TextArrayColumnType(TextColumnType()))
+class TextArrayColumnType() : ArrayColumnType<String>(TextColumnType())
+
+fun Table.textArray(name: String): Column<Array<String>> = registerColumn(name, TextArrayColumnType())
 
 class AnyOp(val expr1: Expression<*>, val expr2: Expression<*>) : Op<Boolean>() {
     override fun toQueryBuilder(queryBuilder: QueryBuilder) {
@@ -72,8 +75,21 @@ infix fun <T, S> ExpressionWithColumnType<T>.any(t: S): Op<Boolean> {
     return AnyOp(this, QueryParameter(t, columnType))
 }
 
+infix fun <T, S> Expression<T>.any(expr: Expression<S>): Op<Boolean> {
+    return AnyOp(this, expr)
+}
+
 infix fun <T, S> ExpressionWithColumnType<T>.contains(array: Array<in S>): Op<Boolean> =
     ContainsOp(this, QueryParameter(array, columnType))
 
 infix fun <T, S> ExpressionWithColumnType<T>.overlaps(array: Array<in S>): Op<Boolean> =
     OverlapsOp(this, QueryParameter(array, columnType))
+
+class ArrayAggFunction<T : Any?>(expr: Expression<*>, _columnType: IColumnType) :
+    CustomFunction<Array<T>>("array_agg", _columnType, expr)
+
+fun Expression<Int>.intArrayAgg(): ArrayAggFunction<Int> =
+    ArrayAggFunction(this, ArrayColumnType<Int>(IntegerColumnType()))
+
+fun Expression<UUID>.uuidArrayAgg(): ArrayAggFunction<UUID> =
+    ArrayAggFunction<UUID>(this, UUIDColumnType())
