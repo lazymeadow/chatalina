@@ -286,9 +286,14 @@ export const ChatProvider = ({children}) => {
 
 	useEffect(() => {
 		if (initializationState.working) {
-			setInitMessage('Reticulating splines...\n' + JSON.stringify(initializationState.steps))
+			setInitMessage(`Reticulating splines... ${initializationState.done ? 'done' : ''}
+			Connecting socket... ${initializationState.steps.socket ? 'done' : ''}
+			Exchanging keys... ${initializationState.steps.keyExchange ? 'done' : ''}
+			Retrieving parasites... ${initializationState.steps.parasites ? 'done' : ''}
+			Requesting groups... ${initializationState.steps.groups ? 'done' : ''}
+			Decrypting messages... ${initializationState.steps.messages ? 'done' : ''}`)
 		}
-	}, [initializationState.working, initializationState.steps])
+	}, [initializationState.working, initializationState.done, initializationState.steps])
 
 	const sentSoundRef = useRef(null)
 	const receiveSoundRef = useRef(null)
