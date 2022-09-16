@@ -13,11 +13,13 @@ import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import net.chatalina.chat.ChatSocketConnection
-import net.chatalina.chat.MessageTypes
+import net.chatalina.chat.ServerMethodTypes
 import net.chatalina.database.Parasite
+import net.chatalina.jsonrpc.JsonRpcStatus
 import net.chatalina.jsonrpc.Request
 import net.chatalina.jsonrpc.endpoints.Authorization
 import net.chatalina.jsonrpc.endpoints.KeyExchange
+import net.chatalina.jsonrpc.generateErrorResponse
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.PublicKey
 import java.time.Duration
@@ -75,7 +77,7 @@ fun Application.configureSockets() {
                                 if (body.method == Authorization.methodName) {
                                     val principal = passAlongResult as JWTPrincipal?
                                     if (principal == null) {
-                                        throw BadAuthException()
+                                        throw NoAuthException()
                                     } else {
                                         thisChatSocketConnection.principal = principal
                                         // we know this is a valid parasite, based on their token.
@@ -94,8 +96,8 @@ fun Application.configureSockets() {
                                         val encryption = application.encryption
                                         chatHandler.sendToConnection(
                                             thisChatSocketConnection, mapOf(
-                                                "type" to MessageTypes.KEY_EXCHANGE,
-                                                "content" to mapOf("key" to encryption.publicKey)
+                                                "method" to ServerMethodTypes.KEY_EXCHANGE,
+                                                "params" to mapOf("key" to encryption.publicKey)
                                             )
                                         )
                                     }
@@ -107,21 +109,31 @@ fun Application.configureSockets() {
                                     chatHandler.sendToConnection(thisChatSocketConnection, response)
                                 }
                             } catch (e: MissingKotlinParameterException) {
-                                outgoing.send(Frame.Text("{\"error\": \"missing field: ${e.parameter.name}, ${e.parameter.type}\"}"))
+                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.INVALID_PARAMS, "missing field: ${e.parameter.name}, ${e.parameter.type}")
+                                outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                             } catch (e: UnrecognizedPropertyException) {
-                                outgoing.send(Frame.Text("{\"error\": \"unknown field: ${e.propertyName} (allowed: ${e.knownPropertyIds})\"}"))
+                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.INVALID_PARAMS, "unknown field: ${e.propertyName} (allowed: ${e.knownPropertyIds})")
+                                outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
+                                outgoing.send(Frame.Text("{\"error\": \"\"}"))
                             } catch (e: JsonParseException) {
                                 e.printStackTrace()
-                                outgoing.send(Frame.Text("{\"error\": \"invalid json\"}"))
+                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.PARSE_ERROR, e.message)
+                                outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                             } catch (e: MismatchedInputException) {
                                 e.printStackTrace()
-                                outgoing.send(Frame.Text("{\"error\": \"invalid request\"}"))
+                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.INVALID_REQUEST, e.message)
+                                outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                             } catch (e: BadRequestException) {
+                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.INVALID_REQUEST, e.message)
+                                outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                                 outgoing.send(Frame.Text("{\"error\": \"${e.message}\"}"))
                             } catch (e: NoAuthException) {
+                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.UNAUTHORIZED, e.message)
+                                outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                                 outgoing.send(Frame.Text("{\"error\": \"${e.message}\"}"))
                             } catch (e: BadAuthException) {
-                                outgoing.send(Frame.Text("{\"error\": \"${e.message}\"}"))
+                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.FORBIDDEN, e.message)
+                                outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                                 outgoing.close(e)
                             }
                         }
@@ -140,5 +152,5 @@ fun Application.configureSockets() {
     }
 }
 
-class NoAuthException : Exception("send message with type ${MessageTypes.AUTHORIZATION} and valid token")
+class NoAuthException : Exception("send message with type ${Authorization.methodName} and valid token")
 class BadAuthException : Exception("Invalid auth")

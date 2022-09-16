@@ -1,6 +1,7 @@
 package net.chatalina.plugins
 
 import com.fasterxml.jackson.databind.json.JsonMapper
+import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.server.application.*
 import io.ktor.server.auth.jwt.*
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import net.chatalina.chat.*
 import net.chatalina.database.*
+import net.chatalina.jsonrpc.Request
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
@@ -46,14 +48,32 @@ class ChatHandler(
         return token?.let { becAuth.validateJwt(it) }
     }
 
-    fun getMessages(publicKey: PublicKey, parasite: Parasite): List<ResponseBody> {
+    private fun adjustDestination(dests: Array<String>, parasiteJID: JID, decrypted: ByteArray): ByteArray {
+        val dest = if (dests.size == 2) {
+            dests.firstOrNull { it != parasiteJID.toString() }
+        } else {
+            null
+        }
+        return if (dest != null) {
+            val msg = mapper.readValue<MessageData>(decrypted)
+            mapper.writeValueAsBytes(MessageData(dest, msg.sender, msg.type, msg.message))
+        } else {
+            decrypted
+        }
+    }
+
+    private fun adjustDestination(dests: Array<JID>, parasiteJID: JID, decrypted: ByteArray): ByteArray {
+        return adjustDestination(dests.map { it.toString() }.toTypedArray(), parasiteJID, decrypted)
+    }
+
+    fun getMessages(publicKey: PublicKey, parasite: Parasite): List<MessageResult> {
         return transaction {
             // find groups that this user is allowed to see messages
             val parasiteJID = JID(DestinationType.PARASITE, parasite.jid, jidDomain)
             val groupJIDs = GroupParasites.slice(GroupParasites.group).select {
                 (GroupParasites.parasite eq parasite.id) and (GroupParasites.role neq GroupRoles.NONE)
             }.map { JID(DestinationType.GROUP, it[GroupParasites.group].value, jidDomain) }
-            Messages.slice(Messages.id, Messages.data, Messages.created).select {
+            Messages.slice(Messages.id, Messages.data, Messages.created, Messages.destinations).select {
                 Messages.destinations overlaps (groupJIDs + parasiteJID).map { it.toString() }.toTypedArray()
             }
                 .orderBy(Messages.created, SortOrder.DESC)
@@ -62,10 +82,12 @@ class ChatHandler(
                     // 1. db decrypt
                     val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
                     val decrypted = encryption.decryptDB(content, iv)
+                    val messageToEncrypt = adjustDestination(it[Messages.destinations], parasiteJID, decrypted)
+
                     // 2. pub key encrypt, serialize
-                    val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
-                    ResponseBody(
-                        it[Messages.id].value, MessageTypes.NEW_MESSAGE, MessageContent(
+                    val (nonce, encrypted) = encryption.encryptEC(messageToEncrypt, publicKey)
+                    MessageResult(
+                        it[Messages.id].value, MessageContent(
                             Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
                                 .encodeToString(encrypted)
                         ), it[Messages.created]
@@ -74,25 +96,18 @@ class ChatHandler(
         }
     }
 
-    private fun encryptToSend(messageId: UUID, publicKey: PublicKey, decrypted: ByteArray, time: Instant): String {
+    private fun encryptToSend(publicKey: PublicKey, decrypted: ByteArray): MessageContent {
         val (nonce, encrypted) = encryption.encryptEC(
             decrypted,
             publicKey
         )
-        return serializeToSend(
-            ResponseBody(
-                messageId,
-                MessageTypes.NEW_MESSAGE,
-                MessageContent(
-                    Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
-                        .encodeToString(encrypted)
-                ),
-                time
-            )
+        return MessageContent(
+            Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
+                .encodeToString(encrypted)
         )
     }
 
-    suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey, parasite: Parasite): ResponseBody {
+    suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageResult {
         // 1. decrypt message
         val (iv, content) = message
         val decrypted = encryption.decryptEC(content, iv, publicKey)
@@ -160,22 +175,33 @@ class ChatHandler(
         }
         synchronized(currentSocketConnections) {
             // Must be in the synchronized block
-            val i: Iterator<ChatSocketConnection> =
-                currentSocketConnections.filter { recipientJids.contains(it.parasite.jid) }.iterator()
+            val i: Iterator<ChatSocketConnection> = currentSocketConnections
+                .filter { recipientJids.contains(it.parasite.jid) }
+                .iterator()
             i.forEach {
                 it.publicKey?.let { pubKey ->
                     log.debug("sending new message to ${it.name}")
                     // socket sending is a suspend function. send it off, but keep processing our synchronized list of connections
                     CoroutineScope(Dispatchers.Default).launch {
+                        // we need to adjust for private messages with multiple destinations
+                        val parasiteJID = JID(DestinationType.PARASITE, it.parasite.jid, jidDomain)
+                        val messageToEncrypt = adjustDestination(destinationsToSave, parasiteJID, decrypted)
                         // then we need to re-encrypt it for sending to any relevant connections
-                        val serialized = encryptToSend(messageId, pubKey, decrypted, now)
+                        val serialized = serializeToSend(
+                            Request(
+                                "2.0",
+                                null,
+                                ServerMethodTypes.NEW_MESSAGE.toString(),
+                                mapper.convertValue(MessageResult(messageId, encryptToSend(pubKey, messageToEncrypt), now))
+                            )
+                        )
                         log.debug("encrypted and sending to ${it.name}")
                         it.send(serialized)
                     }
                 } ?: log.debug("not sending to ${it.name} because public key is missing")
             }
         }
-        return ResponseBody(messageId, MessageTypes.NEW_MESSAGE, message, now)
+        return MessageResult(messageId, message, now)
     }
 
     fun getParasites(): List<ParasiteObject> {
@@ -193,10 +219,10 @@ class ChatHandler(
     fun getGroups(parasite: Parasite): List<GroupObject> {
         // parasite list is not encrypted
         val parasiteJidsList: ExpressionAlias<Array<Int>> = Parasites.jid.intArrayAgg().alias("jids")
-        val parasiteJidsQuery = GroupParasites.innerJoin(Parasites, {GroupParasites.parasite}, {Parasites.id})
+        val parasiteJidsQuery = GroupParasites.innerJoin(Parasites, { GroupParasites.parasite }, { Parasites.id })
             .slice(GroupParasites.group, parasiteJidsList)
             .selectAll()
-            .andWhere { Parasites.active eq true}
+            .andWhere { Parasites.active eq true }
             .groupBy(GroupParasites.group)
             .alias("p")
 

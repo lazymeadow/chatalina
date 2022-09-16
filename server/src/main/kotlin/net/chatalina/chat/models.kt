@@ -2,6 +2,7 @@ package net.chatalina.chat
 
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.annotation.JsonInclude
+import net.chatalina.jsonrpc.endpoints.KeyExchange
 import java.time.Instant
 import java.util.*
 
@@ -9,10 +10,8 @@ import java.util.*
 /*** MESSAGE STUFF ***/
 
 
-enum class MessageTypes(private val value: String) {
-    AUTHORIZATION("authorization"),
-    KEY_EXCHANGE("keyExchange"),
-    SEND_MESSAGE("sendMessage"),
+enum class ServerMethodTypes(private val value: String) {
+    KEY_EXCHANGE(KeyExchange.methodName),
     NEW_MESSAGE("newMessage"),
 
     @JsonEnumDefaultValue
@@ -27,7 +26,7 @@ enum class MessageTypes(private val value: String) {
             return values().filter { it != UNKNOWN }.map { it.value }
         }
 
-        fun valueOrNull(string: String): MessageTypes? {
+        fun valueOrNull(string: String): ServerMethodTypes? {
             return values().find { it.value == string }
         }
     }
@@ -46,9 +45,8 @@ data class GroupObject(
     val parasites: List<String>
 )
 
-data class ResponseBody(
+data class MessageResult(
     val id: UUID,
-    val type: MessageTypes,
     val content: MessageContent,
     val time: Instant
 )
