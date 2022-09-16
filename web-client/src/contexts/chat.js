@@ -10,6 +10,7 @@ import {
 	setWebsocketOnMessage
 } from '../util/socket'
 import {Modal} from '../components/Modal'
+import {useSettings} from './settings'
 
 
 const ChatContext = createContext()
@@ -59,7 +60,12 @@ function chatDataReducer(state, action) {
 			const msgsToAdd = action.payload.filter(msg => !!state.messages.find(m => m.id === msg.id) !== true)
 			return {...state, messages: [...state.messages, ...msgsToAdd]}
 		case 'new message':
-			return {...state, messages: [...state.messages, action.payload]}
+			const {message, shouldSetUnread} = action.payload
+			const unread = state.parasites.find(p => p.jid === message.destination) || state.groups.find(g => g.jid === message.destination)
+			if (shouldSetUnread && !!unread) {
+				unread.unread = true
+			}
+			return {...state, messages: [...state.messages, action.payload.message]}
 		case 'parasites':
 			const parasitesToAdd = action.payload.filter(parasite => !!state.parasites.find(p => p.jid === parasite.jid)
 				!== true)
@@ -67,6 +73,12 @@ function chatDataReducer(state, action) {
 		case 'groups':
 			const groupsToAdd = action.payload.filter(group => !!state.groups.find(g => g.jid === group.jid) !== true)
 			return {...state, groups: [...state.groups, ...groupsToAdd]}
+		case 'set read':
+			const read = state.parasites.find(p => p.jid === action.payload) || state.groups.find(g => g.jid === action.payload)
+			if (!!read) {
+				read.unread = false
+			}
+			return {...state}
 		default:
 			return state
 	}
@@ -117,6 +129,8 @@ export const ChatProvider = ({children}) => {
 	const [error, setError] = useState(null)
 	const [initMessage, setInitMessage] = useState('')
 
+	const {currentDest} = useSettings()
+
 	const [initializationState, initializationDispatch] = useReducer(
 		initializationReducer,
 		{},
@@ -138,7 +152,9 @@ export const ChatProvider = ({children}) => {
 		notificationsDispatch({type: 'enable'})
 	}, [])
 
-	const sendMessage = async (messageText) => {
+	const setRead = (destination) => chatDataDispatch({type: 'set read', payload: destination})
+
+	const sendMessage = async (messageText, destination) => {
 		if (encryption.serverKey === null) {
 			console.error('unable to send messages before key exchange')
 		} else {
@@ -146,7 +162,7 @@ export const ChatProvider = ({children}) => {
 				type: 'text',
 				message: messageText,
 				sender: Authentication.getProfile().username,
-				destination: 'bec/1'
+				destination
 			})
 			// we send messages via http. the response is usually faster than the socket, so we save it.
 			const response = await fetch(apiUri, {
@@ -168,19 +184,30 @@ export const ChatProvider = ({children}) => {
 
 	const wsOnMessage = useCallback(async (messageEvent) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
-		switch (parsedMessage.type) {
+		/* {"error":{"code":-32001,"message":"Unauthorized","data":"Invalid auth"},"jsonrpc":"2.0"} */
+		if (parsedMessage.hasOwnProperty("error")) {
+			if (parsedMessage.error.code === -32001) {
+				Authentication.logout()
+			}
+			return
+		}
+		switch (parsedMessage.method) {
 			case 'keyExchange': {
 				// step 2: when server sends its key, send our key back
-				await encryption.setServerKey(parsedMessage.content.key)
+				await encryption.setServerKey(parsedMessage.params.key)
 				sendWebsocketRpc('keyExchange', {key: encryption.getPublicKey()})
 				initializationDispatch({type: 'step done', payload: 'keyExchange'})
 				break
 			}
 			case 'newMessage': {
-				const decrypted = await encryption.decrypt(parsedMessage.content)
+				const messageContent = parsedMessage.params
+				const decrypted = await encryption.decrypt(messageContent.content)
 				chatDataDispatch({
 					type: 'new message',
-					payload: {id: parsedMessage.id, time: parsedMessage.time, ...decrypted}
+					payload: {
+						shouldSetUnread: decrypted.destination !== currentDest,
+						message: {id: messageContent.id, time: messageContent.time, ...decrypted}
+					}
 				})
 				notificationsDispatch({type: 'notify'})
 				if (notificationsState.allowSound) {
@@ -217,7 +244,7 @@ export const ChatProvider = ({children}) => {
 				console.log('hmmm', parsedMessage, parsedMessage.type)
 			}
 		}
-	}, [notificationsState.allowSound, encryption])
+	}, [currentDest, notificationsState.allowSound, encryption])
 
 	const wsOnOpen = useCallback(() => {
 		console.log(':)')
@@ -305,6 +332,7 @@ export const ChatProvider = ({children}) => {
 			messages: chatDataState.messages,
 			parasites: chatDataState.parasites,
 			groups: chatDataState.groups,
+			setRead,
 			sendMessage,
 			notificationCount: notificationsState.count
 		}}>
@@ -314,7 +342,8 @@ export const ChatProvider = ({children}) => {
 					{error}
 				</p>
 				{!!showRetry && (
-					<button onClick={() => initializationDispatch({type: 'reset'})}>
+					<button onClick={() => window.location.reload()}>
+					{/*<button onClick={() => initializationDispatch({type: 'reset'})}>*/}
 						Reload
 					</button>
 				)}

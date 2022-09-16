@@ -19,6 +19,7 @@
 
 .ChatLayout-left > p {
     margin: 5px 0;
+    line-height: 21px;
 }
 
 .ChatLayout-left > .scrolly-bit {
@@ -31,17 +32,33 @@
 .ChatLayout-left > .scrolly-bit h2 {
     font-size: 1rem;
     margin-bottom: 5px;
+    border-bottom: 1px solid rgba(255, 255, 255, .5);
 }
 
 .ChatLayout-left > .scrolly-bit ul {
-    margin: 0;
+    margin: 0 0 15px;
     padding: 0;
 }
 
 .ChatLayout-left > .scrolly-bit ul > li {
-    margin: 0;
+    margin: 5px 0;
     list-style: none;
+    padding: 6px 1px;
+    line-height: 21px;
+    cursor: pointer;
+}
+
+.ChatLayout-left > .scrolly-bit ul > li:hover, .ChatLayout-left > .scrolly-bit ul > li.current {
+    border: 1px solid rgba(255, 255, 255, .5);
     padding: 5px 0;
+}
+
+.ChatLayout-left > .scrolly-bit ul > li.unread {
+    font-weight: bold;
+}
+
+.ChatLayout-left > .scrolly-bit ul > li.unread > svg {
+    margin-left: 5px;
 }
 
 .ChatLayout-left > .bottom-stuff {
@@ -61,6 +78,7 @@
     border-bottom: 1px solid lightgray;
     padding: 5px;
     margin-top: 3px;
+    line-height: 21px;
 }
 
 .ChatLayout-right > .middle-guy {

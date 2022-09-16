@@ -1,31 +1,49 @@
 import './ChatLayout.css'
 import {Link} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
-import {faArrowTurnDown} from '@fortawesome/free-solid-svg-icons'
+import {faArrowTurnDown, faAsterisk} from '@fortawesome/free-solid-svg-icons'
 import {useLayoutEffect, useState} from 'react'
 import {useChat} from '../../contexts/chat'
 import {Authentication} from '../../util/authentication'
+import {useSettings} from '../../contexts/settings'
 
 
-const MessageLog = ({messages}) => {
+const MessageLog = ({messages, currentDest}) => {
+	let content
+	if (!currentDest) {
+		content = (
+			<p>
+				{`Welcome to ${process.env.REACT_APP_TITLE}! Something something getting started`}
+			</p>
+		)
+	} else if (messages.length === 0) {
+		content = (
+			<p>
+				There's nothing here.
+			</p>
+		)
+	} else {
+		content = messages.filter(m => m.destination === currentDest).map((message, index) => (
+			<p key={message.id || index}>
+			<span style={{fontStyle: 'italic'}}>
+				[{new Date(message.time).toLocaleString()}]&nbsp;&nbsp;
+			</span>
+				<span style={{fontWeight: 'bold'}}>
+				{`${message.sender || 'sender'}: `}
+			</span>
+				{message.message}
+			</p>
+		))
+	}
+
 	return (
 		<div className={'log'}>
-			{messages.map((message, index) => (
-				<p key={message.id || index}>
-					<span style={{fontStyle: 'italic'}}>
-						[{new Date(message.time).toLocaleString()}]&nbsp;&nbsp;
-					</span>
-					<span style={{fontWeight: 'bold'}}>
-						{`${message.sender || 'sender'}: `}
-					</span>
-					{message.message}
-				</p>
-			))}
+			{content}
 		</div>
 	)
 }
 
-const LeftBar = ({username, logoutUrl, parasites, groups}) => {
+const LeftBar = ({username, logoutUrl, parasites, groups, onDest, currentDest}) => {
 	return (
 		<>
 			<h1>{process.env.REACT_APP_TITLE}</h1>
@@ -34,16 +52,26 @@ const LeftBar = ({username, logoutUrl, parasites, groups}) => {
 				<h2>Groups</h2>
 				<ul>
 					{groups.map(group => (
-						<li key={group.jid}>
-							{group.name}
+						<li key={group.jid} onClick={() => onDest(group.jid)}
+							className={`${group.unread ? 'unread' : ''} ${group.jid === currentDest
+								? 'current'
+								: ''}`.trim()}>
+							{group.name}{group.unread && (
+							<FontAwesomeIcon icon={faAsterisk} aria-label={'unread messages'} />
+						)}
 						</li>
 					))}
 				</ul>
 				<h2>Parasites</h2>
 				<ul>
 					{parasites.map(parasite => (
-						<li key={parasite.jid}>
-							{parasite.displayName}
+						<li key={parasite.jid} onClick={() => onDest(parasite.jid)}
+							className={`${parasite.unread ? 'unread' : ''} ${parasite.jid === currentDest
+								? 'current'
+								: ''}`.trim()}>
+							{parasite.displayName}{parasite.unread && (
+							<FontAwesomeIcon icon={faAsterisk} aria-label={'unread messages'} />
+						)}
 						</li>
 					))}
 				</ul>
@@ -62,10 +90,11 @@ export const ChatLayout = () => {
 	const [typedMessage, setTypedMessage] = useState('')
 	const [lastCount, setLastCount] = useState(0)  // change was triggering twice
 
-	const {messages, parasites, groups, sendMessage, notificationCount} = useChat()
+	const {messages, parasites, groups, sendMessage, notificationCount, setRead} = useChat()
+	const {currentDest, setDest} = useSettings()
 
 	async function handleSubmitChat() {
-		sendMessage(typedMessage)
+		sendMessage(typedMessage, currentDest)
 		setTypedMessage('')
 	}
 
@@ -102,6 +131,14 @@ export const ChatLayout = () => {
 		}
 	}, [lastCount, notificationCount])
 
+	const handleClickDestination = (destination) => {
+		setDest(destination)
+		setRead(destination)
+	}
+
+	const destName = groups.find(g => g.jid === currentDest)?.name || parasites.find(p => p.jid
+		=== currentDest)?.displayName || '-'
+
 	return (
 		<>
 			<div className={'ChatLayout-left'}>
@@ -109,14 +146,16 @@ export const ChatLayout = () => {
 						 logoutUrl={Authentication.getLogoutUrl()}
 						 parasites={parasites}
 						 groups={groups}
+						 onDest={handleClickDestination}
+						 currentDest={currentDest}
 				/>
 			</div>
 			<div className={'ChatLayout-right'}>
 				<div className={'top-part'}>
-					{groups[0].name}
+					{destName}
 				</div>
 				<div className={'middle-guy'} id={'middle'} onScrollCapture={updateAutoScroll}>
-					<MessageLog messages={messages} />
+					<MessageLog messages={messages} currentDest={currentDest} />
 				</div>
 				<form className={'bottom-bar'} onSubmit={e => {
 					e.preventDefault()
@@ -131,8 +170,9 @@ export const ChatLayout = () => {
 								  }
 							  }}
 					/>
-					<button aria-label={'Send'} disabled={typedMessage.trim().length <= 0}><FontAwesomeIcon
-						icon={faArrowTurnDown} rotation={90} size={'2x'} /></button>
+					<button aria-label={'Send'} disabled={typedMessage.trim().length <= 0}>
+						<FontAwesomeIcon icon={faArrowTurnDown} rotation={90} size={'2x'} />
+					</button>
 				</form>
 			</div>
 		</>

@@ -3,6 +3,7 @@ import {BrowserRouter, Navigate, useRoutes} from 'react-router-dom'
 import {ChatLayout} from './chat/ChatLayout'
 import {Settings} from './settings/Settings'
 import {ChatProvider} from '../contexts/chat'
+import {SettingsProvider} from '../contexts/settings'
 
 
 const Login = () => {
@@ -42,11 +43,13 @@ function BestEvarChatRoutes() {
 
 function BestEvarChatRoot() {
 	return (
-		<ChatProvider>
-			<BrowserRouter>
-				<BestEvarChatRoutes />
-			</BrowserRouter>
-		</ChatProvider>
+		<SettingsProvider>
+			<ChatProvider>
+				<BrowserRouter>
+					<BestEvarChatRoutes />
+				</BrowserRouter>
+			</ChatProvider>
+		</SettingsProvider>
 	)
 }
 

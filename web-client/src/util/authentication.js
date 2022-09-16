@@ -39,6 +39,7 @@ const initAuth = (callback) => {
 
 export const Authentication = {
 	initAuth,
+	logout: keycloak.logout,
 	getProfile: () => profile,
 	getLogoutUrl: () => logoutUrl,
 	getToken: () => keycloak.token,
