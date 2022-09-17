@@ -1,11 +1,12 @@
 import './ChatLayout.css'
-import {Link} from 'react-router-dom'
+import {Link, useSearchParams} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
 import {faArrowTurnDown, faAsterisk} from '@fortawesome/free-solid-svg-icons'
 import {useLayoutEffect, useState} from 'react'
 import {useChat} from '../../contexts/chat'
 import {Authentication} from '../../util/authentication'
 import {useSettings} from '../../contexts/settings'
+import {Settings} from '../settings/Settings'
 
 
 const MessageLog = ({messages, currentDest}) => {
@@ -77,7 +78,7 @@ const LeftBar = ({username, logoutUrl, parasites, groups, onDest, currentDest}) 
 				</ul>
 			</div>
 			<div className={'bottom-stuff'}>
-				<Link to={'/settings'}>Settings</Link>
+				<Link to={'/?settings'}>Settings</Link>
 				<a href={logoutUrl}>Log out</a>
 			</div>
 		</>
@@ -92,6 +93,8 @@ export const ChatLayout = () => {
 
 	const {messages, parasites, groups, sendMessage, notificationCount, setRead} = useChat()
 	const {currentDest, setDest} = useSettings()
+
+	const [searchParams] = useSearchParams()
 
 	async function handleSubmitChat() {
 		sendMessage(typedMessage, currentDest)
@@ -175,6 +178,7 @@ export const ChatLayout = () => {
 					</button>
 				</form>
 			</div>
+			<Settings show={searchParams.has("settings")} />
 		</>
 	)
 }

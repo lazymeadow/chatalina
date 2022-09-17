@@ -363,9 +363,8 @@ export const ChatProvider = ({children}) => {
 					{error}
 				</p>
 				{!!showRetry && (
-					// <button onClick={() => window.location.reload()}>
 					<button onClick={() => initializationDispatch({type: 'reset'})}>
-						Reload
+						Retry
 					</button>
 				)}
 			</Modal>

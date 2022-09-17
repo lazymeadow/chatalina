@@ -1,9 +1,8 @@
 .Settings-root {
     display: flex;
     flex-direction: column;
-    width: 100vw;
-    word-wrap: anywhere;
-    margin: 10px 80px;
+    max-width: 75%;
+    min-width: 400px;
 }
 
 .Settings-root > .header {
@@ -17,4 +16,9 @@
 
 .Settings-root > .header > h1 {
     flex: 0 0 auto;
+}
+
+.Settings-root > .footer {
+    display: flex;
+    justify-content: flex-end;
 }

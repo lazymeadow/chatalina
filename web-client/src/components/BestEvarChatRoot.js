@@ -1,7 +1,6 @@
 import {Landing} from './Landing'
 import {BrowserRouter, Navigate, useRoutes} from 'react-router-dom'
 import {ChatLayout} from './chat/ChatLayout'
-import {Settings} from './settings/Settings'
 import {ChatProvider} from '../contexts/chat'
 import {SettingsProvider} from '../contexts/settings'
 
@@ -19,10 +18,6 @@ function BestEvarChatRoutes() {
 				{
 					index: true,
 					element: <ChatLayout />
-				},
-				{
-					path: 'settings',
-					element: <Settings />
 				}
 			]
 		},

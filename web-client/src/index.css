@@ -36,3 +36,14 @@ body a > svg {
 input, textarea {
   font: 14px Amiko, sans-serif;
 }
+
+button {
+  border: none;
+  padding: 0 10px;
+  min-width: 80px;
+  min-height: 40px;
+  background-color: var(--chatTeal);
+  color: white;
+  font-weight: bold;
+  font: 14px Amiko, sans-serif;
+}

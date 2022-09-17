@@ -123,10 +123,10 @@
 
 .ChatLayout-right > .bottom-bar > button {
     padding: 5px 10px;
-    border: none;
+    min-width: initial;
+    height: 100%;
     border-left: 1px solid lightgray;
     background-color: transparent;
     color: var(--chatTeal);
-    height: 100%;
 }
 
