@@ -84,6 +84,8 @@ class ChatHandler(
             val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
             val decrypted = encryption.decryptDB(content, iv)
             val message = mapper.readValue<MessageData>(decrypted)
+            message.id = it[Messages.id].value
+            message.time = message.time ?: it[Messages.created]  // to support older messages in beta
             val messageToEncrypt = adjustDestination(it[Messages.destinations], parasiteJID, message)
 
             // 2. pub key encrypt, serialize
