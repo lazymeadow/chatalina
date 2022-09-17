@@ -115,7 +115,7 @@ export const ChatLayout = () => {
 			const log = document.getElementById('middle')
 			!!log && log.scrollTo({top: log.scrollTopMax})
 		}
-	}, [messages])
+	}, [messages, currentDest])
 
 	useLayoutEffect(() => {
 		if (notificationCount !== lastCount) {
