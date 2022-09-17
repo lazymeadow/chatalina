@@ -27,7 +27,7 @@ const MessageLog = ({messages, currentDest}) => {
 		content = messages.filter(m => m.destination === currentDest).map((message, index) => (
 			<p key={message.id || index}>
 			<span style={{fontStyle: 'italic'}}>
-				[{new Date(message.time).toLocaleString()}]&nbsp;&nbsp;
+				[{message.time.toLocaleString()}]&nbsp;&nbsp;
 			</span>
 				<span style={{fontWeight: 'bold'}}>
 				{`${message.sender || 'sender'}: `}

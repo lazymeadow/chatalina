@@ -243,8 +243,10 @@ export const ChatProvider = ({children}) => {
 			case undefined: {
 				// messages without a type are responses, so they have an id
 				if (parsedMessage.id === getMessagesId) {
-					const messages = parsedMessage.result.map(async message => {
-						return await encryption.decrypt(message)
+					const messages = parsedMessage.result.map(async encrypted => {
+						const message =  await encryption.decrypt(encrypted)
+						message.time = new Date(message.time)
+						return message
 					})
 					Promise.all(messages).then((msgs) => {
 						msgs.sort((a, b) => a.time - b.time)
