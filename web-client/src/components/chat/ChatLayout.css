@@ -3,7 +3,7 @@
     flex-direction: column;
     overflow: hidden;
     width: 200px;
-    padding: 10px;
+    padding: 10px 0;
 
     background-color: var(--chatTeal);
     color: white;
@@ -11,14 +11,15 @@
 
 .ChatLayout-left a {
     color: white;
+    padding: 10px;
 }
 
 .ChatLayout-left > h1 {
-    margin: 5px 0;
+    margin: 5px 10px;
 }
 
 .ChatLayout-left > p {
-    margin: 5px 0;
+    margin: 5px 10px;
     line-height: 21px;
 }
 
@@ -31,7 +32,8 @@
 
 .ChatLayout-left > .scrolly-bit h2 {
     font-size: 1rem;
-    margin-bottom: 5px;
+    padding: 5px 10px;
+    margin: 10px 0 0;
     border-bottom: 1px solid rgba(255, 255, 255, .5);
 }
 
@@ -41,16 +43,21 @@
 }
 
 .ChatLayout-left > .scrolly-bit ul > li {
-    margin: 5px 0;
     list-style: none;
-    padding: 6px 1px;
+    padding: 10px;
     line-height: 21px;
     cursor: pointer;
 }
 
-.ChatLayout-left > .scrolly-bit ul > li:hover, .ChatLayout-left > .scrolly-bit ul > li.current {
-    border: 1px solid rgba(255, 255, 255, .5);
-    padding: 5px 0;
+.ChatLayout-left > .scrolly-bit ul > li:hover {
+    background-color: rgba(255, 255, 255, .6);
+    font-weight: bold;
+    color: var(--youThinkItsBlackButItsNot);
+}
+
+.ChatLayout-left > .scrolly-bit ul > li.current {
+    background-color: rgba(255, 255, 255, .25);
+    font-weight: bold;
 }
 
 .ChatLayout-left > .scrolly-bit ul > li.unread {
@@ -94,6 +101,7 @@
     flex-direction: column;
     margin-top: auto;
     width: 100%;
+    color: var(--youThinkItsBlackButItsNot);
 }
 
 .ChatLayout-right > .middle-guy > .log > p {
