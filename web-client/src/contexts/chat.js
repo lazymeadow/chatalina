@@ -5,6 +5,7 @@ import {
 	attempt,
 	attemptReconnect,
 	getNewWebsocket,
+	isWebsocketReady,
 	resetReconnect,
 	sendWebsocketRpc,
 	setWebsocketOnMessage
@@ -61,11 +62,17 @@ function chatDataReducer(state, action) {
 			return {...state, messages: [...state.messages, ...msgsToAdd]}
 		case 'new message':
 			const {message, shouldSetUnread} = action.payload
-			const unread = state.parasites.find(p => p.jid === message.destination) || state.groups.find(g => g.jid === message.destination)
+			const foundMessage = state.messages.findIndex(m => m.id === message.id) >= 0
+			if (foundMessage) {
+				return {...state}
+			}
+
+			const unread = state.parasites.find(p => p.jid === message.destination) || state.groups.find(g => g.jid
+				=== message.destination)
 			if (shouldSetUnread && !!unread) {
 				unread.unread = true
 			}
-			return {...state, messages: [...state.messages, action.payload.message]}
+			return {...state, messages: [...state.messages, message]}
 		case 'parasites':
 			const parasitesToAdd = action.payload.filter(parasite => !!state.parasites.find(p => p.jid === parasite.jid)
 				!== true)
@@ -74,7 +81,8 @@ function chatDataReducer(state, action) {
 			const groupsToAdd = action.payload.filter(group => !!state.groups.find(g => g.jid === group.jid) !== true)
 			return {...state, groups: [...state.groups, ...groupsToAdd]}
 		case 'set read':
-			const read = state.parasites.find(p => p.jid === action.payload) || state.groups.find(g => g.jid === action.payload)
+			const read = state.parasites.find(p => p.jid === action.payload) || state.groups.find(g => g.jid
+				=== action.payload)
 			if (!!read) {
 				read.unread = false
 			}
@@ -154,7 +162,33 @@ export const ChatProvider = ({children}) => {
 
 	const setRead = (destination) => chatDataDispatch({type: 'set read', payload: destination})
 
-	const sendMessage = async (messageText, destination) => {
+	const refreshAuth = () => {
+		if (isWebsocketReady()) {
+			console.log('refreshing authorization with server')
+			sendWebsocketRpc('authorization', {token: Authentication.getToken()})
+		}
+	}
+
+	const processMessage = useCallback(async (messageContent) => {
+		const decrypted = await encryption.decrypt(messageContent.content)
+		chatDataDispatch({
+			type: 'new message',
+			payload: {
+				shouldSetUnread: decrypted.destination !== currentDest,
+				message: {id: messageContent.id, time: messageContent.time, ...decrypted}
+			}
+		})
+		notificationsDispatch({type: 'notify'})
+		if (notificationsState.allowSound) {
+			if (decrypted.sender === Authentication.getProfile().username) {
+				sentSoundRef.current?.play()
+			} else {
+				receiveSoundRef.current?.play()
+			}
+		}
+	}, [currentDest, encryption, notificationsState.allowSound])
+
+	const sendMessage = useCallback(async (messageText, destination) => {
 		if (encryption.serverKey === null) {
 			console.error('unable to send messages before key exchange')
 		} else {
@@ -178,17 +212,17 @@ export const ChatProvider = ({children}) => {
 			if (!response.ok) {
 				console.log(response)
 				console.error('error sending message')
+			} else {
+				const responseBody = await response.json()
+				processMessage(responseBody.result)
 			}
 		}
-	}
+	}, [encryption, processMessage])
 
 	const wsOnMessage = useCallback(async (messageEvent) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
-		/* {"error":{"code":-32001,"message":"Unauthorized","data":"Invalid auth"},"jsonrpc":"2.0"} */
-		if (parsedMessage.hasOwnProperty("error")) {
-			if (parsedMessage.error.code === -32001) {
-				Authentication.logout()
-			}
+		if (parsedMessage.hasOwnProperty('error')) {
+			setError(`The server returned an error: ${JSON.stringify(parsedMessage.error)}`)
 			return
 		}
 		switch (parsedMessage.method) {
@@ -197,26 +231,13 @@ export const ChatProvider = ({children}) => {
 				await encryption.setServerKey(parsedMessage.params.key)
 				sendWebsocketRpc('keyExchange', {key: encryption.getPublicKey()})
 				initializationDispatch({type: 'step done', payload: 'keyExchange'})
+				// we know we're authenticated now, but lets make sure we're sending an updated token over
+				Authentication.addRefreshCallback(refreshAuth)
 				break
 			}
 			case 'newMessage': {
 				const messageContent = parsedMessage.params
-				const decrypted = await encryption.decrypt(messageContent.content)
-				chatDataDispatch({
-					type: 'new message',
-					payload: {
-						shouldSetUnread: decrypted.destination !== currentDest,
-						message: {id: messageContent.id, time: messageContent.time, ...decrypted}
-					}
-				})
-				notificationsDispatch({type: 'notify'})
-				if (notificationsState.allowSound) {
-					if (decrypted.sender === Authentication.getProfile().username) {
-						sentSoundRef.current?.play()
-					} else {
-						receiveSoundRef.current?.play()
-					}
-				}
+				processMessage(messageContent)
 				break
 			}
 			case undefined: {
@@ -244,7 +265,7 @@ export const ChatProvider = ({children}) => {
 				console.log('hmmm', parsedMessage, parsedMessage.type)
 			}
 		}
-	}, [currentDest, notificationsState.allowSound, encryption])
+	}, [encryption, processMessage])
 
 	const wsOnOpen = useCallback(() => {
 		console.log(':)')
@@ -256,6 +277,7 @@ export const ChatProvider = ({children}) => {
 	}, [])
 
 	const reconnectSocket = useCallback(() => {
+		Authentication.refresh()
 		setShowModal(true)
 		const willRetryAgain = attemptReconnect(() => getNewWebsocket(wsUri, wsOnOpen, reconnectSocket, wsOnMessage))
 		if (!willRetryAgain) {
@@ -342,8 +364,8 @@ export const ChatProvider = ({children}) => {
 					{error}
 				</p>
 				{!!showRetry && (
-					<button onClick={() => window.location.reload()}>
-					{/*<button onClick={() => initializationDispatch({type: 'reset'})}>*/}
+					// <button onClick={() => window.location.reload()}>
+					<button onClick={() => initializationDispatch({type: 'reset'})}>
 						Reload
 					</button>
 				)}

@@ -1,4 +1,4 @@
-export let websocket = null
+let websocket = null
 
 export function getNewWebsocket(uri, onopen, onclose, onmessage) {
 	websocket = new WebSocket(uri)
@@ -24,12 +24,7 @@ export function attemptReconnect(callback) {
 		}
 		attempt = attempt + 1
 		console.log(`attempting reconnect #${attempt}`)
-		timeout = window.setTimeout(
-			callback,
-			(
-				attempt === 1
-			) ? 500 : 3500
-		)
+		timeout = window.setTimeout(callback, 2500)
 	} else {
 		console.log(`tried to reconnect ${attempt} time(s), giving up`)
 	}
@@ -46,6 +41,10 @@ export function resetReconnect() {
 }
 
 let messageId = 0
+
+export function isWebsocketReady() {
+	return !!websocket && websocket.readyState === WebSocket.OPEN
+}
 
 export function sendWebsocketRpc(method, params) {
 	messageId++

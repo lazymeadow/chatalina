@@ -6,11 +6,26 @@ const keycloak = new Keycloak({
 	url: process.env.REACT_APP_KEYCLOAK_URL,
 	clientId: process.env.REACT_APP_KEYCLOAK_RESOURCE
 })
+
+const refreshCallbacks = []
+
+function doUpdate() {
+	keycloak.updateToken(30).then(r => {
+		if (r) {
+			refreshCallbacks.forEach(cb => !!cb && cb())
+		} else {
+			console.log('didn\'t need to refresh')
+		}
+	}).catch(e => console.log('fail', e))
+}
+
 keycloak.onTokenExpired = () => {
 	console.log('refreshing expired token')
-	keycloak.updateToken(30).then(r => console.log('success', r)).catch(e => console.log('fail', e))
+	doUpdate()
 }
-keycloak.onAuthLogout = keycloak.login
+
+keycloak.onAuthLogout = () => keycloak.login()
+keycloak.onAuthRefreshError = () => keycloak.logout()
 
 let profile, logoutUrl
 
@@ -26,8 +41,7 @@ const initAuth = (callback) => {
 				profile = await keycloak.loadUserProfile()
 				logoutUrl = keycloak.createLogoutUrl()
 				callback()
-			}
-			else {
+			} else {
 				keycloak.login()
 			}
 		})
@@ -43,5 +57,10 @@ export const Authentication = {
 	getProfile: () => profile,
 	getLogoutUrl: () => logoutUrl,
 	getToken: () => keycloak.token,
-	createAccountUrl: keycloak.createAccountUrl
+	createAccountUrl: keycloak.createAccountUrl,
+	addRefreshCallback: (callback) => refreshCallbacks.push(callback),
+	refresh: () => {
+		console.log('token update requested')
+		doUpdate()
+	}
 }
