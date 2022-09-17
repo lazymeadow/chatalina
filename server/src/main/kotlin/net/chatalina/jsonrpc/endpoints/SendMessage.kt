@@ -12,7 +12,7 @@ import java.security.InvalidAlgorithmParameterException
 import java.security.PublicKey
 import javax.crypto.IllegalBlockSizeException
 
-// make sure you directly implement the interface!! it's absolutely necessary for initializing and endpoint
+// make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
 object SendMessage : EncryptedEndpoint(), Endpoint {
     override val methodName = "sendMessage"
     override lateinit var chatHandler: ChatHandler

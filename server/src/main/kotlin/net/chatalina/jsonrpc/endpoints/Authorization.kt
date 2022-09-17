@@ -8,7 +8,7 @@ import net.chatalina.jsonrpc.ParameterType
 import net.chatalina.plugins.ChatHandler
 import java.security.PublicKey
 
-// make sure you directly implement the interface!! it's absolutely necessary for initializing and endpoint
+// make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
 object Authorization : OpenSocketEndpoint(), Endpoint {
     override val methodName = "authorization"
     override lateinit var chatHandler: ChatHandler

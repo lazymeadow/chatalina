@@ -8,7 +8,7 @@ import java.security.InvalidAlgorithmParameterException
 import java.security.PublicKey
 import javax.crypto.IllegalBlockSizeException
 
-// make sure you directly implement the interface!! it's absolutely necessary for initializing and endpoint
+// make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
 object GetMessages : OpenSocketEndpoint(), Endpoint {
     override val methodName = "getMessages"
     override lateinit var chatHandler: ChatHandler
