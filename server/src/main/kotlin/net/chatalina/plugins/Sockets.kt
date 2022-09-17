@@ -43,26 +43,27 @@ fun Application.configureSockets() {
         webSocket("/chat") {
             val chatHandler = application.chatHandler
             // set up a new connection instance for this session
-            val thisChatSocketConnection = ChatSocketConnection(this)
+            val theConnection = ChatSocketConnection(this)
             // add this connection to the handler
-            chatHandler.currentSocketConnections.add(thisChatSocketConnection)
+            chatHandler.currentSocketConnections.add(theConnection)
             try {
                 for (frame in incoming) {
                     val mapper = application.jacksonMapper
                     when (frame) {
                         is Frame.Text -> {
                             try {
+                                application.log.debug("received message from ${theConnection}")
                                 val body = mapper.readValue<Request>(frame.data)
                                 fun getBody(): Request {
                                     return body
                                 }
 
                                 fun getPrincipal(): JWTPrincipal? {
-                                    return thisChatSocketConnection.principal
+                                    return theConnection.principal
                                 }
 
                                 fun getClientKey(): PublicKey? {
-                                    return thisChatSocketConnection.publicKey
+                                    return theConnection.publicKey
                                 }
 
                                 val jsonrpc = application.jsonRpc
@@ -79,34 +80,47 @@ fun Application.configureSockets() {
                                     if (principal == null) {
                                         throw NoAuthException()
                                     } else {
-                                        thisChatSocketConnection.principal = principal
+                                        theConnection.principal = principal
+                                        application.log.debug("set auth for ${theConnection}")
                                         // we know this is a valid parasite, based on their token.
                                         val userId = try {
                                             UUID.fromString(principal.subject)
                                         } catch (e: IllegalArgumentException) {
                                             throw BadAuthException()
                                         }
-                                        val thisParasite = transaction {
-                                            // find or add the parasite
-                                            Parasite.findById(userId) ?: Parasite.new(userId) {
-                                                this.displayName = principal.get("preferred_username") ?: ""
+                                        println(theConnection.isParasiteSet())
+                                        if (theConnection.isParasiteSet()) {
+                                            if (theConnection.parasite.id.value != userId) {
+                                                throw BadAuthException()
                                             }
+                                        } else {
+                                            val thisParasite = transaction {
+                                                // find or add the parasite
+                                                Parasite.findById(userId) ?: Parasite.new(userId) {
+                                                    this.displayName = principal.get("preferred_username") ?: ""
+                                                }
+                                            }
+                                            theConnection.parasite = thisParasite
+                                            application.log.debug("set parasite for ${theConnection}")
                                         }
-                                        thisChatSocketConnection.parasite = thisParasite
-                                        val encryption = application.encryption
-                                        chatHandler.sendToConnection(
-                                            thisChatSocketConnection, mapOf(
-                                                "method" to ServerMethodTypes.KEY_EXCHANGE,
-                                                "params" to mapOf("key" to encryption.publicKey)
+                                        // don't initiate a key exchange if we have a perfectly good key already
+                                        if (theConnection.publicKey == null) {
+                                            application.log.debug("initiating key exchange with ${theConnection}")
+                                            chatHandler.sendToConnection(
+                                                theConnection, mapOf(
+                                                    "method" to ServerMethodTypes.KEY_EXCHANGE,
+                                                    "params" to mapOf("key" to application.encryption.publicKey)
+                                                )
                                             )
-                                        )
+                                        }
                                     }
                                 } else if (body.method == KeyExchange.methodName && passAlongResult != null) {
-                                    val encryption = application.encryption
-                                    thisChatSocketConnection.publicKey =
-                                        encryption.validateAndGetPublicKey(passAlongResult.toString())
+                                    application.log.debug("setting key for ${theConnection}")
+                                    theConnection.publicKey = application.encryption
+                                        .validateAndGetPublicKey(passAlongResult.toString())
                                 } else if (response != null) {
-                                    chatHandler.sendToConnection(thisChatSocketConnection, response)
+                                    application.log.debug("sending result to ${theConnection}")
+                                    chatHandler.sendToConnection(theConnection, response)
                                 }
                             } catch (e: MissingKotlinParameterException) {
                                 val errorResponse = generateErrorResponse(null, JsonRpcStatus.INVALID_PARAMS, "missing field: ${e.parameter.name}, ${e.parameter.type}")
@@ -137,7 +151,6 @@ fun Application.configureSockets() {
                                 outgoing.close(e)
                             }
                         }
-
                         else -> {
                             outgoing.send(Frame.Text("huh???"))
                         }
@@ -146,7 +159,7 @@ fun Application.configureSockets() {
             } catch (e: ClosedReceiveChannelException) {
                 application.log.info("onClose ${closeReason.await()}")
             } finally {
-                chatHandler.currentSocketConnections.remove(thisChatSocketConnection)
+                chatHandler.currentSocketConnections.remove(theConnection)
             }
         }
     }
