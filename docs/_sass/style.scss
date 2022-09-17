@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiko:wght@400;600;700&display=swap');
+
+$primary: #99305E; /* not teal, for testing purposes */
+/*primary: #25687d;*/
+$youThinkItsBlackButItsNot: #232323;
+
+body {
+  font: 14px Amiko, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  display: flex;
+  margin: 0;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  justify-content: stretch;
+}
+
+main {
+  flex: 1 1 auto;
+  position: relative;
+  padding: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+nav {
+  flex: 0 0 200px;
+  color: white;
+  background-color: $primary;
+  padding: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+
+  & ul {
+    list-style: none;
+    padding: 10px 0;
+    margin: 0;
+
+    & li {
+      word-break-wrap: none;
+      margin: 10px 0;
+    }
+
+    & a {
+      &:link, &:hover, &:active, &:visited {
+        color: white;
+        text-decoration: none;
+      }
+    }
+  }
+}
+

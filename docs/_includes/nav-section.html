@@ -1,0 +1,17 @@
+<ul>
+    {% unless include.name == 'root' %}
+    <h2>{{include.name}}</h2>
+    {% endunless %}
+    {% assign items = include.items | sort: 'order' %}
+    {% for item in items %}
+    <li>
+        {% if item.url == page.url %}
+        {{item.title}}
+        {% else %}
+        <a href="{{item.url}}">
+            {{item.title}}
+        </a>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>

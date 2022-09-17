@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Chatalina - {{ page.title }}</title>
+    <link rel="stylesheet" href="assets/main.css">
+</head>
+<body>
+<nav>
+    <ul>
+        <li>
+            {% if page.url == '/' %}
+            Chatalina Docs
+            {% else %}
+            <a href="/">Chatalina Docs</a>
+            {% endif %}
+        </li>
+        {% assign all_docs = site.docs | group_by: 'category' %}
+        {% for cat in all_docs %}
+        {% include nav-section.html name=cat.name items=cat.items %}
+        {% endfor %}
+    </ul>
+</nav>
+<main>
+    <h1>{{ page.title }}</h1>
+    <section>
+        {{ content | markdownify }}
+    </section>
+</main>
+</body>
+</html>
