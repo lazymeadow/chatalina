@@ -158,7 +158,8 @@ export const ChatLayout = () => {
 					{destName}
 				</div>
 				<div className={'middle-guy'} id={'middle'} onScrollCapture={updateAutoScroll}>
-					<MessageLog messages={messages} currentDest={currentDest} />
+					<MessageLog messages={messages.filter(m => m.destination === currentDest)}
+								currentDest={currentDest} />
 				</div>
 				<form className={'bottom-bar'} onSubmit={e => {
 					e.preventDefault()
@@ -178,7 +179,7 @@ export const ChatLayout = () => {
 					</button>
 				</form>
 			</div>
-			<Settings show={searchParams.has("settings")} />
+			<Settings show={searchParams.has('settings')} />
 		</>
 	)
 }

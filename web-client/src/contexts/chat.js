@@ -171,6 +171,7 @@ export const ChatProvider = ({children}) => {
 
 	const processMessage = useCallback(async (messageContent) => {
 		const decrypted = await encryption.decrypt(messageContent)
+		decrypted.time = new Date(decrypted.time)
 		chatDataDispatch({
 			type: 'new message',
 			payload: {
