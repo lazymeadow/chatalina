@@ -24,11 +24,18 @@ class ChatSocketConnection(val session: DefaultWebSocketServerSession) {
     // we'll need a public key to do encryption, but there's no headers with browser based WebSockets -_-
     var principal: JWTPrincipal? = null
 
+    fun isParasiteSet(): Boolean {
+        return this::parasite.isInitialized
+    }
     suspend fun send(data: String) {
         try {
             this.session.send(data)
         } catch (e: ClosedSendChannelException) {
             this.session.application.log.debug("Attempted to send message to closed session $name")
         }
+    }
+
+    override fun toString(): String {
+        return this.name
     }
 }

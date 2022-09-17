@@ -44,7 +44,7 @@ function getInitializationInitialState() {
 		done: false,
 		steps: {
 			socket: false,
-			keyExchange: false,
+			key: false,
 			messages: false,
 			parasites: false,
 			groups: false
@@ -170,12 +170,12 @@ export const ChatProvider = ({children}) => {
 	}
 
 	const processMessage = useCallback(async (messageContent) => {
-		const decrypted = await encryption.decrypt(messageContent.content)
+		const decrypted = await encryption.decrypt(messageContent)
 		chatDataDispatch({
 			type: 'new message',
 			payload: {
 				shouldSetUnread: decrypted.destination !== currentDest,
-				message: {id: messageContent.id, time: messageContent.time, ...decrypted}
+				message: decrypted
 			}
 		})
 		notificationsDispatch({type: 'notify'})
@@ -206,7 +206,7 @@ export const ChatProvider = ({children}) => {
 					'Authorization': 'Bearer ' + Authentication.getToken(),
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'sendMessage', params: encrypted}),
+				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'messages.send', params: encrypted}),
 				mode: 'cors'
 			})
 			if (!response.ok) {
@@ -226,16 +226,16 @@ export const ChatProvider = ({children}) => {
 			return
 		}
 		switch (parsedMessage.method) {
-			case 'keyExchange': {
+			case 'encryption.key': {
 				// step 2: when server sends its key, send our key back
 				await encryption.setServerKey(parsedMessage.params.key)
-				sendWebsocketRpc('keyExchange', {key: encryption.getPublicKey()})
-				initializationDispatch({type: 'step done', payload: 'keyExchange'})
+				sendWebsocketRpc('encryption.key', {key: encryption.getPublicKey()})
+				initializationDispatch({type: 'step done', payload: 'key'})
 				// we know we're authenticated now, but lets make sure we're sending an updated token over
 				Authentication.addRefreshCallback(refreshAuth)
 				break
 			}
-			case 'newMessage': {
+			case 'messages.new': {
 				const messageContent = parsedMessage.params
 				processMessage(messageContent)
 				break
@@ -244,8 +244,7 @@ export const ChatProvider = ({children}) => {
 				// messages without a type are responses, so they have an id
 				if (parsedMessage.id === getMessagesId) {
 					const messages = parsedMessage.result.map(async message => {
-						const decrypted = await encryption.decrypt(message.content)
-						return {id: message.id, time: new Date(message.time), ...decrypted}
+						return await encryption.decrypt(message)
 					})
 					Promise.all(messages).then((msgs) => {
 						msgs.sort((a, b) => a.time - b.time)
@@ -325,11 +324,11 @@ export const ChatProvider = ({children}) => {
 	useEffect(() => {
 		// once the key exchange is done, we can send the rest of the intialization messages
 		if (initializationState.working
-			&& initializationState.steps.keyExchange
+			&& initializationState.steps.key
 			&& !initializationState.steps.messages) {
-			getMessagesId = sendWebsocketRpc('getMessages')
-			getParasitesId = sendWebsocketRpc('getParasites')
-			getGroupsId = sendWebsocketRpc('getGroups')
+			getMessagesId = sendWebsocketRpc('messages.get')
+			getParasitesId = sendWebsocketRpc('parasites.get')
+			getGroupsId = sendWebsocketRpc('groups.get')
 		}
 	}, [initializationState.working, initializationState.steps])
 
@@ -337,7 +336,7 @@ export const ChatProvider = ({children}) => {
 		if (initializationState.working) {
 			setInitMessage(`Reticulating splines... ${initializationState.done ? 'done' : ''}
 			Connecting socket... ${initializationState.steps.socket ? 'done' : ''}
-			Exchanging keys... ${initializationState.steps.keyExchange ? 'done' : ''}
+			Exchanging keys... ${initializationState.steps.key ? 'done' : ''}
 			Retrieving parasites... ${initializationState.steps.parasites ? 'done' : ''}
 			Requesting groups... ${initializationState.steps.groups ? 'done' : ''}
 			Decrypting messages... ${initializationState.steps.messages ? 'done' : ''}`)

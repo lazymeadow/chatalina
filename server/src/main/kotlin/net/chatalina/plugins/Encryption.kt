@@ -1,10 +1,7 @@
 package net.chatalina.plugins
 
-import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
 import io.ktor.util.*
 import java.io.File
 import java.security.*
@@ -135,10 +132,11 @@ class Encryption(configuration: PluginConfiguration) {
         return Pair(nonce, cipher.doFinal(content))
     }
 
-    fun encryptDB(content: ByteArray): Pair<ByteArray, ByteArray> {
+    fun encryptDB(content: ByteArray): Pair<String, String> {
         val nonce = getNonce()
         val cipher = getAESCipher(aesKey, Cipher.ENCRYPT_MODE, nonce)
-        return Pair(nonce, cipher.doFinal(content))
+        val encrypted = cipher.doFinal(content)
+        return Pair(Base64.getEncoder().encodeToString(nonce), Base64.getEncoder().encodeToString(encrypted))
     }
 
     fun decryptDB(content: String, iv: String): ByteArray {

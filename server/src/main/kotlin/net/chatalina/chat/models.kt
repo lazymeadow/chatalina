@@ -2,17 +2,15 @@ package net.chatalina.chat
 
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.annotation.JsonInclude
-import net.chatalina.jsonrpc.endpoints.KeyExchange
-import java.time.Instant
-import java.util.*
+import net.chatalina.jsonrpc.endpoints.EncryptionKey
 
 
 /*** MESSAGE STUFF ***/
 
 
 enum class ServerMethodTypes(private val value: String) {
-    KEY_EXCHANGE(KeyExchange.methodName),
-    NEW_MESSAGE("newMessage"),
+    ENCRYPTION_KEY(EncryptionKey.methodName),
+    NEW_MESSAGE("messages.new"),
 
     @JsonEnumDefaultValue
     UNKNOWN("unknown");
@@ -43,12 +41,6 @@ data class GroupObject(
     val jid: String,
     val name: String,
     val parasites: List<String>
-)
-
-data class MessageResult(
-    val id: UUID,
-    val content: MessageContent,
-    val time: Instant
 )
 
 @JsonInclude(JsonInclude.Include.NON_NULL)

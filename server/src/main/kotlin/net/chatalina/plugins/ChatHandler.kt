@@ -1,5 +1,6 @@
 package net.chatalina.plugins
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -48,28 +49,27 @@ class ChatHandler(
         return token?.let { becAuth.validateJwt(it) }
     }
 
-    private fun adjustDestination(dests: Array<String>, parasiteJID: JID, decrypted: ByteArray): ByteArray {
+    private fun adjustDestination(dests: Array<String>, parasiteJID: JID, msg: MessageData): MessageData {
         val dest = if (dests.size == 2) {
             dests.firstOrNull { it != parasiteJID.toString() }
         } else {
             null
         }
         return if (dest != null) {
-            val msg = mapper.readValue<MessageData>(decrypted)
-            mapper.writeValueAsBytes(MessageData(dest, msg.sender, msg.type, msg.message))
+            MessageData(dest, msg.sender, msg.type, msg.message, msg.time, msg.id)
         } else {
-            decrypted
+            msg
         }
     }
 
-    private fun adjustDestination(dests: Array<JID>, parasiteJID: JID, decrypted: ByteArray): ByteArray {
-        return adjustDestination(dests.map { it.toString() }.toTypedArray(), parasiteJID, decrypted)
+    private fun adjustDestination(dests: Array<JID>, parasiteJID: JID, msg: MessageData): MessageData {
+        return adjustDestination(dests.map { it.toString() }.toTypedArray(), parasiteJID, msg)
     }
 
-    fun getMessages(publicKey: PublicKey, parasite: Parasite): List<MessageResult> {
+    fun getMessages(publicKey: PublicKey, parasite: Parasite): List<MessageContent> {
+        val parasiteJID = JID(DestinationType.PARASITE, parasite.jid, jidDomain)
         return transaction {
             // find groups that this user is allowed to see messages
-            val parasiteJID = JID(DestinationType.PARASITE, parasite.jid, jidDomain)
             val groupJIDs = GroupParasites.slice(GroupParasites.group).select {
                 (GroupParasites.parasite eq parasite.id) and (GroupParasites.role neq GroupRoles.NONE)
             }.map { JID(DestinationType.GROUP, it[GroupParasites.group].value, jidDomain) }
@@ -78,44 +78,37 @@ class ChatHandler(
             }
                 .orderBy(Messages.created, SortOrder.DESC)
                 .limit(100)
-                .map {
-                    // 1. db decrypt
-                    val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
-                    val decrypted = encryption.decryptDB(content, iv)
-                    val messageToEncrypt = adjustDestination(it[Messages.destinations], parasiteJID, decrypted)
+                .toList()
+        }.map {
+            // 1. db decrypt
+            val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
+            val decrypted = encryption.decryptDB(content, iv)
+            val message = mapper.readValue<MessageData>(decrypted)
+            val messageToEncrypt = adjustDestination(it[Messages.destinations], parasiteJID, message)
 
-                    // 2. pub key encrypt, serialize
-                    val (nonce, encrypted) = encryption.encryptEC(messageToEncrypt, publicKey)
-                    MessageResult(
-                        it[Messages.id].value, MessageContent(
-                            Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
-                                .encodeToString(encrypted)
-                        ), it[Messages.created]
-                    )
-                }
+            // 2. pub key encrypt, serialize
+            encryptToSend(publicKey, mapper.writeValueAsBytes(messageToEncrypt))
         }
     }
 
     private fun encryptToSend(publicKey: PublicKey, decrypted: ByteArray): MessageContent {
-        val (nonce, encrypted) = encryption.encryptEC(
-            decrypted,
-            publicKey
-        )
+        val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
+
         return MessageContent(
-            Base64.getEncoder().encodeToString(nonce), Base64.getEncoder()
-                .encodeToString(encrypted)
+            Base64.getEncoder().encodeToString(nonce),
+            Base64.getEncoder().encodeToString(encrypted)
         )
     }
 
-    suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageResult {
+    suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageContent {
         // 1. decrypt message
         val (iv, content) = message
         val decrypted = encryption.decryptEC(content, iv, publicKey)
 
         // 2. encrypt message for db & insert
         // 2.a. we need the destination for indexing and lookups, but it was encrypted
-        val dest = mapper.readValue<MessageData>(decrypted).destination
-        val destJID = JID.parseJid(dest, jidDomain)
+        val processedMessage = mapper.readValue<MessageData>(decrypted)
+        val destJID = JID.parseJid(processedMessage.destination, jidDomain)
         val allowed = when (destJID.type) {
             DestinationType.PARASITE -> {
                 true  // for now, anyone can send private messages to anyone else
@@ -145,16 +138,16 @@ class ChatHandler(
                 }
             }
         }
-        val (nonce, encrypted) = encryption.encryptDB(decrypted)
+
         val now = Instant.now()
-        val messageId = transaction {
+        processedMessage.time = now
+
+        val (nonce, encrypted) = encryption.encryptDB(mapper.writeValueAsBytes(processedMessage))
+        processedMessage.id = transaction {
             Messages.insertAndGetId {
                 it[destinations] = destinationsToSave.map { it.toString() }.toTypedArray()
                 it[data] = mapper.writeValueAsString(
-                    MessageContent(
-                        Base64.getEncoder().encodeToString(nonce),
-                        Base64.getEncoder().encodeToString(encrypted)
-                    )
+                    MessageContent(nonce, encrypted)
                 )
                 it[created] = now
                 it[updated] = now
@@ -185,14 +178,14 @@ class ChatHandler(
                     CoroutineScope(Dispatchers.Default).launch {
                         // we need to adjust for private messages with multiple destinations
                         val parasiteJID = JID(DestinationType.PARASITE, it.parasite.jid, jidDomain)
-                        val messageToEncrypt = adjustDestination(destinationsToSave, parasiteJID, decrypted)
+                        val messageToEncrypt = adjustDestination(destinationsToSave, parasiteJID, processedMessage)
                         // then we need to re-encrypt it for sending to any relevant connections
                         val serialized = serializeToSend(
                             Request(
                                 "2.0",
                                 null,
                                 ServerMethodTypes.NEW_MESSAGE.toString(),
-                                mapper.convertValue(MessageResult(messageId, encryptToSend(pubKey, messageToEncrypt), now))
+                                mapper.convertValue(encryptToSend(pubKey, mapper.writeValueAsBytes(messageToEncrypt)))
                             )
                         )
                         log.debug("encrypted and sending to ${it.name}")
@@ -201,7 +194,7 @@ class ChatHandler(
                 } ?: log.debug("not sending to ${it.name} because public key is missing")
             }
         }
-        return MessageResult(messageId, message, now)
+        return mapper.convertValue(encryptToSend(publicKey, mapper.writeValueAsBytes(processedMessage)))
     }
 
     fun getParasites(): List<ParasiteObject> {
@@ -315,11 +308,14 @@ private class JID(val type: DestinationType, val id: Int, val domain: String) {
     }
 }
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 private data class MessageData(
     val destination: String,
     val sender: String,
     val type: String,
-    val message: Any
+    val message: Any,
+    var time: Instant?,
+    var id: UUID? = null
 )
 
 fun Application.configureChatHandler() {

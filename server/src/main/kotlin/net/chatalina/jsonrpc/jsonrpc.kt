@@ -20,7 +20,12 @@ import java.util.*
 
 
 // Requests
-data class Request(val jsonrpc: String?, val id: String?, val method: String?, val params: Map<String, Any>?)
+data class Request(
+    val jsonrpc: String?,
+    @JsonInclude(JsonInclude.Include.NON_NULL) val id: String?,
+    val method: String?,
+    val params: Map<String, Any>?
+)
 
 
 // Responses
@@ -49,7 +54,7 @@ enum class JsonRpcStatus(val rpcCode: Int, val rpcMessage: String?, val statusCo
     METHOD_NOT_FOUND(-32601, "Method Not Found", HttpStatusCode.BadRequest),
     INVALID_PARAMS(-32602, "Invalid Params", HttpStatusCode.BadRequest),
     SERVER_ERROR(-32500, "Server Error", HttpStatusCode.InternalServerError),
-    KEY_EXCHANGE(-32003, "Key Exchange Needed", HttpStatusCode.BadRequest),
+    KEY_ERROR(-32003, "Key Exchange Needed", HttpStatusCode.BadRequest),
     ENCRYPTION_ERROR(-32004, "Encryption Error", HttpStatusCode.BadRequest),
     DESTINATION_ERROR(-32005, "Destination Error", HttpStatusCode.BadRequest),
     UNAUTHORIZED(-32001, "Unauthorized", HttpStatusCode.Unauthorized),
@@ -174,7 +179,7 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
                 }
             }
             if (endpoint.encrypted) {
-                clientKey = getClientKey() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.KEY_EXCHANGE)
+                clientKey = getClientKey() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.KEY_ERROR)
             }
 
             // call endpoint class's validate function for request parameters

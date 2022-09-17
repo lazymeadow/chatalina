@@ -18,7 +18,7 @@ import net.chatalina.database.Parasite
 import net.chatalina.jsonrpc.JsonRpcStatus
 import net.chatalina.jsonrpc.Request
 import net.chatalina.jsonrpc.endpoints.Authorization
-import net.chatalina.jsonrpc.endpoints.KeyExchange
+import net.chatalina.jsonrpc.endpoints.EncryptionKey
 import net.chatalina.jsonrpc.generateErrorResponse
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.PublicKey
@@ -88,7 +88,6 @@ fun Application.configureSockets() {
                                         } catch (e: IllegalArgumentException) {
                                             throw BadAuthException()
                                         }
-                                        println(theConnection.isParasiteSet())
                                         if (theConnection.isParasiteSet()) {
                                             if (theConnection.parasite.id.value != userId) {
                                                 throw BadAuthException()
@@ -108,13 +107,13 @@ fun Application.configureSockets() {
                                             application.log.debug("initiating key exchange with ${theConnection}")
                                             chatHandler.sendToConnection(
                                                 theConnection, mapOf(
-                                                    "method" to ServerMethodTypes.KEY_EXCHANGE,
+                                                    "method" to ServerMethodTypes.ENCRYPTION_KEY,
                                                     "params" to mapOf("key" to application.encryption.publicKey)
                                                 )
                                             )
                                         }
                                     }
-                                } else if (body.method == KeyExchange.methodName && passAlongResult != null) {
+                                } else if (body.method == EncryptionKey.methodName && passAlongResult != null) {
                                     application.log.debug("setting key for ${theConnection}")
                                     theConnection.publicKey = application.encryption
                                         .validateAndGetPublicKey(passAlongResult.toString())

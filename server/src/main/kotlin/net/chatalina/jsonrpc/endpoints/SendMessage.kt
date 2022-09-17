@@ -14,7 +14,7 @@ import javax.crypto.IllegalBlockSizeException
 
 // make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
 object SendMessage : EncryptedEndpoint(), Endpoint {
-    override val methodName = "sendMessage"
+    override val methodName = "messages.send"
     override lateinit var chatHandler: ChatHandler
 
     override val requiredParams = listOf(

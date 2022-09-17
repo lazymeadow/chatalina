@@ -9,10 +9,10 @@ import java.security.PublicKey
 import javax.crypto.IllegalBlockSizeException
 
 object GetParasites: OpenSocketEndpoint(), Endpoint {
-    override val methodName = "getParasites"
+    override val methodName = "parasites.get"
     override lateinit var chatHandler: ChatHandler
     override val authenticated = true
-    override val executeInSocket = true
+    override val isNotification = false
 
     override suspend fun execute(
         params: Map<String, Any>?,

@@ -7,10 +7,10 @@ import net.chatalina.plugins.ChatHandler
 import java.security.PublicKey
 
 object GetGroups : OpenSocketEndpoint(), Endpoint {
-    override val methodName = "getGroups"
+    override val methodName = "groups.get"
     override lateinit var chatHandler: ChatHandler
     override val authenticated = true
-    override val executeInSocket = true
+    override val isNotification = false
 
     override suspend fun execute(
         params: Map<String, Any>?,

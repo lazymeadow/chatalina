@@ -60,14 +60,14 @@ class EncryptionManager {
 		}
 	}
 
-	async decrypt({content: dataString, iv}) {
+	async decrypt({content, iv}) {
 		const decrypted = await crypto.subtle.decrypt(
 			{
 				name: 'AES-CBC',
 				iv: strToArr(iv)
 			},
 			this.derivedKey,
-			strToArr(dataString)
+			strToArr(content)
 		)
 
 		return JSON.parse(this.dec.decode(decrypted))

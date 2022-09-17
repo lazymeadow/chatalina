@@ -9,8 +9,8 @@ import net.chatalina.plugins.ChatHandler
 import java.security.PublicKey
 
 // make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
-object KeyExchange : OpenSocketEndpoint(), Endpoint {
-    override val methodName = "keyExchange"
+object EncryptionKey : OpenSocketEndpoint(), Endpoint {
+    override val methodName = "encryption.key"
     override lateinit var chatHandler: ChatHandler
 
     override val requiredParams = listOf(

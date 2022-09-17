@@ -10,11 +10,11 @@ import javax.crypto.IllegalBlockSizeException
 
 // make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
 object GetMessages : OpenSocketEndpoint(), Endpoint {
-    override val methodName = "getMessages"
+    override val methodName = "messages.get"
     override lateinit var chatHandler: ChatHandler
     override val authenticated = true
     override val encrypted = true
-    override val executeInSocket = true
+    override val isNotification = false
 
     override suspend fun execute(
         params: Map<String, Any>?,
