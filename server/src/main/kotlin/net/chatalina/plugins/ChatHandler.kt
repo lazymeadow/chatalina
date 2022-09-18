@@ -60,9 +60,9 @@ class ChatHandler(
         return token?.let { becAuth.validateJwt(it) }
     }
 
-    private fun adjustDestination(dests: Array<String>, parasiteJID: JID, msg: MessageData): MessageData {
+    private fun adjustDestination(dests: List<JID>, parasiteJID: JID, msg: MessageData): MessageData {
         val dest = if (dests.size == 2) {
-            dests.firstOrNull { it != parasiteJID.toString() }
+            dests.firstOrNull { it != parasiteJID }
         } else {
             null
         }
@@ -71,10 +71,6 @@ class ChatHandler(
         } else {
             msg
         }
-    }
-
-    private fun adjustDestination(dests: Array<JID>, parasiteJID: JID, msg: MessageData): MessageData {
-        return adjustDestination(dests.map { it.toString() }.toTypedArray(), parasiteJID, msg)
     }
 
     private fun encryptToSend(publicKey: PublicKey, decrypted: ByteArray): MessageContent {
@@ -106,7 +102,8 @@ class ChatHandler(
             val message = mapper.readValue<MessageData>(decrypted)
             message.id = it[Messages.id].value
             message.time = message.time ?: it[Messages.created]  // to support older messages in beta
-            val messageToEncrypt = adjustDestination(it[Messages.destinations], parasiteJID, message)
+            val dests = it[Messages.destinations].map { jid -> JID.parseJID(jid) }
+            val messageToEncrypt = adjustDestination(dests, parasiteJID, message)
 
             // 2. pub key encrypt, serialize
             encryptToSend(publicKey, mapper.writeValueAsBytes(messageToEncrypt))
@@ -116,7 +113,7 @@ class ChatHandler(
     suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageContent {
         // 1. decrypt message
         val processedMessage = readMessageContent<MessageData>(message, mapper, publicKey, encryption::decryptEC)
-        val destJID = JID.parseJID(processedMessage.destination)
+        val destJID = processedMessage.destination
         if (destJID.domain != jidDomain) {
             throw IllegalArgumentException("Bad destination JID")
         }
@@ -124,7 +121,6 @@ class ChatHandler(
             DestinationType.PARASITE -> {
                 true  // for now, anyone can send private messages to anyone else
             }
-
             DestinationType.GROUP -> {
                 transaction {
                     GroupParasites.slice(GroupParasites.group).select {
@@ -138,14 +134,13 @@ class ChatHandler(
         }
         val destinationsToSave = when (destJID.type) {
             DestinationType.GROUP -> {
-                arrayOf(destJID)
+                listOf(destJID)
             }
-
             DestinationType.PARASITE -> {
                 if (destJID.id == parasite.jid) {
-                    arrayOf(destJID)  // sending message to self
+                    listOf(destJID)  // sending message to self
                 } else {
-                    arrayOf(destJID, JID(DestinationType.PARASITE, parasite.jid, jidDomain))
+                    listOf(destJID, JID(DestinationType.PARASITE, parasite.jid, jidDomain))
                 }
             }
         }
@@ -180,7 +175,7 @@ class ChatHandler(
         synchronized(currentSocketConnections) {
             // Must be in the synchronized block
             val i: Iterator<ChatSocketConnection> = currentSocketConnections
-                .filter { recipientJids.contains(it.parasite.jid) }
+                .filter { it.isParasiteSet() && recipientJids.contains(it.parasite.jid) }
                 .iterator()
             i.forEach {
                 it.publicKey?.let { pubKey ->
@@ -306,7 +301,7 @@ class ChatHandler(
     }
 
     fun getSettings(publicKey: PublicKey, parasite: Parasite): MessageContent {
-        val settings = mapOf("displayName" to parasite.displayName)
+        val settings = mapOf("displayName" to parasite.displayName, "jid" to JID(DestinationType.PARASITE, parasite.jid, jidDomain))
         return mapper.convertValue(encryptToSend(publicKey, mapper.writeValueAsBytes(settings)))
     }
 
@@ -343,8 +338,8 @@ class ChatHandler(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 private data class MessageData(
-    val destination: String,
-    val sender: String,
+    val destination: JID,
+    val sender: JID,
     val type: String,
     val message: Any,
     var time: Instant?,

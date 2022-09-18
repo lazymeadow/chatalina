@@ -10,6 +10,7 @@ import {Settings} from '../settings/Settings'
 
 
 const MessageLog = ({messages, currentDest}) => {
+	const {getJidDisplayName} = useChat()
 	let content
 	if (!currentDest) {
 		content = (
@@ -30,7 +31,7 @@ const MessageLog = ({messages, currentDest}) => {
 				[{message.time.toLocaleString()}]&nbsp;&nbsp;
 			</span>
 				<span style={{fontWeight: 'bold'}}>
-				{`${message.sender || 'sender'}: `}
+				{`${getJidDisplayName(message.sender)}: `}
 			</span>
 				{message.message}
 			</p>

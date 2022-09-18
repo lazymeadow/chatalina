@@ -1,6 +1,7 @@
 package net.chatalina.jsonrpc.endpoints
 
 import com.fasterxml.jackson.core.JsonParseException
+import com.fasterxml.jackson.databind.exc.ValueInstantiationException
 import io.ktor.server.auth.jwt.*
 import net.chatalina.chat.MessageContent
 import net.chatalina.database.Parasite
@@ -45,6 +46,8 @@ object SendMessage : EncryptedEndpoint(), Endpoint {
         } catch (e: AuthorizationException) {
             ExecutionResult.createResult(JsonRpcStatus.FORBIDDEN, null)
         } catch (e: IllegalArgumentException) {
+            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
+        } catch (e: ValueInstantiationException) {
             ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
         } catch (e: InvalidAlgorithmParameterException) {
             ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")

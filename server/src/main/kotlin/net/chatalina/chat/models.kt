@@ -1,5 +1,6 @@
 package net.chatalina.chat
 
+import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonValue
 import net.chatalina.jsonrpc.endpoints.EncryptionKey
@@ -14,6 +15,8 @@ enum class DestinationType() {
 
 class JID(val type: DestinationType, val id: Int, val domain: String) {
     companion object {
+        @JsonCreator
+        @JvmStatic
         fun parseJID(destination: String): JID {
             /* allowed formats (to user or to group only):
                 1@bec -> direct to a user
@@ -44,6 +47,25 @@ class JID(val type: DestinationType, val id: Int, val domain: String) {
             DestinationType.PARASITE -> "${id}@${domain}"
             DestinationType.GROUP -> "${domain}/${id}"
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        return if (other === this) {
+            true
+        } else if (other is JID) {
+            hashCode() == other.hashCode()
+        } else if (other is String) {
+            this.toString() == other
+        } else {
+            false
+        }
+    }
+
+    override fun hashCode(): Int {
+        var result = type.hashCode()
+        result = 31 * result + id
+        result = 31 * result + domain.hashCode()
+        return result
     }
 }
 

@@ -148,7 +148,7 @@ export const ChatProvider = ({children}) => {
 	const [error, setError] = useState(null)
 	const [initMessage, setInitMessage] = useState('')
 
-	const {currentDest, displayName, setSettings} = useSettings()
+	const {currentDest, myJID, setSettings} = useSettings()
 
 	const [initializationState, initializationDispatch] = useReducer(
 		initializationReducer,
@@ -192,13 +192,13 @@ export const ChatProvider = ({children}) => {
 		})
 		notificationsDispatch({type: 'notify'})
 		if (notificationsState.allowSound) {
-			if (decrypted.sender === displayName) {
+			if (decrypted.sender === myJID) {
 				sentSoundRef.current?.play()
 			} else {
 				receiveSoundRef.current?.play()
 			}
 		}
-	}, [currentDest, displayName, encryption, notificationsState.allowSound])
+	}, [currentDest, encryption, myJID, notificationsState.allowSound])
 
 	const sendMessage = useCallback(async (messageText, destination) => {
 		if (encryption.serverKey === null) {
@@ -207,7 +207,7 @@ export const ChatProvider = ({children}) => {
 			const encrypted = await encryption.encrypt({
 				type: 'text',
 				message: messageText,
-				sender: displayName,
+				sender: myJID,
 				destination
 			})
 			// we send messages via http. the response is usually faster than the socket, so we save it.
@@ -229,7 +229,7 @@ export const ChatProvider = ({children}) => {
 				processMessage(responseBody.result)
 			}
 		}
-	}, [displayName, encryption, processMessage])
+	}, [encryption, myJID, processMessage])
 
 	const updateSettings = useCallback(async (propsToUpdate) => {
 		if (encryption.serverKey === null) {
@@ -326,6 +326,7 @@ export const ChatProvider = ({children}) => {
 	}, [])
 
 	const reconnectSocket = useCallback(() => {
+		initializationDispatch({type: 'reset'})
 		Authentication.refresh()
 		setShowModal(true)
 		const willRetryAgain = attemptReconnect(() => getNewWebsocket(wsUri, wsOnOpen, reconnectSocket, wsOnMessage))
@@ -342,21 +343,14 @@ export const ChatProvider = ({children}) => {
 		getNewWebsocket(wsUri, wsOnOpen, reconnectSocket, wsOnMessage)
 	}, [wsOnOpen, wsOnMessage, reconnectSocket])
 
-	const initChat = useCallback(
-		async () => {
+	const initChat = useCallback(async () => {
 			initializationDispatch({type: 'start'})
 			window.onblur = handleWindowBlur
 			window.onfocus = handleWindowFocus
 
 			// start by connecting the socket. that's where we'll do our key exchange.
 			connectSocket()
-		},
-		[
-			handleWindowBlur,
-			handleWindowFocus,
-			connectSocket
-		]
-	)
+		}, [handleWindowBlur, handleWindowFocus, connectSocket])
 
 	useEffect(() => {
 		if (encryptionInitialized && !initializationState.done && !initializationState.working) {
@@ -392,6 +386,10 @@ export const ChatProvider = ({children}) => {
 			Decrypting messages... ${initializationState.steps.messages ? 'done' : ''}`)
 		}
 	}, [initializationState.working, initializationState.done, initializationState.steps])
+	
+	const getJidDisplayName = useCallback(jid => {
+		return chatDataState.parasites.find(p => p.jid === jid)?.displayName || 'sender'
+	}, [chatDataState.parasites])
 
 	const sentSoundRef = useRef(null)
 	const receiveSoundRef = useRef(null)
@@ -405,6 +403,7 @@ export const ChatProvider = ({children}) => {
 			groups: chatDataState.groups,
 			setRead,
 			sendMessage,
+			getJidDisplayName,
 			notificationCount: notificationsState.count,
 			updateParasite: updateSettings
 		}}>
