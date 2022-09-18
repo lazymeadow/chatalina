@@ -30,11 +30,17 @@
     overflow: auto;
 }
 
-.ChatLayout-left > .scrolly-bit h2 {
+.ChatLayout-left > .scrolly-bit .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid rgba(255, 255, 255, .5);
+}
+
+.ChatLayout-left > .scrolly-bit .list-header h2 {
     font-size: 1rem;
     padding: 5px 10px;
     margin: 10px 0 0;
-    border-bottom: 1px solid rgba(255, 255, 255, .5);
 }
 
 .ChatLayout-left > .scrolly-bit ul {

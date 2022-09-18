@@ -257,6 +257,50 @@ class ChatHandler(
         )
     }
 
+    fun createGroup(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageContent {
+        // 1. make the group
+        val groupData = readMessageContent<CreateGroupData>(message, mapper, publicKey, encryption::decryptEC)
+        val groupJID = transaction {
+            val id = Groups.insertAndGetId {
+                it[name] = groupData.name
+            }
+            GroupParasites.insert {
+                it[group] = id
+                it[GroupParasites.parasite] = parasite.id
+                it[role] = GroupRoles.OWNER
+            }
+            JID(DestinationType.GROUP, id.value, jidDomain)
+        }
+        val newGroup = GroupObject(groupJID, groupData.name, listOf(parasite.getJID(jidDomain)))
+
+        synchronized(currentSocketConnections) {
+            // Must be in the synchronized block
+            val i: Iterator<ChatSocketConnection> = currentSocketConnections
+                .filter { it.isParasiteSet() && it.parasite.id == parasite.id }
+                .iterator()
+            i.forEach {
+                it.publicKey?.let { pubKey ->
+                    log.debug("sending new message to ${it.name}")
+                    // socket sending is a suspend function. send it off, but keep processing our synchronized list of connections
+                    CoroutineScope(Dispatchers.Default).launch {
+                        // then we need to re-encrypt it for sending to any relevant connections
+                        val serialized = serializeToSend(
+                            Request(
+                                "2.0",
+                                null,
+                                ServerMethodTypes.UPDATE_DESTINATIONS.toString(),
+                                mapper.convertValue(mapOf("groups" to listOf(newGroup)))
+                            )
+                        )
+                        log.debug("encrypted and sending to ${it.name}")
+                        it.send(serialized)
+                    }
+                } ?: log.debug("not sending to ${it.name} because public key is missing")
+            }
+        }
+        return mapper.convertValue(encryptToSend(publicKey, mapper.writeValueAsBytes(newGroup)))
+    }
+
     fun updateSettings(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageContent {
         // 1. get decrypted request data
         val updateRequest = readMessageContent<UpdateParasiteData>(message, mapper, publicKey, encryption::decryptEC)
@@ -351,6 +395,10 @@ private data class MessageData(
 
 private data class UpdateParasiteData(
     val displayName: String?
+)
+
+private data class CreateGroupData(
+    val name: String
 )
 
 fun Application.configureChatHandler() {

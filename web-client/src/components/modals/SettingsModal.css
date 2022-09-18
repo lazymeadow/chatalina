@@ -17,8 +17,3 @@
 .Settings-root > .header > h1 {
     flex: 0 0 auto;
 }
-
-.Settings-root > .footer {
-    display: flex;
-    justify-content: flex-end;
-}

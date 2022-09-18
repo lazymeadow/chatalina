@@ -10,9 +10,9 @@ import {
 	sendWebsocketRpc,
 	setWebsocketOnMessage
 } from '../util/socket'
-import {Modal} from '../components/Modal'
 import {useSettings} from './settings'
 import {sortBy} from '../util'
+import {ErrorModal} from '../components/modals/ErrorModal'
 
 
 const ChatContext = createContext()
@@ -78,10 +78,11 @@ function chatDataReducer(state, action) {
 			return {...state, messages: sortBy(messages, 'time')}
 		case 'parasites':
 			const existingParasites = [...state.parasites]
-			const parasitesToAdd = action.payload.filter(parasite => !!existingParasites.find(p => p.jid === parasite.jid) !== true)
+			const parasitesToAdd = action.payload.filter(parasite => !!existingParasites.find(p => p.jid
+				=== parasite.jid) !== true)
 			action.payload.forEach(parasite => {
 				const pIndex = existingParasites.findIndex(p => p.jid === parasite.jid)
-				if(pIndex >= 0) {
+				if (pIndex >= 0) {
 					existingParasites[pIndex] = parasite
 				}
 			})
@@ -250,7 +251,7 @@ export const ChatProvider = ({children}) => {
 			if (!response.ok) {
 				console.log(response)
 				console.error('error sending message')
-				throw Error("Update failed")
+				throw Error('Update failed')
 			} else {
 				const responseBody = await response.json()
 				const decrypted = await encryption.decrypt(responseBody.result)
@@ -258,6 +259,34 @@ export const ChatProvider = ({children}) => {
 			}
 		}
 	}, [encryption, setSettings])
+
+	const createGroup = useCallback(async (groupData) => {
+		if (encryption.serverKey === null) {
+			console.error('unable to update before key exchange')
+		} else {
+			const encrypted = await encryption.encrypt(groupData)
+			// we send messages via http. the response is usually faster than the socket, so we save it.
+			const response = await fetch(apiUri, {
+				method: 'POST',
+				headers: {
+					'BEC-Client-Key': encryption.getPublicKey(),
+					'Authorization': 'Bearer ' + Authentication.getToken(),
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'groups.create', params: encrypted}),
+				mode: 'cors'
+			})
+			if (!response.ok) {
+				console.log(response)
+				console.error('error sending message')
+				throw Error('Update failed')
+			} else {
+				const responseBody = await response.json()
+				const decrypted = await encryption.decrypt(responseBody.result)
+				chatDataDispatch({type: 'groups', payload: [decrypted]})
+			}
+		}
+	}, [encryption])
 
 	const wsOnMessage = useCallback(async (messageEvent) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
@@ -281,7 +310,7 @@ export const ChatProvider = ({children}) => {
 				break
 			}
 			case 'destinations.update': {
-				const {parasites = [], groups = []} =  await encryption.decrypt(parsedMessage.params)
+				const {parasites = [], groups = []} = await encryption.decrypt(parsedMessage.params)
 				chatDataDispatch({type: 'parasites', payload: parasites})
 				chatDataDispatch({type: 'groups', payload: groups})
 				break
@@ -289,12 +318,12 @@ export const ChatProvider = ({children}) => {
 			case undefined: {
 				// messages without a type are responses, so they have an id
 				if (parsedMessage.id === getSettingsId) {
-					const settings =  await encryption.decrypt(parsedMessage.result)
+					const settings = await encryption.decrypt(parsedMessage.result)
 					setSettings(settings)
 					initializationDispatch({type: 'step done', payload: 'settings'})
 				} else if (parsedMessage.id === getMessagesId) {
 					const messages = parsedMessage.result.map(async encrypted => {
-						const message =  await encryption.decrypt(encrypted)
+						const message = await encryption.decrypt(encrypted)
 						message.time = new Date(message.time)
 						return message
 					})
@@ -303,7 +332,7 @@ export const ChatProvider = ({children}) => {
 					})
 					initializationDispatch({type: 'step done', payload: 'messages'})
 				} else if (parsedMessage.id === getDestinationsId) {
-					const {parasites = [], groups = []} =  await encryption.decrypt(parsedMessage.result)
+					const {parasites = [], groups = []} = await encryption.decrypt(parsedMessage.result)
 					chatDataDispatch({type: 'parasites', payload: parasites})
 					chatDataDispatch({type: 'groups', payload: groups})
 					initializationDispatch({type: 'step done', payload: 'destinations'})
@@ -344,13 +373,13 @@ export const ChatProvider = ({children}) => {
 	}, [wsOnOpen, wsOnMessage, reconnectSocket])
 
 	const initChat = useCallback(async () => {
-			initializationDispatch({type: 'start'})
-			window.onblur = handleWindowBlur
-			window.onfocus = handleWindowFocus
+		initializationDispatch({type: 'start'})
+		window.onblur = handleWindowBlur
+		window.onfocus = handleWindowFocus
 
-			// start by connecting the socket. that's where we'll do our key exchange.
-			connectSocket()
-		}, [handleWindowBlur, handleWindowFocus, connectSocket])
+		// start by connecting the socket. that's where we'll do our key exchange.
+		connectSocket()
+	}, [handleWindowBlur, handleWindowFocus, connectSocket])
 
 	useEffect(() => {
 		if (encryptionInitialized && !initializationState.done && !initializationState.working) {
@@ -386,7 +415,7 @@ export const ChatProvider = ({children}) => {
 			Decrypting messages... ${initializationState.steps.messages ? 'done' : ''}`)
 		}
 	}, [initializationState.working, initializationState.done, initializationState.steps])
-	
+
 	const getJidDisplayName = useCallback(jid => {
 		return chatDataState.parasites.find(p => p.jid === jid)?.displayName || 'sender'
 	}, [chatDataState.parasites])
@@ -401,23 +430,16 @@ export const ChatProvider = ({children}) => {
 			messages: chatDataState.messages,
 			parasites: chatDataState.parasites,
 			groups: chatDataState.groups,
-			setRead,
-			sendMessage,
-			getJidDisplayName,
 			notificationCount: notificationsState.count,
-			updateParasite: updateSettings
+			setRead,
+			getJidDisplayName,
+			sendMessage,
+			updateSettings,
+			createGroup
 		}}>
 			{children}
-			<Modal show={showModal}>
-				<p>
-					{error}
-				</p>
-				{!!showRetry && (
-					<button onClick={() => initializationDispatch({type: 'reset'})}>
-						Retry
-					</button>
-				)}
-			</Modal>
+			{showModal && <ErrorModal show={showModal} error={error} showRetry={showRetry}
+									  onRetry={() => initializationDispatch({type: 'reset'})} />}
 			<audio ref={sentSoundRef}
 				   type={'audio/mpeg'}
 				   src={'https://audio.bestevarchat.com/AIM/message-send.wav'}

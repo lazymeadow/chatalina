@@ -44,6 +44,11 @@ button {
   min-height: 40px;
   background-color: var(--chatTeal);
   color: white;
-  font-weight: bold;
   font: 14px Amiko, sans-serif;
+  font-weight: bold;
+}
+
+button.secondary {
+  color: var(--youThinkItsBlackButItsNot);
+  background-color: lightgrey;
 }

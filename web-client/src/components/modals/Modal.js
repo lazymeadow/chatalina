@@ -17,4 +17,8 @@ const ModalComponent = ({children, show}) => {
 }
 
 export const Modal = ({children, ...props}) => ReactDOM.createPortal(
-	<ModalComponent {...props}>{children}</ModalComponent>, document.getElementsByTagName('body')[0])
+	(
+		<ModalComponent {...props}>{children}</ModalComponent>
+	),
+	document.getElementsByTagName('body')[0]
+)

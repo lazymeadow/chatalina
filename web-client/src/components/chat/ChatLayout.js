@@ -1,49 +1,14 @@
 import './ChatLayout.css'
 import {Link, useSearchParams} from 'react-router-dom'
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome'
-import {faArrowTurnDown, faAsterisk} from '@fortawesome/free-solid-svg-icons'
+import {faArrowTurnDown, faAsterisk, faPlus} from '@fortawesome/free-solid-svg-icons'
 import {useLayoutEffect, useState} from 'react'
 import {useChat} from '../../contexts/chat'
 import {Authentication} from '../../util/authentication'
 import {useSettings} from '../../contexts/settings'
-import {Settings} from '../settings/Settings'
+import {MessageLog} from './MessageLog'
+import {NewGroupModal, SettingsModal} from '../modals'
 
-
-const MessageLog = ({messages, currentDest}) => {
-	const {getJidDisplayName} = useChat()
-	let content
-	if (!currentDest) {
-		content = (
-			<p>
-				{`Welcome to ${process.env.REACT_APP_TITLE}! Something something getting started`}
-			</p>
-		)
-	} else if (messages.length === 0) {
-		content = (
-			<p>
-				There's nothing here.
-			</p>
-		)
-	} else {
-		content = messages.filter(m => m.destination === currentDest).map((message, index) => (
-			<p key={message.id || index}>
-			<span style={{fontStyle: 'italic'}}>
-				[{message.time.toLocaleString()}]&nbsp;&nbsp;
-			</span>
-				<span style={{fontWeight: 'bold'}}>
-				{`${getJidDisplayName(message.sender)}: `}
-			</span>
-				{message.message}
-			</p>
-		))
-	}
-
-	return (
-		<div className={'log'}>
-			{content}
-		</div>
-	)
-}
 
 const LeftBar = ({username, logoutUrl, parasites, groups, onDest, currentDest}) => {
 	return (
@@ -51,26 +16,37 @@ const LeftBar = ({username, logoutUrl, parasites, groups, onDest, currentDest}) 
 			<h1>{process.env.REACT_APP_TITLE}</h1>
 			<p>hi, {username}</p>
 			<div className={'scrolly-bit'}>
-				<h2>Groups</h2>
+				<div className={'list-header'}>
+					<h2>Groups</h2>
+					<Link to={'/?m=new-group'}>
+						<FontAwesomeIcon icon={faPlus} aria-label={'create a new group'} />
+					</Link>
+				</div>
 				<ul>
 					{groups.map(group => (
-						<li key={group.jid} onClick={() => onDest(group.jid)}
+						<li key={group.jid}
+							onClick={() => onDest(group.jid)}
 							className={`${group.unread ? 'unread' : ''} ${group.jid === currentDest
 								? 'current'
-								: ''}`.trim()}>
+								: ''}`.trim()}
+						>
 							{group.name}{group.unread && (
 							<FontAwesomeIcon icon={faAsterisk} aria-label={'unread messages'} />
 						)}
 						</li>
 					))}
 				</ul>
-				<h2>Parasites</h2>
+				<div className={'list-header'}>
+					<h2>Parasites</h2>
+				</div>
 				<ul>
 					{parasites.map(parasite => (
-						<li key={parasite.jid} onClick={() => onDest(parasite.jid)}
+						<li key={parasite.jid}
+							onClick={() => onDest(parasite.jid)}
 							className={`${parasite.unread ? 'unread' : ''} ${parasite.jid === currentDest
 								? 'current'
-								: ''}`.trim()}>
+								: ''}`.trim()}
+						>
 							{parasite.displayName}{parasite.unread && (
 							<FontAwesomeIcon icon={faAsterisk} aria-label={'unread messages'} />
 						)}
@@ -79,7 +55,7 @@ const LeftBar = ({username, logoutUrl, parasites, groups, onDest, currentDest}) 
 				</ul>
 			</div>
 			<div className={'bottom-stuff'}>
-				<Link to={'/?settings'}>Settings</Link>
+				<Link to={'/?m=settings'}>Settings</Link>
 				<a href={logoutUrl}>Log out</a>
 			</div>
 		</>
@@ -180,7 +156,8 @@ export const ChatLayout = () => {
 					</button>
 				</form>
 			</div>
-			<Settings show={searchParams.has('settings')} />
+			{searchParams.get('m') === 'settings' && <SettingsModal show={true} />}
+			{searchParams.get('m') === 'new-group' && <NewGroupModal show={true} />}
 		</>
 	)
 }
