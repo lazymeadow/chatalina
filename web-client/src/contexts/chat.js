@@ -12,6 +12,7 @@ import {
 } from '../util/socket'
 import {Modal} from '../components/Modal'
 import {useSettings} from './settings'
+import {sortBy} from '../util'
 
 
 const ChatContext = createContext()
@@ -59,7 +60,8 @@ function chatDataReducer(state, action) {
 		case 'messages':
 			// filter out the messages that are already in there
 			const msgsToAdd = action.payload.filter(msg => !!state.messages.find(m => m.id === msg.id) !== true)
-			return {...state, messages: [...state.messages, ...msgsToAdd]}
+			const updatedMessages = [...state.messages, ...msgsToAdd]
+			return {...state, messages: sortBy(updatedMessages, 'time')}
 		case 'new message':
 			const {message, shouldSetUnread} = action.payload
 			const foundMessage = state.messages.findIndex(m => m.id === message.id) >= 0
@@ -72,7 +74,8 @@ function chatDataReducer(state, action) {
 			if (shouldSetUnread && !!unread) {
 				unread.unread = true
 			}
-			return {...state, messages: [...state.messages, message]}
+			const messages = [...state.messages, message]
+			return {...state, messages: sortBy(messages, 'time')}
 		case 'parasites':
 			const existingParasites = [...state.parasites]
 			const parasitesToAdd = action.payload.filter(parasite => !!existingParasites.find(p => p.jid === parasite.jid) !== true)
@@ -82,10 +85,12 @@ function chatDataReducer(state, action) {
 					existingParasites[pIndex] = parasite
 				}
 			})
-			return {...state, parasites: [...existingParasites, ...parasitesToAdd]}
+			const updatedParasites = [...existingParasites, ...parasitesToAdd]
+			return {...state, parasites: sortBy(updatedParasites, 'jid')}
 		case 'groups':
 			const groupsToAdd = action.payload.filter(group => !!state.groups.find(g => g.jid === group.jid) !== true)
-			return {...state, groups: [...state.groups, ...groupsToAdd]}
+			const updatedGroups = [...state.groups, ...groupsToAdd]
+			return {...state, groups: sortBy(updatedGroups, 'jid')}
 		case 'set read':
 			const read = state.parasites.find(p => p.jid === action.payload) || state.groups.find(g => g.jid
 				=== action.payload)
@@ -294,7 +299,6 @@ export const ChatProvider = ({children}) => {
 						return message
 					})
 					Promise.all(messages).then((msgs) => {
-						msgs.sort((a, b) => a.time - b.time)
 						chatDataDispatch({type: 'messages', payload: msgs})
 					})
 					initializationDispatch({type: 'step done', payload: 'messages'})
