@@ -251,10 +251,6 @@ class ChatHandler(
         )
     }
 
-    fun createGroup(): Boolean {
-        return false
-    }
-
     companion object Feature : BaseApplicationPlugin<Application, PluginConfiguration, ChatHandler> {
         override val key = AttributeKey<ChatHandler>("chatHandler")
 
