@@ -8,10 +8,12 @@ import java.security.InvalidAlgorithmParameterException
 import java.security.PublicKey
 import javax.crypto.IllegalBlockSizeException
 
-object GetParasites: OpenSocketEndpoint(), Endpoint {
-    override val methodName = "parasites.get"
+// make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
+object GetDestinations: OpenSocketEndpoint(), Endpoint {
+    override val methodName = "destinations.get"
     override lateinit var chatHandler: ChatHandler
     override val authenticated = true
+    override val encrypted = true
     override val isNotification = false
 
     override suspend fun execute(
@@ -20,9 +22,15 @@ object GetParasites: OpenSocketEndpoint(), Endpoint {
         parasite: Parasite?,
         clientKey: PublicKey?
     ): ExecutionResult {
+        if (parasite == null) {
+            return ExecutionResult.createResult(JsonRpcStatus.UNAUTHORIZED, null)
+        }
+        if (clientKey == null) {
+            return ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "invalid key")
+        }
         return try {
-            val response = GetMessages.chatHandler.getParasites()
-            ExecutionResult.createListResult(JsonRpcStatus.EXCELLENT, response)
+            val response = GetMessages.chatHandler.getDestinations(clientKey, parasite)
+            ExecutionResult.createResult(JsonRpcStatus.EXCELLENT, response)
         } catch (e: InvalidAlgorithmParameterException) {
             ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad iv")
         } catch (e: IllegalBlockSizeException) {

@@ -199,7 +199,7 @@ class ChatHandler(
         return mapper.convertValue(encryptToSend(publicKey, mapper.writeValueAsBytes(processedMessage)))
     }
 
-    fun getParasites(): List<ParasiteObject> {
+    private fun getParasites(): List<ParasiteObject> {
         // parasite list is not encrypted
         return transaction {
             Parasites.slice(Parasites.jid, Parasites.displayName)
@@ -211,7 +211,7 @@ class ChatHandler(
         }
     }
 
-    fun getGroups(parasite: Parasite): List<GroupObject> {
+    private fun getGroups(parasite: Parasite): List<GroupObject> {
         // parasite list is not encrypted
         val parasiteJidsList: ExpressionAlias<Array<Int>> = Parasites.jid.intArrayAgg().alias("jids")
         val parasiteJidsQuery = GroupParasites.innerJoin(Parasites, { GroupParasites.parasite }, { Parasites.id })
@@ -237,6 +237,22 @@ class ChatHandler(
                         })
                 }
         }
+    }
+
+    fun getDestinations(publicKey: PublicKey, parasite: Parasite): MessageContent {
+        val parasites = getParasites()
+        val groups = getGroups(parasite)
+
+        return mapper.convertValue(
+            encryptToSend(
+                publicKey,
+                mapper.writeValueAsBytes(mapOf("parasites" to parasites, "groups" to groups))
+            )
+        )
+    }
+
+    fun createGroup(): Boolean {
+        return false
     }
 
     companion object Feature : BaseApplicationPlugin<Application, PluginConfiguration, ChatHandler> {

@@ -46,13 +46,12 @@ function getInitializationInitialState() {
 			socket: false,
 			key: false,
 			messages: false,
-			parasites: false,
-			groups: false
+			destinations: false
 		}
 	}
 }
 
-let getMessagesId, getParasitesId, getGroupsId
+let getMessagesId, getDestinationsId
 
 function chatDataReducer(state, action) {
 	switch (action.type) {
@@ -254,12 +253,11 @@ export const ChatProvider = ({children}) => {
 						chatDataDispatch({type: 'messages', payload: msgs})
 					})
 					initializationDispatch({type: 'step done', payload: 'messages'})
-				} else if (parsedMessage.id === getParasitesId) {
-					chatDataDispatch({type: 'parasites', payload: parsedMessage.result})
-					initializationDispatch({type: 'step done', payload: 'parasites'})
-				} else if (parsedMessage.id === getGroupsId) {
-					chatDataDispatch({type: 'groups', payload: parsedMessage.result})
-					initializationDispatch({type: 'step done', payload: 'groups'})
+				} else if (parsedMessage.id === getDestinationsId) {
+					const {parasites = [], groups = []} =  await encryption.decrypt(parsedMessage.result)
+					chatDataDispatch({type: 'parasites', payload: parasites})
+					chatDataDispatch({type: 'groups', payload: groups})
+					initializationDispatch({type: 'step done', payload: 'destinations'})
 				}
 				break
 			}
@@ -330,8 +328,7 @@ export const ChatProvider = ({children}) => {
 			&& initializationState.steps.key
 			&& !initializationState.steps.messages) {
 			getMessagesId = sendWebsocketRpc('messages.get')
-			getParasitesId = sendWebsocketRpc('parasites.get')
-			getGroupsId = sendWebsocketRpc('groups.get')
+			getDestinationsId = sendWebsocketRpc('destinations.get')
 		}
 	}, [initializationState.working, initializationState.steps])
 
@@ -340,8 +337,7 @@ export const ChatProvider = ({children}) => {
 			setInitMessage(`Reticulating splines... ${initializationState.done ? 'done' : ''}
 			Connecting socket... ${initializationState.steps.socket ? 'done' : ''}
 			Exchanging keys... ${initializationState.steps.key ? 'done' : ''}
-			Retrieving parasites... ${initializationState.steps.parasites ? 'done' : ''}
-			Requesting groups... ${initializationState.steps.groups ? 'done' : ''}
+			Retrieving destinations... ${initializationState.steps.destinations ? 'done' : ''}
 			Decrypting messages... ${initializationState.steps.messages ? 'done' : ''}`)
 		}
 	}, [initializationState.working, initializationState.done, initializationState.steps])
