@@ -20,6 +20,7 @@ import java.security.InvalidKeyException
 import java.security.PublicKey
 import java.security.spec.InvalidKeySpecException
 import java.util.*
+import javax.crypto.BadPaddingException
 
 
 // Requests
@@ -218,6 +219,8 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
                 JsonRpcStatus.SERVER_ERROR,
                 "method '${rpcBody.method}' has not yet been implemented."
             )
+        } catch (e: BadPaddingException) {
+            return generateErrorResult(rpcBody.id, JsonRpcStatus.ENCRYPTION_ERROR)
         } catch (e: Throwable) {
             logger.error("Error processing request")
             e.printStackTrace()

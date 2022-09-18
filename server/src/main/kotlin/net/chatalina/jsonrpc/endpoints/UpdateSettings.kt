@@ -4,8 +4,6 @@ import io.ktor.server.auth.jwt.*
 import net.chatalina.chat.MessageContent
 import net.chatalina.database.Parasite
 import net.chatalina.jsonrpc.JsonRpcStatus
-import net.chatalina.jsonrpc.Parameter
-import net.chatalina.jsonrpc.ParameterType
 import net.chatalina.plugins.AuthorizationException
 import net.chatalina.plugins.ChatHandler
 import java.security.InvalidAlgorithmParameterException
@@ -16,11 +14,6 @@ import javax.crypto.IllegalBlockSizeException
 object UpdateSettings : EncryptedEndpoint(), Endpoint {
     override val methodName = "settings.update"
     override lateinit var chatHandler: ChatHandler
-
-    override val requiredParams = listOf(
-        Parameter("iv", ParameterType.STRING),
-        Parameter("content", ParameterType.STRING)
-    )
 
     override suspend fun execute(
         params: Map<String, Any>?,

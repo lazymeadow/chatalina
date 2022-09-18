@@ -5,6 +5,7 @@ import io.ktor.server.auth.jwt.*
 import net.chatalina.database.Parasite
 import net.chatalina.jsonrpc.JsonRpcStatus
 import net.chatalina.jsonrpc.Parameter
+import net.chatalina.jsonrpc.ParameterType
 import net.chatalina.plugins.ChatHandler
 import java.security.PublicKey
 
@@ -74,6 +75,11 @@ abstract class AuthenticatedEndpoint() : Endpoint {
 
 abstract class EncryptedEndpoint() : AuthenticatedEndpoint() {
     override val encrypted = true
+
+    override val requiredParams = listOf(
+        Parameter("iv", ParameterType.STRING),
+        Parameter("content", ParameterType.STRING)
+    )
 }
 
 // all implementing classes must be in the same package as this one. this means we can't really move all of jsonrpc

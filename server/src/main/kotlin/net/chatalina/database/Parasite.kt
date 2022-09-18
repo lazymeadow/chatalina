@@ -1,5 +1,7 @@
 package net.chatalina.database
 
+import net.chatalina.chat.DestinationType
+import net.chatalina.chat.JID
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
@@ -27,6 +29,8 @@ class Parasite(id: EntityID<UUID>) : UUIDEntity(id) {
     var lastActive by Parasites.lastActive
     var created by Parasites.created
     var updated by Parasites.updated
+
+    fun getJID(jidDomain: String): JID = JID(DestinationType.PARASITE, jid, jidDomain)
 }
 
 object Settings : Table() {

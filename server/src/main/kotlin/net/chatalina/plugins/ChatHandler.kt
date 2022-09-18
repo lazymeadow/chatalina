@@ -83,18 +83,16 @@ class ChatHandler(
     }
 
     fun getMessages(publicKey: PublicKey, parasite: Parasite): List<MessageContent> {
-        val parasiteJID = JID(DestinationType.PARASITE, parasite.jid, jidDomain)
+        val parasiteJID = parasite.getJID(jidDomain)
         return transaction {
-            // find groups that this user is allowed to see messages
+            // find groups that this parasite has access to
             val groupJIDs = GroupParasites.slice(GroupParasites.group).select {
                 (GroupParasites.parasite eq parasite.id) and (GroupParasites.role neq GroupRoles.NONE)
             }.map { JID(DestinationType.GROUP, it[GroupParasites.group].value, jidDomain) }
+            // find messages whose destinations include this parasite or their group
             Messages.slice(Messages.id, Messages.data, Messages.created, Messages.destinations).select {
                 Messages.destinations overlaps (groupJIDs + parasiteJID).map { it.toString() }.toTypedArray()
-            }
-                .orderBy(Messages.created, SortOrder.DESC)
-                .limit(100)
-                .toList()
+            }.orderBy(Messages.created, SortOrder.DESC).limit(100).toList()
         }.map {
             // 1. db decrypt
             val (iv, content) = mapper.readValue<MessageContent>(it[Messages.data])
@@ -140,7 +138,7 @@ class ChatHandler(
                 if (destJID.id == parasite.jid) {
                     listOf(destJID)  // sending message to self
                 } else {
-                    listOf(destJID, JID(DestinationType.PARASITE, parasite.jid, jidDomain))
+                    listOf(destJID, parasite.getJID(jidDomain))
                 }
             }
         }
@@ -172,6 +170,7 @@ class ChatHandler(
                 listOf(parasite.jid, destJID.id)
             }
         }
+
         synchronized(currentSocketConnections) {
             // Must be in the synchronized block
             val i: Iterator<ChatSocketConnection> = currentSocketConnections
@@ -183,8 +182,11 @@ class ChatHandler(
                     // socket sending is a suspend function. send it off, but keep processing our synchronized list of connections
                     CoroutineScope(Dispatchers.Default).launch {
                         // we need to adjust for private messages with multiple destinations
-                        val parasiteJID = JID(DestinationType.PARASITE, it.parasite.jid, jidDomain)
-                        val messageToEncrypt = adjustDestination(destinationsToSave, parasiteJID, processedMessage)
+                        val messageToEncrypt = adjustDestination(
+                            destinationsToSave,
+                            it.parasite.getJID(jidDomain),
+                            processedMessage
+                        )
                         // then we need to re-encrypt it for sending to any relevant connections
                         val serialized = serializeToSend(
                             Request(
@@ -234,10 +236,10 @@ class ChatHandler(
                     val groupJID = JID(DestinationType.GROUP, it[Groups.id].value, jidDomain)
                     val jidList: Array<Int> = it[parasiteJidsQuery[parasiteJidsList]]
                     GroupObject(
-                        groupJID.toString(),
+                        groupJID,
                         it[Groups.name],
                         jidList.map { jid ->
-                            JID(DestinationType.PARASITE, jid, jidDomain).toString()
+                            JID(DestinationType.PARASITE, jid, jidDomain)
                         })
                 }
         }
@@ -264,10 +266,8 @@ class ChatHandler(
                 parasite.displayName = updateRequest.displayName
             }
         }
-        val responseParasite = ParasiteObject(
-            JID(DestinationType.PARASITE, parasite.jid, jidDomain),
-            parasite.displayName
-        )
+        val responseParasite = ParasiteObject(parasite.getJID(jidDomain), parasite.displayName)
+
         // 3. send update to all sockets
         synchronized(currentSocketConnections) {
             // Must be in the synchronized block
@@ -301,7 +301,10 @@ class ChatHandler(
     }
 
     fun getSettings(publicKey: PublicKey, parasite: Parasite): MessageContent {
-        val settings = mapOf("displayName" to parasite.displayName, "jid" to JID(DestinationType.PARASITE, parasite.jid, jidDomain))
+        val settings = mapOf(
+            "displayName" to parasite.displayName,
+            "jid" to parasite.getJID(jidDomain)
+        )
         return mapper.convertValue(encryptToSend(publicKey, mapper.writeValueAsBytes(settings)))
     }
 
@@ -346,7 +349,6 @@ private data class MessageData(
     var id: UUID? = null
 )
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
 private data class UpdateParasiteData(
     val displayName: String?
 )

@@ -87,9 +87,9 @@ data class ParasiteObject(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class GroupObject(
-    val jid: String,
+    val jid: JID,
     val name: String,
-    val parasites: List<String>
+    val parasites: List<JID>
 )
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
