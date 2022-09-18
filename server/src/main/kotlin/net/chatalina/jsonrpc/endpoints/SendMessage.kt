@@ -1,5 +1,6 @@
 package net.chatalina.jsonrpc.endpoints
 
+import com.fasterxml.jackson.core.JsonParseException
 import io.ktor.server.auth.jwt.*
 import net.chatalina.chat.MessageContent
 import net.chatalina.database.Parasite
@@ -22,8 +23,6 @@ object SendMessage : EncryptedEndpoint(), Endpoint {
         Parameter("content", ParameterType.STRING)
     )
 
-    override val optionalParams = listOf(Parameter("id", ParameterType.GUID))
-
     override suspend fun execute(
         params: Map<String, Any>?,
         principal: JWTPrincipal?,
@@ -38,19 +37,21 @@ object SendMessage : EncryptedEndpoint(), Endpoint {
         }
         return try {
             val response = chatHandler.processNewMessage(
-                    MessageContent(params!!["iv"].toString(), params["content"].toString()),
-                    clientKey,
-                    parasite
-                )
+                MessageContent(params!!["iv"].toString(), params["content"].toString()),
+                clientKey,
+                parasite
+            )
             ExecutionResult.createResult(JsonRpcStatus.EXCELLENT, response)
         } catch (e: AuthorizationException) {
             ExecutionResult.createResult(JsonRpcStatus.FORBIDDEN, null)
         } catch (e: IllegalArgumentException) {
-            ExecutionResult.createResult(JsonRpcStatus.DESTINATION_ERROR, null, "invalid destination")
+            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
         } catch (e: InvalidAlgorithmParameterException) {
-            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad iv")
+            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
         } catch (e: IllegalBlockSizeException) {
-            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad content")
+            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
+        } catch (e: JsonParseException) {
+            ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
         }
     }
 }

@@ -115,8 +115,9 @@ fun Application.configureSockets() {
                                     }
                                 } else if (body.method == EncryptionKey.methodName && passAlongResult != null) {
                                     application.log.debug("setting key for ${theConnection}")
-                                    theConnection.publicKey = application.encryption
-                                        .validateAndGetPublicKey(passAlongResult.toString())
+                                    theConnection.publicKey = application.encryption.validateAndGetPublicKey(
+                                        passAlongResult.toString()
+                                    )
                                 } else if (response != null) {
                                     application.log.debug("sending result to ${theConnection}")
                                     chatHandler.sendToConnection(theConnection, response)

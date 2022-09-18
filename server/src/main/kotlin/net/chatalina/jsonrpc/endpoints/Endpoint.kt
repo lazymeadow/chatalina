@@ -62,7 +62,10 @@ typealias ParameterList = List<Parameter>
 
 abstract class OpenSocketEndpoint() : Endpoint {
     override val executeInSocket = true
-    override val isNotification = true
+}
+
+abstract class OnlySocketEndpoint() : OpenSocketEndpoint() {
+    override val executeInHttp = false
 }
 
 abstract class AuthenticatedEndpoint() : Endpoint {
@@ -88,6 +91,8 @@ sealed interface Endpoint {
         get() = listOf()
     val optionalParams: ParameterList
         get() = listOf()
+    val executeInHttp: Boolean
+        get() = true
     val executeInSocket: Boolean
         get() = false
     val isNotification: Boolean

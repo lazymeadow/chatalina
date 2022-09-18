@@ -8,6 +8,7 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.config.*
+import io.ktor.server.plugins.*
 import io.ktor.util.*
 import io.ktor.utils.io.errors.*
 import net.chatalina.database.Parasite
@@ -15,7 +16,9 @@ import net.chatalina.jsonrpc.endpoints.Endpoint
 import net.chatalina.plugins.chatHandler
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
+import java.security.InvalidKeyException
 import java.security.PublicKey
+import java.security.spec.InvalidKeySpecException
 import java.util.*
 
 
@@ -56,7 +59,6 @@ enum class JsonRpcStatus(val rpcCode: Int, val rpcMessage: String?, val statusCo
     SERVER_ERROR(-32500, "Server Error", HttpStatusCode.InternalServerError),
     KEY_ERROR(-32003, "Key Exchange Needed", HttpStatusCode.BadRequest),
     ENCRYPTION_ERROR(-32004, "Encryption Error", HttpStatusCode.BadRequest),
-    DESTINATION_ERROR(-32005, "Destination Error", HttpStatusCode.BadRequest),
     UNAUTHORIZED(-32001, "Unauthorized", HttpStatusCode.Unauthorized),
     FORBIDDEN(-32002, "Forbidden", HttpStatusCode.Forbidden)
 }
@@ -107,6 +109,8 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
             getBody()
         } catch (e: IOException) {
             return generateErrorResult(null, JsonRpcStatus.PARSE_ERROR)
+        } catch (e: BadRequestException) {
+            return generateErrorResult(null, JsonRpcStatus.PARSE_ERROR)
         }
 
         // json rpc must be "2.0", we don't support anything else
@@ -143,7 +147,8 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
             )
         }
 
-        if (executingInSocket && !endpoint.executeInSocket) {
+        // the endpoint must be accessible in the current protocol
+        if ((executingInSocket && !endpoint.executeInSocket) || (!executingInSocket && !endpoint.executeInHttp)) {
             return generateErrorResult(
                 rpcBody.id,
                 JsonRpcStatus.METHOD_NOT_FOUND,
@@ -162,7 +167,6 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
         try {
             var principal: JWTPrincipal? = null
             var parasite: Parasite? = null
-            var clientKey: PublicKey? = null
             if (endpoint.authenticated) {
                 principal = getPrincipal() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.UNAUTHORIZED)
                 // we know this is a valid parasite, based on their token.
@@ -178,8 +182,16 @@ class JsonRpc(configuration: Configuration, private val logger: Logger) {
                     }
                 }
             }
-            if (endpoint.encrypted) {
-                clientKey = getClientKey() ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.KEY_ERROR)
+            val clientKey: PublicKey? = if (endpoint.encrypted) {
+                try {
+                    getClientKey()
+                } catch (e: InvalidKeySpecException) {
+                    null
+                } catch (e: InvalidKeyException) {
+                    null
+                } ?: return generateErrorResult(rpcBody.id, JsonRpcStatus.KEY_ERROR)
+            } else {
+                null
             }
 
             // call endpoint class's validate function for request parameters

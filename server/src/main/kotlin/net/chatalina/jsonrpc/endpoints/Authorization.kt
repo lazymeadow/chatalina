@@ -9,9 +9,10 @@ import net.chatalina.plugins.ChatHandler
 import java.security.PublicKey
 
 // make sure you directly implement the interface!! it's absolutely necessary for initializing an endpoint
-object Authorization : OpenSocketEndpoint(), Endpoint {
+object Authorization : OnlySocketEndpoint(), Endpoint {
     override val methodName = "authorization"
     override lateinit var chatHandler: ChatHandler
+    override val isNotification = true
 
     override val requiredParams = listOf(
         Parameter("token", ParameterType.STRING)

@@ -39,7 +39,7 @@ fun Application.configureRouting() {
                         }
                     }
 
-                    fun getClientKey(): PublicKey? {
+                    fun getClientKey(): PublicKey {
                         return application.encryption.validateAndGetPublicKey(call.request.clientKey)
                     }
 

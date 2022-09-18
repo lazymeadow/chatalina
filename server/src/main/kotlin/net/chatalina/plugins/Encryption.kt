@@ -5,7 +5,6 @@ import io.ktor.server.request.*
 import io.ktor.util.*
 import java.io.File
 import java.security.*
-import java.security.spec.InvalidKeySpecException
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.*
@@ -87,13 +86,8 @@ class Encryption(configuration: PluginConfiguration) {
     val publicKey: ByteArray
         get() = serverPair.public.encoded
 
-    fun validateAndGetPublicKey(keyString: String): PublicKey? {
-        return try {
-            ecKF.generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(keyString)))
-        } catch (e: InvalidKeySpecException) {
-            e.printStackTrace()
-            null
-        }
+    fun validateAndGetPublicKey(keyString: String): PublicKey {
+        return ecKF.generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(keyString)))
     }
 
     private fun getDerivedKey(otherKey: PublicKey): ByteArray {
