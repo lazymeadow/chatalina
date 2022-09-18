@@ -92,7 +92,7 @@ export const ChatLayout = () => {
 	const [lastCount, setLastCount] = useState(0)  // change was triggering twice
 
 	const {messages, parasites, groups, sendMessage, notificationCount, setRead} = useChat()
-	const {currentDest, setDest} = useSettings()
+	const {currentDest, displayName, setDest} = useSettings()
 
 	const [searchParams] = useSearchParams()
 
@@ -145,7 +145,7 @@ export const ChatLayout = () => {
 	return (
 		<>
 			<div className={'ChatLayout-left'}>
-				<LeftBar username={Authentication.getProfile().username || 'there'}
+				<LeftBar username={displayName || 'there'}
 						 logoutUrl={Authentication.getLogoutUrl()}
 						 parasites={parasites}
 						 groups={groups}

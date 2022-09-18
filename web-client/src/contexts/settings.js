@@ -12,16 +12,23 @@ export const SettingsProvider = ({children}) => {
 	const userId = Authentication.getProfile().id
 
 	const [currentDest, setCurrentDest] = useState(localStorage.getItem(`${userId}-d`) || null)
+	const [displayName, setDisplayName] = useState('')
 
 	function handleSetDest(dest) {
 		setCurrentDest(dest)
 		localStorage.setItem(`${userId}-d`, dest)
 	}
 
+	function handleSetSettings({displayName: newDisplayName}) {
+		setDisplayName(newDisplayName)
+	}
+
 	return (
 		<SettingsContext.Provider value={{
 			currentDest,
-			setDest: handleSetDest
+			displayName,
+			setDest: handleSetDest,
+			setSettings: handleSetSettings
 		}}>
 			{children}
 		</SettingsContext.Provider>

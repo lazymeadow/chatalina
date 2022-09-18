@@ -23,6 +23,17 @@ import java.security.PublicKey
 import java.time.Instant
 import java.util.*
 
+private inline fun <reified T> readMessageContent(
+    message: MessageContent,
+    mapper: JsonMapper,
+    publicKey: PublicKey,
+    decryptor: (String, String, PublicKey) -> ByteArray
+): T {
+    val (iv, content) = message
+    val decrypted = decryptor(content, iv, publicKey)
+    return mapper.readValue(decrypted)
+}
+
 class ChatHandler(
     configuration: PluginConfiguration,
     private val encryption: Encryption,
@@ -66,6 +77,15 @@ class ChatHandler(
         return adjustDestination(dests.map { it.toString() }.toTypedArray(), parasiteJID, msg)
     }
 
+    private fun encryptToSend(publicKey: PublicKey, decrypted: ByteArray): MessageContent {
+        val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
+
+        return MessageContent(
+            Base64.getEncoder().encodeToString(nonce),
+            Base64.getEncoder().encodeToString(encrypted)
+        )
+    }
+
     fun getMessages(publicKey: PublicKey, parasite: Parasite): List<MessageContent> {
         val parasiteJID = JID(DestinationType.PARASITE, parasite.jid, jidDomain)
         return transaction {
@@ -93,24 +113,13 @@ class ChatHandler(
         }
     }
 
-    private fun encryptToSend(publicKey: PublicKey, decrypted: ByteArray): MessageContent {
-        val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
-
-        return MessageContent(
-            Base64.getEncoder().encodeToString(nonce),
-            Base64.getEncoder().encodeToString(encrypted)
-        )
-    }
-
     suspend fun processNewMessage(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageContent {
         // 1. decrypt message
-        val (iv, content) = message
-        val decrypted = encryption.decryptEC(content, iv, publicKey)
-
-        // 2. encrypt message for db & insert
-        // 2.a. we need the destination for indexing and lookups, but it was encrypted
-        val processedMessage = mapper.readValue<MessageData>(decrypted)
-        val destJID = JID.parseJid(processedMessage.destination, jidDomain)
+        val processedMessage = readMessageContent<MessageData>(message, mapper, publicKey, encryption::decryptEC)
+        val destJID = JID.parseJID(processedMessage.destination)
+        if (destJID.domain != jidDomain) {
+            throw IllegalArgumentException("Bad destination JID")
+        }
         val allowed = when (destJID.type) {
             DestinationType.PARASITE -> {
                 true  // for now, anyone can send private messages to anyone else
@@ -206,7 +215,7 @@ class ChatHandler(
                 .select { Parasites.active eq true }
                 .map {
                     val parasiteJid = JID(DestinationType.PARASITE, it[Parasites.jid], jidDomain)
-                    ParasiteObject(parasiteJid.toString(), it[Parasites.displayName])
+                    ParasiteObject(parasiteJid, it[Parasites.displayName])
                 }
         }
     }
@@ -251,6 +260,56 @@ class ChatHandler(
         )
     }
 
+    fun updateSettings(message: MessageContent, publicKey: PublicKey, parasite: Parasite): MessageContent {
+        // 1. get decrypted request data
+        val updateRequest = readMessageContent<UpdateParasiteData>(message, mapper, publicKey, encryption::decryptEC)
+        // 2. update given fields. displayName is directly on the parasite, anything else is in the settings table.
+        if (!updateRequest.displayName.isNullOrBlank()) {
+            transaction {
+                parasite.displayName = updateRequest.displayName
+            }
+        }
+        val responseParasite = ParasiteObject(
+            JID(DestinationType.PARASITE, parasite.jid, jidDomain),
+            parasite.displayName
+        )
+        // 3. send update to all sockets
+        synchronized(currentSocketConnections) {
+            // Must be in the synchronized block
+            currentSocketConnections.forEach {
+                it.publicKey?.let { pubKey ->
+                    log.debug("sending parasite update to ${it.name}")
+                    // socket sending is a suspend function. send it off, but keep processing our synchronized list of connections
+                    CoroutineScope(Dispatchers.Default).launch {
+                        // then we need to re-encrypt it for sending to any relevant connections
+                        val serialized = serializeToSend(
+                            Request(
+                                "2.0",
+                                null,
+                                ServerMethodTypes.UPDATE_DESTINATIONS.toString(),
+                                mapper.convertValue(
+                                    encryptToSend(
+                                        pubKey,
+                                        mapper.writeValueAsBytes(mapOf("parasites" to listOf(responseParasite)))
+                                    )
+                                )
+                            )
+                        )
+                        log.debug("encrypted and sending to ${it.name}")
+                        it.send(serialized)
+                    }
+                } ?: log.debug("not sending to ${it.name} because public key is missing")
+            }
+        }
+        // 4. return updated settings to requester
+        return getSettings(publicKey, parasite)
+    }
+
+    fun getSettings(publicKey: PublicKey, parasite: Parasite): MessageContent {
+        val settings = mapOf("displayName" to parasite.displayName)
+        return mapper.convertValue(encryptToSend(publicKey, mapper.writeValueAsBytes(settings)))
+    }
+
     companion object Feature : BaseApplicationPlugin<Application, PluginConfiguration, ChatHandler> {
         override val key = AttributeKey<ChatHandler>("chatHandler")
 
@@ -282,46 +341,6 @@ class ChatHandler(
     }
 }
 
-
-private enum class DestinationType() {
-    PARASITE,
-    GROUP
-}
-
-private class JID(val type: DestinationType, val id: Int, val domain: String) {
-    companion object {
-        fun parseJid(destination: String, domain: String): JID {
-            /* allowed formats (to user or to group only):
-                1@bec -> direct to a user
-                bec/1 -> a whole group
-               YES this is misusing the JID standard, NO i do not care. you're not my real dad
-             */
-            // split the string on the regex
-            val parts = Regex("[@/]").split(destination)
-            // now check how many parts we have. we only allow 2
-            if (parts.size == 2) {
-                // if 2 parts, we need to determine if its going to a user or a group
-                if (parts.first() == domain && destination.contains("/")) {
-                    val id = parts.last().toIntOrNull() ?: throw IllegalArgumentException("Bad destination JID")
-                    return JID(DestinationType.GROUP, id, domain)
-                } else if (parts.last() == domain && destination.contains("@")) {
-                    val id = parts.first().toIntOrNull() ?: throw IllegalArgumentException("Bad destination JID")
-                    return JID(DestinationType.PARASITE, id, domain)
-                }
-            }
-            // anything else is wrong
-            throw IllegalArgumentException("Bad destination JID")
-        }
-    }
-
-    override fun toString(): String {
-        return when (type) {
-            DestinationType.PARASITE -> "${id}@${domain}"
-            DestinationType.GROUP -> "${domain}/${id}"
-        }
-    }
-}
-
 @JsonInclude(JsonInclude.Include.NON_NULL)
 private data class MessageData(
     val destination: String,
@@ -330,6 +349,11 @@ private data class MessageData(
     val message: Any,
     var time: Instant?,
     var id: UUID? = null
+)
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+private data class UpdateParasiteData(
+    val displayName: String?
 )
 
 fun Application.configureChatHandler() {

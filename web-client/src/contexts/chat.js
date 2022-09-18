@@ -45,13 +45,14 @@ function getInitializationInitialState() {
 		steps: {
 			socket: false,
 			key: false,
+			settings: false,
 			messages: false,
 			destinations: false
 		}
 	}
 }
 
-let getMessagesId, getDestinationsId
+let getSettingsId, getMessagesId, getDestinationsId
 
 function chatDataReducer(state, action) {
 	switch (action.type) {
@@ -73,9 +74,15 @@ function chatDataReducer(state, action) {
 			}
 			return {...state, messages: [...state.messages, message]}
 		case 'parasites':
-			const parasitesToAdd = action.payload.filter(parasite => !!state.parasites.find(p => p.jid === parasite.jid)
-				!== true)
-			return {...state, parasites: [...state.parasites, ...parasitesToAdd]}
+			const existingParasites = [...state.parasites]
+			const parasitesToAdd = action.payload.filter(parasite => !!existingParasites.find(p => p.jid === parasite.jid) !== true)
+			action.payload.forEach(parasite => {
+				const pIndex = existingParasites.findIndex(p => p.jid === parasite.jid)
+				if(pIndex >= 0) {
+					existingParasites[pIndex] = parasite
+				}
+			})
+			return {...state, parasites: [...existingParasites, ...parasitesToAdd]}
 		case 'groups':
 			const groupsToAdd = action.payload.filter(group => !!state.groups.find(g => g.jid === group.jid) !== true)
 			return {...state, groups: [...state.groups, ...groupsToAdd]}
@@ -136,7 +143,7 @@ export const ChatProvider = ({children}) => {
 	const [error, setError] = useState(null)
 	const [initMessage, setInitMessage] = useState('')
 
-	const {currentDest} = useSettings()
+	const {currentDest, displayName, setSettings} = useSettings()
 
 	const [initializationState, initializationDispatch] = useReducer(
 		initializationReducer,
@@ -180,13 +187,13 @@ export const ChatProvider = ({children}) => {
 		})
 		notificationsDispatch({type: 'notify'})
 		if (notificationsState.allowSound) {
-			if (decrypted.sender === Authentication.getProfile().username) {
+			if (decrypted.sender === displayName) {
 				sentSoundRef.current?.play()
 			} else {
 				receiveSoundRef.current?.play()
 			}
 		}
-	}, [currentDest, encryption, notificationsState.allowSound])
+	}, [currentDest, displayName, encryption, notificationsState.allowSound])
 
 	const sendMessage = useCallback(async (messageText, destination) => {
 		if (encryption.serverKey === null) {
@@ -195,7 +202,7 @@ export const ChatProvider = ({children}) => {
 			const encrypted = await encryption.encrypt({
 				type: 'text',
 				message: messageText,
-				sender: Authentication.getProfile().username,
+				sender: displayName,
 				destination
 			})
 			// we send messages via http. the response is usually faster than the socket, so we save it.
@@ -217,7 +224,35 @@ export const ChatProvider = ({children}) => {
 				processMessage(responseBody.result)
 			}
 		}
-	}, [encryption, processMessage])
+	}, [displayName, encryption, processMessage])
+
+	const updateSettings = useCallback(async (propsToUpdate) => {
+		if (encryption.serverKey === null) {
+			console.error('unable to update before key exchange')
+		} else {
+			const encrypted = await encryption.encrypt(propsToUpdate)
+			// we send messages via http. the response is usually faster than the socket, so we save it.
+			const response = await fetch(apiUri, {
+				method: 'POST',
+				headers: {
+					'BEC-Client-Key': encryption.getPublicKey(),
+					'Authorization': 'Bearer ' + Authentication.getToken(),
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'settings.update', params: encrypted}),
+				mode: 'cors'
+			})
+			if (!response.ok) {
+				console.log(response)
+				console.error('error sending message')
+				throw Error("Update failed")
+			} else {
+				const responseBody = await response.json()
+				const decrypted = await encryption.decrypt(responseBody.result)
+				setSettings(decrypted)
+			}
+		}
+	}, [encryption, setSettings])
 
 	const wsOnMessage = useCallback(async (messageEvent) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
@@ -240,9 +275,19 @@ export const ChatProvider = ({children}) => {
 				processMessage(messageContent)
 				break
 			}
+			case 'destinations.update': {
+				const {parasites = [], groups = []} =  await encryption.decrypt(parsedMessage.params)
+				chatDataDispatch({type: 'parasites', payload: parasites})
+				chatDataDispatch({type: 'groups', payload: groups})
+				break
+			}
 			case undefined: {
 				// messages without a type are responses, so they have an id
-				if (parsedMessage.id === getMessagesId) {
+				if (parsedMessage.id === getSettingsId) {
+					const settings =  await encryption.decrypt(parsedMessage.result)
+					setSettings(settings)
+					initializationDispatch({type: 'step done', payload: 'settings'})
+				} else if (parsedMessage.id === getMessagesId) {
 					const messages = parsedMessage.result.map(async encrypted => {
 						const message =  await encryption.decrypt(encrypted)
 						message.time = new Date(message.time)
@@ -265,7 +310,7 @@ export const ChatProvider = ({children}) => {
 				console.log('hmmm', parsedMessage, parsedMessage.type)
 			}
 		}
-	}, [encryption, processMessage])
+	}, [encryption, processMessage, setSettings])
 
 	const wsOnOpen = useCallback(() => {
 		console.log(':)')
@@ -327,6 +372,7 @@ export const ChatProvider = ({children}) => {
 		if (initializationState.working
 			&& initializationState.steps.key
 			&& !initializationState.steps.messages) {
+			getSettingsId = sendWebsocketRpc('settings.get')
 			getMessagesId = sendWebsocketRpc('messages.get')
 			getDestinationsId = sendWebsocketRpc('destinations.get')
 		}
@@ -337,7 +383,8 @@ export const ChatProvider = ({children}) => {
 			setInitMessage(`Reticulating splines... ${initializationState.done ? 'done' : ''}
 			Connecting socket... ${initializationState.steps.socket ? 'done' : ''}
 			Exchanging keys... ${initializationState.steps.key ? 'done' : ''}
-			Retrieving destinations... ${initializationState.steps.destinations ? 'done' : ''}
+			Requesting settings... ${initializationState.steps.settings ? 'done' : ''}
+			Compiling destinations... ${initializationState.steps.destinations ? 'done' : ''}
 			Decrypting messages... ${initializationState.steps.messages ? 'done' : ''}`)
 		}
 	}, [initializationState.working, initializationState.done, initializationState.steps])
@@ -354,7 +401,8 @@ export const ChatProvider = ({children}) => {
 			groups: chatDataState.groups,
 			setRead,
 			sendMessage,
-			notificationCount: notificationsState.count
+			notificationCount: notificationsState.count,
+			updateParasite: updateSettings
 		}}>
 			{children}
 			<Modal show={showModal}>
