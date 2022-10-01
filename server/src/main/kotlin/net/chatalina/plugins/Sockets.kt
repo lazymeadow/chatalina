@@ -48,7 +48,7 @@ fun Application.configureSockets() {
                     when (frame) {
                         is Frame.Text -> {
                             try {
-                                application.log.debug("received message from ${theConnection}")
+                                theConnection.log.debug("received message")
                                 val body = mapper.readValue<JsonRpcCallBody>(frame.data)
                                 fun getBody(): JsonRpcCallBody {
                                     return body
@@ -77,7 +77,7 @@ fun Application.configureSockets() {
                                         throw NoAuthException()
                                     } else {
                                         theConnection.principal = principal
-                                        application.log.debug("set auth for ${theConnection}")
+                                        theConnection.log.debug("set auth for ${theConnection}")
                                         // we know this is a valid parasite, based on their token.
                                         val userId = try {
                                             UUID.fromString(principal.subject)
@@ -96,11 +96,11 @@ fun Application.configureSockets() {
                                                 }
                                             }
                                             theConnection.parasite = thisParasite
-                                            application.log.debug("set parasite for ${theConnection}")
+                                            theConnection.log.debug("set parasite for ${theConnection}")
                                         }
                                         // don't initiate a key exchange if we have a perfectly good key already
                                         if (theConnection.publicKey == null) {
-                                            application.log.debug("initiating key exchange with ${theConnection}")
+                                            theConnection.log.debug("initiating key exchange with ${theConnection}")
                                             chatHandler.sendToConnection(
                                                 theConnection, mapOf(
                                                     "method" to ServerMethodTypes.ENCRYPTION_KEY,
@@ -110,12 +110,12 @@ fun Application.configureSockets() {
                                         }
                                     }
                                 } else if (body.method == MethodHandler.ENCRYPTION_KEY.toString() && passAlongResult != null) {
-                                    application.log.debug("setting key for ${theConnection}")
+                                    theConnection.log.debug("setting key for ${theConnection}")
                                     theConnection.publicKey = application.encryption.validateAndGetPublicKey(
                                         passAlongResult.toString()
                                     )
                                 } else if (response != null) {
-                                    application.log.debug("sending result to ${theConnection}")
+                                    theConnection.log.debug("sending result to ${theConnection}")
                                     chatHandler.sendToConnection(theConnection, response)
                                 }
                             } catch (e: MissingKotlinParameterException) {
@@ -153,7 +153,7 @@ fun Application.configureSockets() {
                     }
                 }
             } catch (e: ClosedReceiveChannelException) {
-                application.log.info("onClose ${closeReason.await()}")
+                application.log.info("onClose ${theConnection.name}: ${closeReason.await()}")
             } finally {
                 chatHandler.currentSocketConnections.remove(theConnection)
             }

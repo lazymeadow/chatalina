@@ -1,11 +1,13 @@
 package net.chatalina.chat
 
-import io.ktor.server.application.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.channels.ClosedSendChannelException
+import kotlinx.coroutines.launch
 import net.chatalina.database.Parasite
+import org.slf4j.LoggerFactory
 import java.security.PublicKey
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -15,7 +17,8 @@ class ChatSocketConnection(val session: DefaultWebSocketServerSession) {
         var lastId = AtomicInteger(0)
     }
 
-    val name = "ws-${lastId.getAndIncrement()}"
+    val name = "WS-${lastId.getAndIncrement()}"
+    val log = LoggerFactory.getLogger(name)
     lateinit var parasite: Parasite
 
     // we need to know if the auth is valid
@@ -27,11 +30,19 @@ class ChatSocketConnection(val session: DefaultWebSocketServerSession) {
     fun isParasiteSet(): Boolean {
         return this::parasite.isInitialized
     }
+
+    fun launchForSocket(block: suspend () -> Unit) {
+        log.debug("launching job on socket")
+        this.session.launch(CoroutineName(name)) {
+            block()
+        }
+    }
+
     suspend fun send(data: String) {
         try {
             this.session.send(data)
         } catch (e: ClosedSendChannelException) {
-            this.session.application.log.debug("Attempted to send message to closed session $name")
+            log.debug("Attempted to send message to closed session $name")
         }
     }
 

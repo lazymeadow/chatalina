@@ -21,16 +21,18 @@ object Parasites : UUIDTable() {
 }
 
 class Parasite(id: EntityID<UUID>) : UUIDEntity(id) {
-    companion object : UUIDEntityClass<Parasite>(Parasites)
+    companion object : UUIDEntityClass<Parasite>(Parasites) {
+        fun getJID(parasiteJID: Int, jidDomain: String): JID = JID(DestinationType.PARASITE, parasiteJID, jidDomain)
+    }
 
-    var jid by Parasites.jid
+    var jidInt by Parasites.jid
     var displayName by Parasites.displayName
     var active by Parasites.active
     var lastActive by Parasites.lastActive
     var created by Parasites.created
     var updated by Parasites.updated
+    fun getJID(jidDomain: String): JID = getJID(jidInt, jidDomain)
 
-    fun getJID(jidDomain: String): JID = JID(DestinationType.PARASITE, jid, jidDomain)
 }
 
 object Settings : Table() {

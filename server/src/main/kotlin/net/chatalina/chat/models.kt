@@ -14,6 +14,11 @@ enum class DestinationType() {
 }
 
 class JID(val type: DestinationType, val id: Int, val domain: String) {
+    val isGroup: Boolean
+        get() = this.type == DestinationType.GROUP
+    val isParasite: Boolean
+        get() = this.type == DestinationType.PARASITE
+
     companion object {
         @JsonCreator
         @JvmStatic
@@ -92,9 +97,12 @@ data class GroupObject(
     val parasites: List<JID>
 )
 
+data class MessageFilters(
+    val jid: JID?
+)
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class MessageContent(
     val iv: String,
     val content: String
 )
-

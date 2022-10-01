@@ -53,7 +53,6 @@ enum class MethodHandler : Executor {
         override val authenticated = true
         override val encrypted = true
         override val httpAllowed = true
-        override val socketAllowed = true
 
         override val requiredParams = ParameterList(
             Parameter("iv", ParameterType.STRING),
@@ -69,6 +68,33 @@ enum class MethodHandler : Executor {
         ): ExecutionResult {
             return executeEncrypted(params!!) { messageContent ->
                 val response = chatHandler.createGroup(
+                    messageContent,
+                    clientKey!!,
+                    parasite!!
+                )
+                ExecutionResult.createResult(JsonRpcStatus.EXCELLENT, response)
+            }
+        }
+    },
+    GROUPS_UPDATE {
+        override val authenticated = true
+        override val encrypted = true
+        override val httpAllowed = true
+
+        override val requiredParams = ParameterList(
+            Parameter("iv", ParameterType.STRING),
+            Parameter("content", ParameterType.STRING)
+        )
+
+        override suspend fun execute(
+            params: Map<String, Any>?,
+            principal: JWTPrincipal?,
+            parasite: Parasite?,
+            clientKey: PublicKey?,
+            chatHandler: ChatHandler
+        ): ExecutionResult {
+            return executeEncrypted(params!!) { messageContent ->
+                val response = chatHandler.updateGroup(
                     messageContent,
                     clientKey!!,
                     parasite!!
@@ -102,6 +128,11 @@ enum class MethodHandler : Executor {
         override val httpAllowed = true
         override val socketAllowed = true
 
+        override val optionalParams = ParameterList(
+            Parameter("iv", ParameterType.STRING),
+            Parameter("content", ParameterType.STRING)
+        )
+
         override suspend fun execute(
             params: Map<String, Any>?,
             principal: JWTPrincipal?,
@@ -109,8 +140,13 @@ enum class MethodHandler : Executor {
             clientKey: PublicKey?,
             chatHandler: ChatHandler
         ): ExecutionResult {
-            return executeEncrypted {
-                val response = chatHandler.getMessages(clientKey!!, parasite!!)
+            return params?.let {
+                executeEncrypted(params) { messageContent ->
+                    val response = chatHandler.getMessages(messageContent, clientKey!!, parasite!!)
+                    ExecutionResult.createListResult(JsonRpcStatus.EXCELLENT, response)
+                }
+            } ?: executeEncrypted {
+                val response = chatHandler.getMessages(null, clientKey!!, parasite!!)
                 ExecutionResult.createListResult(JsonRpcStatus.EXCELLENT, response)
             }
         }

@@ -5,12 +5,9 @@ import com.fasterxml.jackson.databind.JsonMappingException
 import io.ktor.server.auth.jwt.*
 import net.chatalina.chat.MessageContent
 import net.chatalina.database.Parasite
-import net.chatalina.plugins.AuthorizationException
 import net.chatalina.plugins.ChatHandler
 import java.security.GeneralSecurityException
-import java.security.InvalidAlgorithmParameterException
 import java.security.PublicKey
-import javax.crypto.IllegalBlockSizeException
 
 internal fun interface Executor {
     val authenticated: Boolean
@@ -120,8 +117,6 @@ suspend fun executeEncrypted(params: Map<String, Any>, execution: suspend (Messa
     return try {
         val messageContent = params.let { MessageContent(it["iv"].toString(), it["content"].toString()) }
         execution(messageContent)
-    } catch (e: AuthorizationException) {
-        ExecutionResult.createResult(JsonRpcStatus.FORBIDDEN, null)
     } catch (e: IllegalArgumentException) {
         ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
     } catch (e: GeneralSecurityException) {
@@ -136,13 +131,11 @@ suspend fun executeEncrypted(params: Map<String, Any>, execution: suspend (Messa
 suspend fun executeEncrypted(execution: suspend () -> ExecutionResult): ExecutionResult {
     return try {
         execution()
-    } catch (e: AuthorizationException) {
-        ExecutionResult.createResult(JsonRpcStatus.FORBIDDEN, null)
     } catch (e: IllegalArgumentException) {
         ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
-    } catch (e: InvalidAlgorithmParameterException) {
-        ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
-    } catch (e: IllegalBlockSizeException) {
+    } catch (e: GeneralSecurityException) {
         ExecutionResult.createResult(JsonRpcStatus.ENCRYPTION_ERROR, null, "bad data")
     }
 }
+
+class InvalidEncryptedRequestException(val errorDetails: MessageContent) : RuntimeException()

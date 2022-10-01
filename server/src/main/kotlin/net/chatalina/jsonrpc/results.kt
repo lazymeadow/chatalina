@@ -5,16 +5,17 @@ import io.ktor.http.*
 
 enum class JsonRpcStatus(val rpcCode: Int, val rpcMessage: String?, val statusCode: HttpStatusCode) {
     EXCELLENT(1, null, HttpStatusCode.OK),
-    NOTIFICATION(0, null, HttpStatusCode.OK),
+    NOTIFICATION(0, null, HttpStatusCode.Accepted),
     PARSE_ERROR(-32700, "Parse Error", HttpStatusCode.BadRequest),
-    INVALID_REQUEST(-32600, "Invalid Request", HttpStatusCode.BadRequest),
-    METHOD_NOT_FOUND(-32601, "Method Not Found", HttpStatusCode.BadRequest),
-    INVALID_PARAMS(-32602, "Invalid Params", HttpStatusCode.BadRequest),
+    INVALID_REQUEST(-32600, "Invalid Request", HttpStatusCode.UnprocessableEntity),
+    METHOD_NOT_FOUND(-32601, "Method Not Found", HttpStatusCode.UnprocessableEntity),
+    INVALID_PARAMS(-32602, "Invalid Params", HttpStatusCode.UnprocessableEntity),
     SERVER_ERROR(-32500, "Server Error", HttpStatusCode.InternalServerError),
-    KEY_ERROR(-32003, "Key Exchange Needed", HttpStatusCode.BadRequest),
-    ENCRYPTION_ERROR(-32004, "Encryption Error", HttpStatusCode.BadRequest),
+    KEY_ERROR(-32003, "Key Exchange Needed", HttpStatusCode.UnprocessableEntity),
+    ENCRYPTION_ERROR(-32004, "Encryption Error", HttpStatusCode.UnprocessableEntity),
     UNAUTHORIZED(-32001, "Unauthorized", HttpStatusCode.Unauthorized),
-    FORBIDDEN(-32002, "Forbidden", HttpStatusCode.Forbidden)
+    FORBIDDEN(-32002, "Forbidden", HttpStatusCode.Forbidden),
+    REFUSED(-32005, "Refused", HttpStatusCode.UnprocessableEntity)
 }
 
 data class JsonRpcResult(

@@ -4,6 +4,7 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.requestvalidation.*
 import net.chatalina.database.Parasite
+import net.chatalina.plugins.AuthorizationException
 import net.chatalina.plugins.ChatHandler
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
@@ -60,8 +61,12 @@ suspend fun processJsonRpcRequest(
             JsonRpcStatus.SERVER_ERROR,
             "method '${rpcBody.method}' has not yet been implemented."
         )
+    } catch (e: AuthorizationException) {
+        return generateErrorResult(rpcBody.id, JsonRpcStatus.FORBIDDEN)
     } catch (e: BadPaddingException) {
         return generateErrorResult(rpcBody.id, JsonRpcStatus.ENCRYPTION_ERROR)
+    } catch (e: InvalidEncryptedRequestException) {
+        return generateErrorResult(rpcBody.id, JsonRpcStatus.REFUSED, e.errorDetails)
     } catch (e: Throwable) {
         logger.error("Error processing request")
         e.printStackTrace()
