@@ -16,12 +16,12 @@ fun Application.module() {
     configureMonitoring()
 
     configureSerialization()
+    configureValidation()
     configureEncryption()
 
     // it relies on other features (encryption, sockets)
     configureChatHandler()
 
     configureRouting()
-    configureJsonRpc()
     configureSockets()
 }

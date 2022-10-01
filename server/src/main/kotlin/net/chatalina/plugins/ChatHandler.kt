@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import net.chatalina.chat.*
 import net.chatalina.database.*
-import net.chatalina.jsonrpc.Request
+import net.chatalina.jsonrpc.JsonRpcCallBody
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.Logger
@@ -189,7 +189,7 @@ class ChatHandler(
                         )
                         // then we need to re-encrypt it for sending to any relevant connections
                         val serialized = serializeToSend(
-                            Request(
+                            JsonRpcCallBody(
                                 "2.0",
                                 null,
                                 ServerMethodTypes.NEW_MESSAGE.toString(),
@@ -285,11 +285,11 @@ class ChatHandler(
                     CoroutineScope(Dispatchers.Default).launch {
                         // then we need to re-encrypt it for sending to any relevant connections
                         val serialized = serializeToSend(
-                            Request(
+                            JsonRpcCallBody(
                                 "2.0",
                                 null,
                                 ServerMethodTypes.UPDATE_DESTINATIONS.toString(),
-                                mapper.convertValue(mapOf("groups" to listOf(newGroup)))
+                                mapper.convertValue(encryptToSend(pubKey, mapper.writeValueAsBytes(mapOf("groups" to listOf(newGroup)))))
                             )
                         )
                         log.debug("encrypted and sending to ${it.name}")
@@ -322,7 +322,7 @@ class ChatHandler(
                     CoroutineScope(Dispatchers.Default).launch {
                         // then we need to re-encrypt it for sending to any relevant connections
                         val serialized = serializeToSend(
-                            Request(
+                            JsonRpcCallBody(
                                 "2.0",
                                 null,
                                 ServerMethodTypes.UPDATE_DESTINATIONS.toString(),

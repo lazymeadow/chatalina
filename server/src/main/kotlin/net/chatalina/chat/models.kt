@@ -3,7 +3,7 @@ package net.chatalina.chat
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonValue
-import net.chatalina.jsonrpc.endpoints.EncryptionKey
+import net.chatalina.jsonrpc.MethodHandler
 
 
 /*** MESSAGE STUFF ***/
@@ -70,7 +70,7 @@ class JID(val type: DestinationType, val id: Int, val domain: String) {
 }
 
 enum class ServerMethodTypes(private val value: String) {
-    ENCRYPTION_KEY(EncryptionKey.methodName),
+    ENCRYPTION_KEY(MethodHandler.ENCRYPTION_KEY.toString()),
     NEW_MESSAGE("messages.new"),
     UPDATE_DESTINATIONS("destinations.update");
 
@@ -94,13 +94,7 @@ data class GroupObject(
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class MessageContent(
-    override val iv: String,
-    override val content: String
-) : RequestContent(iv = iv, content = content)
-
-abstract class RequestContent(
-    open val iv: String? = null,
-    open val content: String? = null,
-    open val token: String? = null,
-    open val key: String? = null
+    val iv: String,
+    val content: String
 )
+

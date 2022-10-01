@@ -2,11 +2,12 @@ package net.chatalina.jsonrpc
 
 import io.ktor.util.reflect.*
 import java.util.*
+import kotlin.collections.ArrayList
 
 
 enum class ParameterType(private val niceName: String) {
     STRING("a string") {
-        override fun validate(paramValue: Any): Boolean = validateClass<String>(paramValue)
+        override fun validate(paramValue: Any): Boolean = validateClass<String>(paramValue) && (paramValue as String).isNotBlank()
     },
     INTEGER("an integer") {
         override fun validate(paramValue: Any): Boolean = validateClass<Int>(paramValue)
@@ -66,3 +67,9 @@ enum class ParameterType(private val niceName: String) {
 }
 
 data class Parameter(val name: String, val type: ParameterType)
+class ParameterList(vararg parameters: Parameter): ArrayList<Parameter>(parameters.asList()) {
+    val names = this.map { param -> param.name }.toSet()
+    override fun toString(): String {
+        return this.joinToString(", ") { "${it.name} - ${it.type}" }
+    }
+}

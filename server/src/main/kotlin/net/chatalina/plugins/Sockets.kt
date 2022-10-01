@@ -15,11 +15,7 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import net.chatalina.chat.ChatSocketConnection
 import net.chatalina.chat.ServerMethodTypes
 import net.chatalina.database.Parasite
-import net.chatalina.jsonrpc.JsonRpcStatus
-import net.chatalina.jsonrpc.Request
-import net.chatalina.jsonrpc.endpoints.Authorization
-import net.chatalina.jsonrpc.endpoints.EncryptionKey
-import net.chatalina.jsonrpc.generateErrorResponse
+import net.chatalina.jsonrpc.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.PublicKey
 import java.time.Duration
@@ -53,8 +49,8 @@ fun Application.configureSockets() {
                         is Frame.Text -> {
                             try {
                                 application.log.debug("received message from ${theConnection}")
-                                val body = mapper.readValue<Request>(frame.data)
-                                fun getBody(): Request {
+                                val body = mapper.readValue<JsonRpcCallBody>(frame.data)
+                                fun getBody(): JsonRpcCallBody {
                                     return body
                                 }
 
@@ -66,16 +62,16 @@ fun Application.configureSockets() {
                                     return theConnection.publicKey
                                 }
 
-                                val jsonrpc = application.jsonRpc
                                 // we send the socket principal for processing because the method will handle checking
                                 // validity (if authorization call) and necessary permissions (for all others)
-                                val (_, response, passAlongResult) = jsonrpc.handleRequest(
+                                val (_, response, passAlongResult) = processJsonRpcRequest(
                                     ::getBody,
                                     ::getPrincipal,
                                     ::getClientKey,
-                                    executingInSocket = true
+                                    chatHandler,
+                                    RequestSource.SOCKET
                                 )
-                                if (body.method == Authorization.methodName) {
+                                if (body.method == MethodHandler.AUTHORIZATION.toString()) {
                                     val principal = passAlongResult as JWTPrincipal?
                                     if (principal == null) {
                                         throw NoAuthException()
@@ -113,7 +109,7 @@ fun Application.configureSockets() {
                                             )
                                         }
                                     }
-                                } else if (body.method == EncryptionKey.methodName && passAlongResult != null) {
+                                } else if (body.method == MethodHandler.ENCRYPTION_KEY.toString() && passAlongResult != null) {
                                     application.log.debug("setting key for ${theConnection}")
                                     theConnection.publicKey = application.encryption.validateAndGetPublicKey(
                                         passAlongResult.toString()
@@ -165,5 +161,5 @@ fun Application.configureSockets() {
     }
 }
 
-class NoAuthException : Exception("send message with type ${Authorization.methodName} and valid token")
+class NoAuthException : Exception("send call for method '${MethodHandler.AUTHORIZATION}' and valid token")
 class BadAuthException : Exception("Invalid auth")
