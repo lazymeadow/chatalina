@@ -89,9 +89,8 @@ function chatDataReducer(state, action) {
 			const updatedParasites = [...existingParasites, ...parasitesToAdd]
 			return {...state, parasites: sortBy(updatedParasites, 'jid')}
 		case 'groups':
-			const groupsToAdd = action.payload.filter(group => !!state.groups.find(g => g.jid === group.jid) !== true)
-			const updatedGroups = [...state.groups, ...groupsToAdd]
-			return {...state, groups: sortBy(updatedGroups, 'jid')}
+			// every group update is a full replacement.
+			return {...state, groups: sortBy(action.payload, 'jid')}
 		case 'set read':
 			const read = state.parasites.find(p => p.jid === action.payload) || state.groups.find(g => g.jid
 				=== action.payload)
@@ -201,42 +200,12 @@ export const ChatProvider = ({children}) => {
 		}
 	}, [currentDest, encryption, myJID, notificationsState.allowSound])
 
-	const sendMessage = useCallback(async (messageText, destination) => {
+	const sendHTTP = useCallback(async (method, params) => {
 		if (encryption.serverKey === null) {
-			console.error('unable to send messages before key exchange')
+			console.error(`unable to execute "${method}" before key exchange`)
 		} else {
-			const encrypted = await encryption.encrypt({
-				type: 'text',
-				message: messageText,
-				sender: myJID,
-				destination
-			})
-			// we send messages via http. the response is usually faster than the socket, so we save it.
-			const response = await fetch(apiUri, {
-				method: 'POST',
-				headers: {
-					'BEC-Client-Key': encryption.getPublicKey(),
-					'Authorization': 'Bearer ' + Authentication.getToken(),
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'messages.send', params: encrypted}),
-				mode: 'cors'
-			})
-			if (!response.ok) {
-				console.log(response)
-				console.error('error sending message')
-			} else {
-				const responseBody = await response.json()
-				processMessage(responseBody.result)
-			}
-		}
-	}, [encryption, myJID, processMessage])
+			const encrypted = await encryption.encrypt(params)
 
-	const updateSettings = useCallback(async (propsToUpdate) => {
-		if (encryption.serverKey === null) {
-			console.error('unable to update before key exchange')
-		} else {
-			const encrypted = await encryption.encrypt(propsToUpdate)
 			// we send messages via http. the response is usually faster than the socket, so we save it.
 			const response = await fetch(apiUri, {
 				method: 'POST',
@@ -245,48 +214,36 @@ export const ChatProvider = ({children}) => {
 					'Authorization': 'Bearer ' + Authentication.getToken(),
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'settings.update', params: encrypted}),
+				body: JSON.stringify({id: '2', jsonrpc: '2.0', method, params: encrypted}),
 				mode: 'cors'
 			})
 			if (!response.ok) {
+				console.error(`error executing "${method}"`)
 				console.log(response)
-				console.error('error sending message')
-				throw Error('Update failed')
 			} else {
-				const responseBody = await response.json()
-				const decrypted = await encryption.decrypt(responseBody.result)
-				setSettings(decrypted)
-			}
-		}
-	}, [encryption, setSettings])
-
-	const createGroup = useCallback(async (groupData) => {
-		if (encryption.serverKey === null) {
-			console.error('unable to update before key exchange')
-		} else {
-			const encrypted = await encryption.encrypt(groupData)
-			// we send messages via http. the response is usually faster than the socket, so we save it.
-			const response = await fetch(apiUri, {
-				method: 'POST',
-				headers: {
-					'BEC-Client-Key': encryption.getPublicKey(),
-					'Authorization': 'Bearer ' + Authentication.getToken(),
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({id: '2', jsonrpc: '2.0', method: 'groups.create', params: encrypted}),
-				mode: 'cors'
-			})
-			if (!response.ok) {
-				console.log(response)
-				console.error('error sending message')
-				throw Error('Update failed')
-			} else {
-				const responseBody = await response.json()
-				const decrypted = await encryption.decrypt(responseBody.result)
-				chatDataDispatch({type: 'groups', payload: [decrypted]})
+				return await response.json()
 			}
 		}
 	}, [encryption])
+
+	const sendMessage = useCallback(async (messageText, destination) => {
+		// send messages via http. the response is usually faster than the socket, so we save it.
+		const result = await sendHTTP('messages.send', {type: 'text', message: messageText, sender: myJID, destination})
+		processMessage(result)
+	}, [myJID, processMessage, sendHTTP])
+
+	const updateSettings = useCallback(async (propsToUpdate) => {
+		// send messages via http. the response is usually faster than the socket, so we save it.
+		const result = await sendHTTP('settings.update', propsToUpdate)
+		const decrypted = await encryption.decrypt(result)
+		setSettings(decrypted)
+	}, [encryption, sendHTTP, setSettings])
+
+	const createGroup = useCallback(async (groupData) => {
+		const result = await sendHTTP('groups.create', groupData)
+		const decrypted = await encryption.decrypt(result)
+		chatDataDispatch({type: 'groups', payload: [decrypted]})
+	}, [encryption, sendHTTP])
 
 	const wsOnMessage = useCallback(async (messageEvent) => {
 		const parsedMessage = JSON.parse(messageEvent.data)
@@ -311,8 +268,21 @@ export const ChatProvider = ({children}) => {
 			}
 			case 'destinations.update': {
 				const {parasites = [], groups = []} = await encryption.decrypt(parsedMessage.params)
-				chatDataDispatch({type: 'parasites', payload: parasites})
-				chatDataDispatch({type: 'groups', payload: groups})
+
+				const currentJIDs = chatDataState.groups.map(g => g.jid)
+				const newGroups = groups.filter(g => !currentJIDs.includes(g.jid))
+				// we dont request messages for new parasites yet, because its assumed they are new users.
+				if (newGroups.length > 0) {
+					const newMessages = newGroups.map(group => sendHTTP('messages.get', {jid: group.jid}))
+					Promise.all(newMessages).then((msgs) => {
+						chatDataDispatch({type: 'messages', payload: msgs.flat()})
+						chatDataDispatch({type: 'parasites', payload: parasites})
+						chatDataDispatch({type: 'groups', payload: groups})
+					})
+				} else {
+					chatDataDispatch({type: 'parasites', payload: parasites})
+					chatDataDispatch({type: 'groups', payload: groups})
+				}
 				break
 			}
 			case undefined: {
@@ -343,7 +313,7 @@ export const ChatProvider = ({children}) => {
 				console.log('hmmm', parsedMessage, parsedMessage.type)
 			}
 		}
-	}, [encryption, processMessage, setSettings])
+	}, [chatDataState.groups, encryption, processMessage, sendHTTP, setSettings])
 
 	const wsOnOpen = useCallback(() => {
 		console.log(':)')
@@ -399,9 +369,15 @@ export const ChatProvider = ({children}) => {
 		if (initializationState.working
 			&& initializationState.steps.key
 			&& !initializationState.steps.messages) {
-			getSettingsId = sendWebsocketRpc('settings.get')
-			getMessagesId = sendWebsocketRpc('messages.get')
-			getDestinationsId = sendWebsocketRpc('destinations.get')
+			if (!getSettingsId) {
+				getSettingsId = sendWebsocketRpc('settings.get')
+			}
+			if (!getMessagesId) {
+				getMessagesId = sendWebsocketRpc('messages.get')
+			}
+			if (!getDestinationsId) {
+				getDestinationsId = sendWebsocketRpc('destinations.get')
+			}
 		}
 	}, [initializationState.working, initializationState.steps])
 
