@@ -3,6 +3,7 @@
 :root {
   --chatTeal: #99305E;  /* not teal, for testing purposes */
   --youThinkItsBlackButItsNot: #232323;
+  --almostWhiteButNotQuite: #FEFEFE;
   /*--chatTeal: #25687d;*/
 }
 
@@ -35,6 +36,7 @@ body a > svg {
 
 input, textarea {
   font: 14px Amiko, sans-serif;
+  color: var(--youThinkItsBlackButItsNot);
 }
 
 button {
@@ -43,7 +45,7 @@ button {
   min-width: 80px;
   min-height: 40px;
   background-color: var(--chatTeal);
-  color: white;
+  color: var(--almostWhiteButNotQuite);
   font: 14px Amiko, sans-serif;
   font-weight: bold;
 }

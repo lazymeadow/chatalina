@@ -6,11 +6,11 @@
     padding: 10px 0;
 
     background-color: var(--chatTeal);
-    color: white;
+    color: var(--almostWhiteButNotQuite);
 }
 
 .ChatLayout-left a {
-    color: white;
+    color: var(--almostWhiteButNotQuite);
     padding: 10px;
 }
 
