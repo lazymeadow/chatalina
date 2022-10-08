@@ -22,6 +22,7 @@ fun Application.configureRouting() {
                     suspend fun getBody(): JsonRpcCallBody {
                         return call.receive()
                     }
+
                     fun getPrincipal(): JWTPrincipal? {
                         // get the token out of the bearer header
                         return try {
@@ -42,7 +43,13 @@ fun Application.configureRouting() {
                     fun getClientKey(): PublicKey {
                         return application.encryption.validateAndGetPublicKey(call.request.clientKey)
                     }
-                    val (statusCode, response, _) = processJsonRpcRequest(::getBody, ::getPrincipal, ::getClientKey, application.chatHandler, RequestSource.HTTP)
+                    val (statusCode, response, _) = processJsonRpcRequest(
+                        ::getBody,
+                        ::getPrincipal,
+                        ::getClientKey,
+                        application.chatHandler,
+                        RequestSource.HTTP
+                    )
                     call.response.status(statusCode)
                     response?.let { call.respond(response) } ?: finish()
                 }

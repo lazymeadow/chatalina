@@ -119,10 +119,18 @@ fun Application.configureSockets() {
                                     chatHandler.sendToConnection(theConnection, response)
                                 }
                             } catch (e: MissingKotlinParameterException) {
-                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.INVALID_PARAMS, "missing field: ${e.parameter.name}, ${e.parameter.type}")
+                                val errorResponse = generateErrorResponse(
+                                    null,
+                                    JsonRpcStatus.INVALID_PARAMS,
+                                    "missing field: ${e.parameter.name}, ${e.parameter.type}"
+                                )
                                 outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                             } catch (e: UnrecognizedPropertyException) {
-                                val errorResponse = generateErrorResponse(null, JsonRpcStatus.INVALID_PARAMS, "unknown field: ${e.propertyName} (allowed: ${e.knownPropertyIds})")
+                                val errorResponse = generateErrorResponse(
+                                    null,
+                                    JsonRpcStatus.INVALID_PARAMS,
+                                    "unknown field: ${e.propertyName} (allowed: ${e.knownPropertyIds})"
+                                )
                                 outgoing.send(Frame.Text(mapper.writeValueAsString(errorResponse)))
                                 outgoing.send(Frame.Text("{\"error\": \"\"}"))
                             } catch (e: JsonParseException) {
