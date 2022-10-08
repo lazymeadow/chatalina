@@ -228,7 +228,10 @@ export const ChatProvider = ({children}) => {
 
 	const sendMessage = useCallback(async (messageText, destination) => {
 		// send messages via http. the response is usually faster than the socket, so we save it.
-		const result = await sendHTTP('messages.send', {type: 'text', message: messageText, sender: myJID, destination})
+		const {result} = await sendHTTP(
+			'messages.send',
+			{type: 'text', message: messageText, sender: myJID, destination}
+		)
 		processMessage(result)
 	}, [myJID, processMessage, sendHTTP])
 
@@ -240,7 +243,7 @@ export const ChatProvider = ({children}) => {
 	}, [encryption, sendHTTP, setSettings])
 
 	const createGroup = useCallback(async (groupData) => {
-		const result = await sendHTTP('groups.create', groupData)
+		const {result} = await sendHTTP('groups.create', groupData)
 		const decrypted = await encryption.decrypt(result)
 		chatDataDispatch({type: 'groups', payload: [decrypted]})
 	}, [encryption, sendHTTP])
@@ -273,7 +276,7 @@ export const ChatProvider = ({children}) => {
 				const newGroups = groups.filter(g => !currentJIDs.includes(g.jid))
 				// we dont request messages for new parasites yet, because its assumed they are new users.
 				if (newGroups.length > 0) {
-					const newMessages = newGroups.map(group => sendHTTP('messages.get', {jid: group.jid}))
+					const newMessages = newGroups.map(group => sendHTTP('messages.get', {jid: group.jid}).result)
 					Promise.all(newMessages).then((msgs) => {
 						chatDataDispatch({type: 'messages', payload: msgs.flat()})
 						chatDataDispatch({type: 'parasites', payload: parasites})
