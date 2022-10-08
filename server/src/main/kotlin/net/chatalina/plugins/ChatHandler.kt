@@ -33,6 +33,19 @@ private inline fun <reified T> readMessageContent(
     return mapper.readValue(decrypted)
 }
 
+private fun adjustDestination(dests: List<JID>, parasiteJID: JID, msg: MessageData): MessageData {
+    val dest = if (dests.size == 2) {
+        dests.firstOrNull { it != parasiteJID }
+    } else {
+        null
+    }
+    return if (dest != null) {
+        MessageData(dest, msg.sender, msg.type, msg.message, msg.time, msg.id)
+    } else {
+        msg
+    }
+}
+
 class ChatHandler(
     configuration: PluginConfiguration,
     private val encryption: Encryption,
@@ -54,7 +67,7 @@ class ChatHandler(
         connection.send(serializeToSend(data))
     }
 
-    fun sendEncryptedToConnection(connection: ChatSocketConnection, data: Any) {
+    fun sendEncryptedToConnection(connection: ChatSocketConnection, type: ServerMethodTypes, data: Any) {
         with(connection) {
             publicKey?.let { pubKey ->
                 // socket sending is a suspend function. send it off, but keep processing our synchronized list of connections
@@ -64,7 +77,7 @@ class ChatHandler(
                         JsonRpcCallBody(
                             "2.0",
                             null,
-                            ServerMethodTypes.UPDATE_DESTINATIONS.toString(),
+                            type.toString(),
                             mapper.convertValue(encryptToSend(pubKey, mapper.writeValueAsBytes(data)))
                         )
                     )
@@ -79,18 +92,6 @@ class ChatHandler(
         return token?.let { becAuth.validateJwt(it) }
     }
 
-    private fun adjustDestination(dests: List<JID>, parasiteJID: JID, msg: MessageData): MessageData {
-        val dest = if (dests.size == 2) {
-            dests.firstOrNull { it != parasiteJID }
-        } else {
-            null
-        }
-        return if (dest != null) {
-            MessageData(dest, msg.sender, msg.type, msg.message, msg.time, msg.id)
-        } else {
-            msg
-        }
-    }
 
     private fun encryptToSend(publicKey: PublicKey, decrypted: ByteArray): MessageContent {
         val (nonce, encrypted) = encryption.encryptEC(decrypted, publicKey)
@@ -104,8 +105,9 @@ class ChatHandler(
     fun getMessages(message: MessageContent?, publicKey: PublicKey, parasite: Parasite): List<MessageContent> {
         val parasiteJID = parasite.getJID(jidDomain)
         // if message content is present, it'll have filters.
-        val filters =
-            message?.let { readMessageContent<MessageFilters>(message, mapper, publicKey, encryption::decryptEC) }
+        val filters = message?.let {
+            readMessageContent<MessageFilters>(message, mapper, publicKey, encryption::decryptEC)
+        }
         return transaction {
             // to find the jids that we need to filter by, we've gotta check our filter.
             val messageFilter = filters?.jid?.let { filterJID ->
@@ -210,6 +212,7 @@ class ChatHandler(
             i.forEach {
                 sendEncryptedToConnection(
                     it,
+                    ServerMethodTypes.NEW_MESSAGE,
                     // we need to adjust for private messages with multiple destinations
                     adjustDestination(destinationsToSave, it.parasite.getJID(jidDomain), processedMessage)
                 )
@@ -292,7 +295,7 @@ class ChatHandler(
                 .filter { it.isParasiteSet() && it.parasite.id == parasite.id }
                 .iterator()
             i.forEach {
-                sendEncryptedToConnection(it, mapOf("groups" to newGroupList))
+                sendEncryptedToConnection(it, ServerMethodTypes.UPDATE_DESTINATIONS, mapOf("groups" to newGroupList))
             }
         }
         // we even return the fully updated group list to the caller.
@@ -391,7 +394,7 @@ class ChatHandler(
                 .forEach { theParasite, connections ->
                     val updatedGroups = mapOf("groups" to getGroups(theParasite))
                     connections.forEach {
-                        sendEncryptedToConnection(it, updatedGroups)
+                        sendEncryptedToConnection(it, ServerMethodTypes.UPDATE_DESTINATIONS, updatedGroups)
                     }
                 }
         }
@@ -419,7 +422,11 @@ class ChatHandler(
         synchronized(currentSocketConnections) {
             // Must be in the synchronized block
             currentSocketConnections.forEach {
-                sendEncryptedToConnection(it, mapOf("parasites" to listOf(responseParasite)))
+                sendEncryptedToConnection(
+                    it,
+                    ServerMethodTypes.UPDATE_DESTINATIONS,
+                    mapOf("parasites" to listOf(responseParasite))
+                )
             }
         }
         // 4. return updated settings to requester
@@ -443,7 +450,7 @@ class ChatHandler(
             val jacksonMapper = pipeline.jacksonMapper
             val log = pipeline.log
             val becAuth = pipeline.environment.becAuth
-                ?: throw ApplicationConfigurationException("Security must be configured before chat handler")
+                    ?: throw ApplicationConfigurationException("Security must be configured before chat handler")
 
             val chatHandler = ChatHandler(configuration, encryption, jacksonMapper, becAuth)
 
