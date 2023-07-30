@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% set title = 'Sign In' %}
+
+{% block includes %}
+<link rel="stylesheet" href="/style/small.css" type="text/css"/>
+{% block formjs %} {% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="form">
+    <h1>{{ formTitle }}</h1>
+    {% if subtitle %}
+    <p>
+        {{ subtitle }}
+    </p>
+    {% endif %}
+    <div id="message" class="message{% if error %} error{% endif %}">
+        {% if error %}
+        {{ error }}
+        {% elseif message %}
+        {{ message }}
+        {% endif %}
+    </div>
+    <form id="{{ formId }}" action="">
+        {% block formContent %}
+        {% endblock %}
+    </form>
+</div>
+{% endblock %}

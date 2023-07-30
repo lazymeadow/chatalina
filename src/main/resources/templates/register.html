@@ -1,0 +1,51 @@
+{% extends "form-page.html" %}
+
+{% set title = 'Register' %}
+{% set formTitle = 'Register' %}
+{% set formId = 'register' %}
+
+{% block formjs %}
+<script src="/js/register.js"></script>
+{% endblock %}
+
+{% block formContent %}
+<div class="form-group">
+    <div class="form-element">
+        <label for="parasite">Username</label>
+        <input type=text
+               name="parasite"
+               id="parasite"
+               required
+               value="{{username}}"
+               autocomplete="username"/>
+    </div>
+    <div class="form-element">
+        <label for="password">Password</label>
+        <input type="password"
+               name="password"
+               id="password"
+               required
+               autocomplete="new-password"/>
+    </div>
+    <div class="form-element">
+        <label for="password2">Confirm</label>
+        <input type="password"
+               name="password2"
+               id="password2"
+               required
+               autocomplete="new-password"/>
+    </div>
+    <div class="form-element">
+        <label for="email">Email</label>
+        <input type=email
+               name="email"
+               id="email"
+               required/>
+    </div>
+    <div class="form-element">
+        <div class="flex-spacer"></div>
+        <button class="primary" type="button" onclick="handleRegister()">Register</button>
+    </div>
+</div>
+<a href="/login">&lt; I already did this!</a>
+{% endblock %}

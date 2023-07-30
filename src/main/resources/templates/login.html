@@ -1,0 +1,45 @@
+{% extends "form-page.html" %}
+
+{% set title = 'Sign In' %}
+{% set formTitle = 'Sign In' %}
+{% set formId = 'login' %}
+
+{% block formjs %}
+<script src="/js/login.js"></script>
+{% endblock %}
+
+{% block formContent %}
+<div class="form-group">
+    <div class="form-element">
+        <label for="parasite">Username</label>
+        <input type=text
+               name="parasite"
+               id="parasite"
+               value="{{ username }}"
+               required
+               autocomplete="username"
+               tabindex="1"/>
+    </div>
+    <div class="form-element">
+        <label for="password">Password</label>
+        <input type="password"
+               name="password"
+               id="password"
+               required
+               autocomplete="current-password"
+               tabindex="1"/>
+    </div>
+</div>
+<div class="form-group check-box">
+    <div class="flex-spacer"></div>
+    <label for="remember">Remember my username</label>
+    <input type="checkbox" id="remember">
+    <label class="check-box" for="remember" tabindex="1"></label>
+</div>
+<div class="form-element">
+    <a class="button secondary" href="/register" tabindex="0">Register</a>
+    <div class="flex-spacer"></div>
+    <button type="button" onclick="handleLogin()" tabindex="1">Sign in</button>
+</div>
+<a href="/forgot-password" tabindex="0">I forgot my password!</a>
+{% endblock %}

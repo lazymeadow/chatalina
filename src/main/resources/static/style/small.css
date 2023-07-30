@@ -1,0 +1,352 @@
+
+body, div {
+    padding: 0
+}
+
+@font-face {
+    font-family: Amiko;
+    font-style: normal;
+    font-weight: 400;
+    src: url(https://fonts.gstatic.com/s/amiko/v12/WwkQxPq1DFK04uqieVo.ttf) format("truetype")
+}
+
+@-moz-keyframes bottom-check {
+    0% {
+        height: 0
+    }
+    to {
+        height: 10px
+    }
+}
+
+@-webkit-keyframes bottom-check {
+    0% {
+        height: 0
+    }
+    to {
+        height: 10px
+    }
+}
+
+@keyframes bottom-check {
+    0% {
+        height: 0
+    }
+    to {
+        height: 10px
+    }
+}
+
+@keyframes top-check {
+    0%, 50% {
+        height: 0
+    }
+    to {
+        height: 24px
+    }
+}
+
+@-webkit-keyframes top-check {
+    0%, 50% {
+        height: 0
+    }
+    to {
+        height: 24px
+    }
+}
+
+@-moz-keyframes top-check {
+    0%, 50% {
+        height: 0
+    }
+    to {
+        height: 24px
+    }
+}
+
+label.check-box {
+    margin: 5px 10px;
+    height: 20px;
+    width: 20px;
+    background-color: transparent;
+    border: 1px solid #d3d3d3;
+    position: relative;
+    display: inline-block;
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    -moz-transition: border-color ease .2s;
+    -o-transition: border-color ease .2s;
+    -webkit-transition: border-color .2s ease;
+    transition: border-color .2s ease;
+    cursor: pointer
+}
+
+label.check-box:after, label.check-box:before {
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    position: absolute;
+    height: 0;
+    width: 4px;
+    background-color: #228729;
+    display: inline-block;
+    -moz-transform-origin: left top;
+    -ms-transform-origin: left top;
+    -o-transform-origin: left top;
+    -webkit-transform-origin: left top;
+    transform-origin: left top;
+    border-radius: 5px;
+    content: " ";
+    -webkit-transition: opacity .5s ease;
+    -moz-transition: opacity ease .5s;
+    transition: opacity .5s ease
+}
+
+label.check-box:before {
+    top: 14.4px;
+    left: 8.2px;
+    -moz-transform: rotate(-135deg);
+    -ms-transform: rotate(-135deg);
+    -o-transform: rotate(-135deg);
+    -webkit-transform: rotate(-135deg);
+    transform: rotate(-135deg)
+}
+
+label.check-box:after {
+    top: 7.4px;
+    left: 1px;
+    -moz-transform: rotate(-45deg);
+    -ms-transform: rotate(-45deg);
+    -o-transform: rotate(-45deg);
+    -webkit-transform: rotate(-45deg);
+    transform: rotate(-45deg)
+}
+
+label.check-box > span.label {
+    margin: 30px
+}
+
+body, div, h1 {
+    margin: 0
+}
+
+input[type=checkbox]:checked + label.check-box, label.check-box.checked {
+    border-color: #228729
+}
+
+.content input:not([type=range]), .content textarea {
+    border: 1px solid #d3d3d3
+}
+
+input[type=checkbox]:checked + label.check-box:after, label.check-box.checked:after {
+    height: 10px;
+    -moz-animation: bottom-check .2s ease 0s forwards;
+    -o-animation: bottom-check .2s ease 0s forwards;
+    -webkit-animation: bottom-check .2s ease 0s forwards;
+    animation: bottom-check .2s ease 0s forwards
+}
+
+input[type=checkbox]:checked + label.check-box:before, label.check-box.checked:before {
+    height: 24px;
+    -moz-animation: top-check .4s ease 0s forwards;
+    -o-animation: top-check .4s ease 0s forwards;
+    -webkit-animation: top-check .4s ease 0s forwards;
+    animation: top-check .4s ease 0s forwards
+}
+
+body {
+    background: var(--mainColor);
+    font: 14px Amiko, san-serif;
+    color: #222;
+    overflow: hidden
+}
+
+h1 {
+    font-size: 2em;
+    font-weight: 400
+}
+
+div.form, div.login, div.not-found {
+    width: 500px;
+    padding: 25px;
+    margin-left: auto;
+    margin-right: auto;
+    background: #fcfcfc;
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    align-self: center;
+    align-items: center
+}
+
+div.form a, div.login a, div.not-found a {
+    font-size: .75em;
+    color: #898989
+}
+
+div.form p, div.login p, div.not-found p {
+    margin: 0 20px;
+    text-align: center
+}
+
+div.form label, div.login label, div.not-found label {
+    flex: 0 0 auto;
+    align-self: center;
+    margin-right: 10px
+}
+
+div.form label.check-box, div.login label.check-box, div.not-found label.check-box {
+    margin-right: 0;
+    margin-left: 0
+}
+
+div.form button, div.login button, div.not-found button, div.form .button, div.login .button, div.not-found .button {
+    min-width: 110px;
+    margin-top: 10px
+}
+.button {
+    text-align: center;
+}
+
+div.form button.primary, div.login button.primary, div.not-found button.primary {
+    justify-self: end
+}
+
+div.form input, div.form select, div.form textarea, div.login input, div.login select, div.login textarea, div.not-found input, div.not-found select, div.not-found textarea {
+    flex: 0 0 auto;
+    margin: 10px 0;
+    width: 250px
+}
+
+div.form select, div.login select, div.not-found select {
+    width: 150px
+}
+
+div.form .message, div.login .message, div.not-found .message {
+    flex: 1 1 auto;
+    padding-top: 10px;
+    min-height: 19px;
+    text-align: center
+}
+
+div.form .message.error, div.login .message.error, div.not-found .message.error {
+    color: #c00
+}
+
+div.form .form-group, div.login .form-group, div.not-found .form-group {
+    width: 350px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto
+}
+
+div.form .form-group.check-box, div.login .form-group.check-box, div.not-found .form-group.check-box {
+    flex-direction: row
+}
+
+div.form .form-group.check-box label, div.login .form-group.check-box label, div.not-found .form-group.check-box label {
+    font-size: .9em
+}
+
+div.form .form-element, div.login .form-element, div.not-found .form-element {
+    flex: 1 0 auto;
+    display: flex;
+    width: 350px;
+    justify-content: space-between;
+    align-items: center
+}
+
+.content {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 100vw;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: stretch;
+    overflow: auto
+}
+
+.content > div:not(#alerts):not(#header):not(.login):not(.not-found) {
+    display: flex;
+    flex-flow: column nowrap
+}
+
+.content input, .content textarea {
+    font: 1em Amiko, sans-serif;
+    padding: 3px 5px
+}
+
+.content input[type=checkbox] {
+    display: none
+}
+
+.content .button, .content button {
+    font: 1em Amiko, sans-serif;
+    border: none;
+    background-color: var(--mainColor);
+    color: #fff;
+    padding: 5px;
+    cursor: pointer
+}
+
+.content .button:hover, .content button:hover {
+    background: #194756
+}
+
+.content .button.secondary, .content button.secondary {
+    background-color: #fcfcfc;
+    border: 1px solid #d3d3d3;
+    color: var(--mainColor);
+}
+
+.content .button.secondary:hover, .content button.secondary:hover {
+    background: #e3e3e3
+}
+
+.content .button.secondary:disabled, .content button.secondary:disabled {
+    background: #e3e3e3;
+    color: #8a8a8a
+}
+
+.content .button.cancel, .content button.cancel {
+    background: #e3e3e3;
+    color: #898989
+}
+
+.content .button.cancel:hover, .content button.cancel:hover {
+    background: #c9c9c9;
+    color: #707070
+}
+
+div.form .flex-spacer, div.login .flex-spacer, div.not-found .flex-spacer {
+    flex: 1 0 auto
+}
+
+@media screen and (max-width: 640px) {
+    body {
+        overflow-y: auto
+    }
+
+    div.form, div.login, div.not-found {
+        width: 300px;
+        padding: 10px 5px
+    }
+
+    div.form h1, div.login h1, div.not-found h1 {
+        margin: 5px 0
+    }
+
+    div.form button, div.login button, div.not-found button, div.form .button, div.login .button, div.not-found .button {
+        min-width: 80px
+    }
+
+    div.form input, div.login input, div.not-found input {
+        width: 150px
+    }
+
+    div.form .form-element, div.form .form-group, div.login .form-element, div.login .form-group, div.not-found .form-element, div.not-found .form-group {
+        width: 250px
+    }
+}
