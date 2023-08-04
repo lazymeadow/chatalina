@@ -42,17 +42,19 @@
       😃
       <div class="popout-option">
         <div id="emoji_list">
-          <table>
-            {% for emojis in emoji_list | batch(9) %}
-            <tr>
-              {% for emoji in emojis %}
-              <td>
-                <span>{{ emoji }}</span>
-              </td>
-              {% endfor %}
-            </tr>
-            {% endfor %}
-          </table>
+            <table>
+                {% for emojis in emoji_list %}
+                {% if (loop.index % 12) == 0 %}
+                <tr>
+                    {% endif %}
+                    <td>
+                        <span>{{ emoji }}</span>
+                    </td>
+                    {% if ((loop.index + 1) % 12) == 0 %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </table>
         </div>
         <div class="popout-indicator"></div>
       </div>
