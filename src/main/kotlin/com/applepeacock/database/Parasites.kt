@@ -1,6 +1,7 @@
 package com.applepeacock.database
 
 import at.favre.lib.crypto.bcrypt.BCrypt
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IdTable
@@ -10,11 +11,11 @@ import org.jetbrains.exposed.sql.transactions.transaction
 
 data class ParasiteSettings(
     val displayName: String? = null,
-    val color: String? = null,
-    val volume: String? = null,
-    val soundSet: String? = null,
-    val faction: String? = null,
-    val permission: String? = null
+    val color: String = "#555555",
+    val volume: String = "100",
+    val soundSet: String = "AIM",
+    val faction: String = "rebel",
+    val permission: String = "user"
 )
 
 object Parasites : IdTable<String>("parasites"), ChatTable {
@@ -36,7 +37,10 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         val settings: ParasiteSettings,
         val created: Instant,
         val updated: Instant
-    ) : ChatTable.ObjectModel()
+    ) : ChatTable.ObjectModel() {
+        val name
+            get() = this.settings.displayName ?: this.id.value
+    }
 
     object DAO : ChatTable.DAO() {
         override fun resultRowToObject(row: ResultRow): ParasiteObject {
@@ -51,8 +55,9 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             )
         }
 
-        fun list(): List<ParasiteObject> = transaction {
-            Parasites.selectAll().map { resultRowToObject(it) }
+        fun list(active: Boolean = true): List<ParasiteObject> = transaction {
+            val query = Parasites.select { Parasites.active eq active }
+            query.map { resultRowToObject(it) }
         }
 
         fun find(parasiteId: String): ParasiteObject? = transaction {
@@ -104,6 +109,12 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                     it[parasite] = newParasite.id
                     it[password] = hashedPassword.decodeToString()
                 }
+            }
+        }
+
+        fun setLastActive(parasite: ParasiteObject) = transaction {
+            Parasites.update({ Parasites.id eq parasite.id }) {
+                it[lastActive] = Clock.System.now()
             }
         }
     }
