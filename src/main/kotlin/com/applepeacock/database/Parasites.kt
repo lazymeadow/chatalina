@@ -7,16 +7,22 @@ import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import kotlin.reflect.KMutableProperty1
+import kotlin.reflect.KProperty1
 
 
 data class ParasiteSettings(
-    val displayName: String? = null,
-    val color: String = "#555555",
-    val volume: String = "100",
-    val soundSet: String = "AIM",
-    val faction: String = "rebel",
-    val permission: String = "user"
+    var displayName: String? = null,
+    var color: String = "#555555",
+    var volume: String = "100",
+    var soundSet: String = "AIM",
+    var faction: String = "rebel",
+    var permission: String = "user"
 )
+
+inline fun <reified T : Any?> ParasiteSettings.setProperty(prop: KProperty1<ParasiteSettings, T>, newValue: T) {
+    (prop as KMutableProperty1<ParasiteSettings, T>).set(this, newValue)
+}
 
 object Parasites : IdTable<String>("parasites"), ChatTable {
     override val id = text("id").entityId()
@@ -87,12 +93,21 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                 .singleOrNull()?.getOrNull(ParasitePasswords.resetToken) == token
         }
 
+        fun updatePassword(parasiteId: EntityID<String>, hashedPassword: ByteArray): Boolean = transaction {
+            updatePassword(parasiteId.value, hashedPassword)
+        }
+
         fun updatePassword(parasiteId: String, hashedPassword: ByteArray): Boolean = transaction {
             ParasitePasswords.update {
                 it[parasite] = parasiteId
                 it[password] = hashedPassword.decodeToString()
                 it[resetToken] = null
             } == 1
+        }
+
+        fun isValidUsername(newUserName: String): Boolean = transaction {
+            Parasites.select { Parasites.id eq newUserName }.orWhere { settings doubleArrow "username" eq newUserName }
+                .count() == 0L
         }
 
         fun exists(parasiteId: String): Boolean = transaction {
@@ -112,8 +127,18 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             }
         }
 
-        fun setLastActive(parasite: ParasiteObject) = transaction {
-            Parasites.update({ Parasites.id eq parasite.id }) {
+        fun update(parasite: ParasiteObject, newEmail: String? = null, newSettings: ParasiteSettings? = null) =
+            transaction {
+                if (!newEmail.isNullOrBlank() || newSettings != null) {
+                    Parasites.update({ Parasites.id eq parasite.id }) {
+                        newEmail?.let { e -> it[email] = e }
+                        newSettings?.let { s -> it[settings] = s }
+                    }
+                }
+            }
+
+        fun setLastActive(parasiteId: String) = transaction {
+            Parasites.update({ Parasites.id eq parasiteId }) {
                 it[lastActive] = Clock.System.now()
             }
         }

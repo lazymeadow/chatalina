@@ -6,7 +6,6 @@ import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.module.kotlin.readValue
-import org.jetbrains.exposed.dao.id.EntityID
 import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.properties.ReadOnlyProperty
@@ -34,7 +33,7 @@ object ChatManager {
         logger.debug("User list initialized.")
     }
 
-    private fun buildParasiteList(): List<Map<String, Any?>> = Parasites.DAO.list(active = true).map {
+    fun buildParasiteList(): List<Map<String, Any?>> = Parasites.DAO.list(active = true).map {
         buildMap {
             put("id", it.id.value)
             put("email", it.email)
@@ -50,9 +49,9 @@ object ChatManager {
         }
     }
 
-    fun updateParasiteStatus(parasiteId: EntityID<String>, newStatus: ParasiteStatus) {
+    fun updateParasiteStatus(parasiteId: String, newStatus: ParasiteStatus) {
         // update status map
-        parasiteStatusMap[parasiteId.value] = newStatus
+        parasiteStatusMap[parasiteId] = newStatus
         // build user list
         val parasites = buildParasiteList()
         // broadcast to all connected sockets
@@ -62,24 +61,25 @@ object ChatManager {
     fun addConnection(connection: ChatSocketConnection) {
         val wasOffline =
             (parasiteStatusMap.getOrDefault(
-                connection.parasite.id.value,
+                connection.parasiteId,
                 ParasiteStatus.Offline
             ) == ParasiteStatus.Offline)
         currentSocketConnections.add(connection)
-        Parasites.DAO.setLastActive(connection.parasite)
-        updateParasiteStatus(connection.parasite.id, ParasiteStatus.Active)
+        Parasites.DAO.setLastActive(connection.parasiteId)
+        updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)
         connection.send(
             ServerMessage(
                 ServerMessageTypes.Alert,
                 mapOf("message" to "Connection successful.", "type" to "fade")
             )
         )
+        val parasiteName = Parasites.DAO.find(connection.parasiteId)?.name
         if (wasOffline) {
             broadcastToOthers(
-                connection.parasite,
+                connection.parasiteId,
                 ServerMessage(
                     ServerMessageTypes.Alert,
-                    mapOf("message" to "${connection.parasite.name} is online.", "type" to "fade")
+                    mapOf("message" to "${parasiteName ?: connection.parasiteId} is online.", "type" to "fade")
                 )
             )
         }
@@ -88,22 +88,29 @@ object ChatManager {
     fun removeConnection(connection: ChatSocketConnection) {
         currentSocketConnections.remove(connection)
         // if that was the last connection for a parasite, make their status "offline" and tell everyone
-        val hasMoreConnections = currentSocketConnections.any { it.parasite.id == connection.parasite.id }
+        val hasMoreConnections = currentSocketConnections.any { it.parasiteId == connection.parasiteId }
         if (!hasMoreConnections) {
-            updateParasiteStatus(connection.parasite.id, ParasiteStatus.Offline)
+            updateParasiteStatus(connection.parasiteId, ParasiteStatus.Offline)
+            val parasiteName = Parasites.DAO.find(connection.parasiteId)?.name
             broadcastToOthers(
-                connection.parasite,
+                connection.parasiteId,
                 ServerMessage(
                     ServerMessageTypes.Alert,
-                    mapOf("message" to "${connection.parasite.name} is offline.", "type" to "fade")
+                    mapOf("message" to "${parasiteName ?: connection.parasiteId} is offline.", "type" to "fade")
                 )
             )
         }
     }
 
-    fun broadcastToOthers(excludeParasite: Parasites.ParasiteObject, data: Any) {
+    fun broadcastToSelf(parasiteObject: String, data: Any) {
         synchronized(currentSocketConnections) {
-            broadcast(currentSocketConnections.filterNot { it.parasite == excludeParasite }.toList(), data)
+            broadcast(currentSocketConnections.filter { it.parasiteId == parasiteObject }.toList(), data)
+        }
+    }
+
+    fun broadcastToOthers(excludeParasite: String, data: Any) {
+        synchronized(currentSocketConnections) {
+            broadcast(currentSocketConnections.filterNot { it.parasiteId == excludeParasite }.toList(), data)
         }
     }
 
@@ -130,9 +137,9 @@ open class MessageBody(
     @JsonAnyGetter
     val other: MutableMap<String, Any?> = mutableMapOf()
 ) {
-    private fun <T, TValue> map(properties: MutableMap<String, TValue>, key: String): ReadOnlyProperty<T, TValue> {
-        return object : ReadOnlyProperty<T, TValue> {
-            override fun getValue(thisRef: T, property: KProperty<*>) = properties[key]!!
+    private fun <T, TValue> map(properties: MutableMap<String, TValue>, key: String): ReadOnlyProperty<T, TValue?> {
+        return object : ReadOnlyProperty<T, TValue?> {
+            override fun getValue(thisRef: T, property: KProperty<*>) = properties[key]
         }
     }
 
@@ -140,7 +147,8 @@ open class MessageBody(
 }
 
 enum class ServerMessageTypes(val value: String) {
-    Alert("alert");
+    Alert("alert"),
+    Update("update");
 
     override fun toString(): String {
         return this.value

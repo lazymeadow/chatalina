@@ -1,7 +1,6 @@
 package com.applepeacock.plugins
 
 import com.applepeacock.chat.ChatManager
-import com.applepeacock.database.Parasites
 import com.applepeacock.http.AuthenticationException
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -57,18 +56,13 @@ fun Application.configureSockets() {
 const val CLIENT_VERSION = "4.0.0"
 
 
-class ChatSocketConnection(val session: DefaultWebSocketServerSession, parasiteId: String) {
+class ChatSocketConnection(val session: DefaultWebSocketServerSession, val parasiteId: String) {
     companion object {
         var lastId = AtomicInteger(0)
     }
 
-    val name = "WS-${lastId.getAndIncrement()}"
+    val name = "WS-${lastId.getAndIncrement()}-${parasiteId}"
     val logger = LoggerFactory.getLogger(name)
-    var parasite: Parasites.ParasiteObject
-
-    init {
-        parasite = Parasites.DAO.find(parasiteId) ?: throw AuthenticationException()
-    }
 
     fun launchForSocket(block: suspend () -> Unit) {
         logger.debug("launching job on socket")

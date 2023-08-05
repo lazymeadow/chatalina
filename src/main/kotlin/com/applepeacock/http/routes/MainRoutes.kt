@@ -29,12 +29,12 @@ private fun Route.getMain() {
             throw RedirectException("/logout")
         }
         call.response.cookies.append("username", sessionParasite.settings.displayName ?: sessionParasite.id.value)
-        call.response.cookies.append("color", sessionParasite.settings.color ?: "")
-        call.response.cookies.append("volume", sessionParasite.settings.volume ?: "")
+        call.response.cookies.append("color", sessionParasite.settings.color)
+        call.response.cookies.append("volume", sessionParasite.settings.volume)
         call.response.cookies.append("email", sessionParasite.email)
-        call.response.cookies.append("faction", sessionParasite.settings.faction ?: "")
-        call.response.cookies.append("permission", sessionParasite.settings.permission ?: "")
-        call.response.cookies.append("soundSet", sessionParasite.settings.soundSet ?: "")
+        call.response.cookies.append("faction", sessionParasite.settings.faction)
+        call.response.cookies.append("permission", sessionParasite.settings.permission)
+        call.response.cookies.append("soundSet", sessionParasite.settings.soundSet)
         call.response.cookies.append("id", sessionParasite.id.value)
 
         call.respond(application.getPebbleContent("chat.html"))
@@ -50,8 +50,8 @@ private fun Route.getMobile() {
             throw RedirectException("/logout")
         }
         // it only sets the cookies for the items you can change :/ so weird
-        call.response.cookies.append("volume", sessionParasite.settings.volume ?: "")
-        call.response.cookies.append("soundSet", sessionParasite.settings.soundSet ?: "")
+        call.response.cookies.append("volume", sessionParasite.settings.volume)
+        call.response.cookies.append("soundSet", sessionParasite.settings.soundSet)
         call.response.cookies.append("id", sessionParasite.id.value)
 
         call.respond(application.getPebbleContent("mobile.html"))
