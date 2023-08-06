@@ -1,6 +1,7 @@
 package com.applepeacock.chat
 
 import com.applepeacock.database.Parasites
+import com.applepeacock.database.Rooms
 import com.applepeacock.http.AuthenticationException
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
@@ -67,6 +68,8 @@ object ChatManager {
         currentSocketConnections.add(connection)
         Parasites.DAO.setLastActive(connection.parasiteId)
         updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)
+        val roomList = Rooms.DAO.list(connection.parasiteId)
+        connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList)))
         connection.send(
             ServerMessage(
                 ServerMessageTypes.Alert,
@@ -151,7 +154,8 @@ enum class ServerMessageTypes(val value: String) {
     Alert("alert"),
     Update("update"),
     AuthFail("auth fail"),
-    UserList("user list");
+    UserList("user list"),
+    RoomList("room data");
 
     override fun toString(): String {
         return this.value
