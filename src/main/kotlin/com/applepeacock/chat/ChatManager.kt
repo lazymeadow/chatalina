@@ -56,12 +56,11 @@ object ChatManager {
         // build user list
         val parasites = buildParasiteList()
         // broadcast to all connected sockets
-        broadcast(mapOf("users" to parasites))
+        broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
     }
 
     fun addConnection(connection: ChatSocketConnection) {
-        val wasOffline =
-            (parasiteStatusMap.getOrDefault(
+        val wasOffline = (parasiteStatusMap.getOrDefault(
                 connection.parasiteId,
                 ParasiteStatus.Offline
             ) == ParasiteStatus.Offline)
@@ -151,7 +150,8 @@ open class MessageBody(
 enum class ServerMessageTypes(val value: String) {
     Alert("alert"),
     Update("update"),
-    AuthFail("auth fail");
+    AuthFail("auth fail"),
+    UserList("user list");
 
     override fun toString(): String {
         return this.value
