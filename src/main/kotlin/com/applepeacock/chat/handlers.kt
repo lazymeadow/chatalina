@@ -15,7 +15,7 @@ import kotlin.reflect.full.declaredMemberProperties
 
 interface MessageHandler {
 
-    suspend fun handleMessage(connection: ChatSocketConnection, body: MessageBody)
+    suspend fun handleMessage(connection: ChatSocketConnection, parasite: Parasites.ParasiteObject, body: MessageBody)
 }
 
 inline fun <reified T : MessageBody> onMessage(
@@ -26,7 +26,11 @@ inline fun <reified T : MessageBody> onMessage(
 }
 
 object UnknownMessageHandler : MessageHandler {
-    override suspend fun handleMessage(connection: ChatSocketConnection, body: MessageBody) {
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
         onMessage<MessageBody>(body) {
             connection.logger.error("Received unknown message")
         }
@@ -40,7 +44,11 @@ object VersionMessageHandler : MessageHandler {
         val clientVersion by fromOther("client version")
     }
 
-    override suspend fun handleMessage(connection: ChatSocketConnection, body: MessageBody) {
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
         onMessage<VersionMessageBody>(body) { messageBody ->
             val message = if (messageBody.clientVersion.toString() < CLIENT_VERSION) {
                 "Your client is out of date. You'd better refresh your page!"
@@ -66,7 +74,11 @@ object ClientLogMessageHandler : MessageHandler {
         val log by fromOther("log")
     }
 
-    override suspend fun handleMessage(connection: ChatSocketConnection, body: MessageBody) {
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
         onMessage<LogMessageBody>(body) { messageBody ->
             messageBody.log?.toString()?.let {
                 val messageToLog = "(${connection.parasiteId}) $it"
@@ -87,7 +99,11 @@ object StatusMessageHandler : MessageHandler {
         val status by fromOther("status")
     }
 
-    override suspend fun handleMessage(connection: ChatSocketConnection, body: MessageBody) {
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
         onMessage<StatusMessageBody>(body) { messageBody ->
             val newStatus = ParasiteStatus.fromString(messageBody.status?.toString())
             ChatManager.updateParasiteStatus(connection.parasiteId, newStatus)
@@ -109,12 +125,15 @@ object SettingsMessageHandler : MessageHandler {
         val other: MutableMap<String, String?> = mutableMapOf()
     )
 
-    override suspend fun handleMessage(connection: ChatSocketConnection, body: MessageBody) {
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
         onMessage<SettingsMessageBody>(body) { messageBody ->
             val alerts: MutableList<ServerMessage> = mutableListOf()
             val broadcastAlerts: MutableList<ServerMessage> = mutableListOf()
             val thingsToUpdate = messageBody.data?.let { defaultMapper.convertValue<SettingsData>(it) } ?: return
-            val parasite = Parasites.DAO.find(connection.parasiteId) ?: return
             // if setting password, check if valid, then update password and send alerts. no broadcast.
             val passwordBody = defaultMapper.convertValue<Map<String, String?>>(thingsToUpdate.password)
             if (!passwordBody["password"].isNullOrBlank()) {

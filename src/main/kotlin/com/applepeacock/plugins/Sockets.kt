@@ -1,6 +1,8 @@
 package com.applepeacock.plugins
 
 import com.applepeacock.chat.ChatManager
+import com.applepeacock.chat.ServerMessage
+import com.applepeacock.chat.ServerMessageTypes
 import com.applepeacock.http.AuthenticationException
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -14,6 +16,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
 fun Application.configureSockets() {
@@ -32,7 +35,7 @@ fun Application.configureSockets() {
                 theConnection.logger.debug("Client connected successfully.")
 
                 try {
-                    incoming.consumeEach {frame ->
+                    incoming.consumeEach { frame ->
                         when (frame) {
                             is Frame.Text -> {
                                 ChatManager.handleMessage(theConnection, frame.readText())
@@ -42,6 +45,17 @@ fun Application.configureSockets() {
                     }
                 } catch (e: ClosedReceiveChannelException) {
                     theConnection.logger.debug("${theConnection.name}: onClose ${closeReason.await()}")
+                } catch (e: AuthenticationException) {
+                    theConnection.send(
+                        ServerMessage(
+                            ServerMessageTypes.AuthFail,
+                            mapOf(
+                                "username" to "Server",
+                                "message" to "Cannot connect. Authentication failure!",
+                                "time" to Instant.now()
+                            )
+                        )
+                    )
                 } catch (e: Throwable) {
                     e.printStackTrace()
                     application.log.error("what the fuck")

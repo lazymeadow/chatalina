@@ -1,6 +1,7 @@
 package com.applepeacock.chat
 
 import com.applepeacock.database.Parasites
+import com.applepeacock.http.AuthenticationException
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonAnyGetter
@@ -125,9 +126,10 @@ object ChatManager {
     }
 
     suspend fun handleMessage(connection: ChatSocketConnection, body: String) {
+        val currentParasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
         val messageBody = defaultMapper.readValue<MessageBody>(body)
         connection.logger.debug("received message: ${messageBody.type}")
-        messageBody.type.handler.handleMessage(connection, messageBody)
+        messageBody.type.handler.handleMessage(connection, currentParasite, messageBody)
     }
 }
 
@@ -148,7 +150,8 @@ open class MessageBody(
 
 enum class ServerMessageTypes(val value: String) {
     Alert("alert"),
-    Update("update");
+    Update("update"),
+    AuthFail("auth fail");
 
     override fun toString(): String {
         return this.value
