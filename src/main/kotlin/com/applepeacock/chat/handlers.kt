@@ -10,6 +10,8 @@ import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.module.kotlin.convertValue
 import org.slf4j.event.Level
+import java.lang.IllegalArgumentException
+import java.util.*
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
 
@@ -238,6 +240,30 @@ object SettingsMessageHandler : MessageHandler {
     }
 }
 
+object ChatMessageHandler : MessageHandler {
+    class ChatMessageBody(type: MessageTypes) : MessageBody(type) {
+        val message by fromOther("message")
+        val roomId by fromOther("room id")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<ChatMessageBody>(body) { messageBody ->
+            val destinationRoom = UUID.fromString(messageBody.roomId?.toString())
+            val messageContent = messageBody.message?.toString()
+            if (messageContent.isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                ChatManager.handleChatMessage(destinationRoom, connection.parasiteId, messageContent)
+            }
+        }
+    }
+
+}
+
 @Suppress("unused")  // they are used actually
 enum class MessageTypes(val value: String) {
     Version("version") {
@@ -253,8 +279,11 @@ enum class MessageTypes(val value: String) {
         override val handler = SettingsMessageHandler
     },
 
-    //    ChatMessage("chat message"),
-//    PrivateMessage("private message"),
+    ChatMessage("chat message") {
+        override val handler = ChatMessageHandler
+    },
+
+    //    PrivateMessage("private message"),
 //    Image("image"),
 //    ImageUpload("image upload"),
 //    RoomAction("room action"),

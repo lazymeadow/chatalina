@@ -1,9 +1,20 @@
 package com.applepeacock.database
 
+import com.applepeacock.plugins.defaultMapper
+import com.fasterxml.jackson.module.kotlin.convertValue
+import com.fasterxml.jackson.module.kotlin.jacksonTypeRef
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.kotlin.datetime.CustomTimeStampFunction
+import org.jetbrains.exposed.sql.kotlin.datetime.KotlinInstantColumnType
+import org.jetbrains.exposed.sql.kotlin.datetime.KotlinOffsetDateTimeColumnType
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.util.*
 
 object Rooms : UUIDTable("rooms"), ChatTable {
@@ -27,16 +38,59 @@ object Rooms : UUIDTable("rooms"), ChatTable {
             .groupBy(RoomAccess.room)
             .alias("access")
 
+        /*
+        select destination_id,
+                           destination_type,
+                           json_agg(json_build_object('id', id, 'data', data, 'sent', sent) order by sent) as message
+                    from messages
+                    group by destination_id, destination_type
+         */
+        private val messagesCol =
+            jsonbAgg(
+                jsonBuildObject("id" to Messages.id, "data" to Messages.data, "sent" to Messages.sent.castTo<OffsetDateTime>(
+                    KotlinOffsetDateTimeColumnType()
+                )),
+                Array::class.java,
+                orderByCol = Messages.sent
+            ).alias("messages")
+        private val messageHistoryQuery =
+            Messages.slice(Messages.destination, Messages.destinationType, messagesCol).selectAll()
+                .groupBy(Messages.destination, Messages.destinationType).alias("history")
+
         override fun resultRowToObject(row: ResultRow): RoomObject {
-            return RoomObject(row[id], row[name], row[owner], row[roomAccessQuery[membersCol]])
+            return RoomObject(
+                row[id],
+                row[name],
+                row[owner],
+                row[roomAccessQuery[membersCol]],
+                defaultMapper.convertValue<Array<Map<String, Any>>>(row.getOrNull(messageHistoryQuery[messagesCol]), jacksonTypeRef())?.mapNotNull {
+                    val dataVal = it["data"] ?: return@mapNotNull null
+                    val idVal = it["id"] ?: return@mapNotNull null
+                    val sentVal= it["sent"] ?: return@mapNotNull null
+                    defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal).plus("time" to Instant.parse(sentVal.toString()).toJavaInstant())
+                }?.toTypedArray()
+                        ?: emptyArray()
+            )
         }
 
         fun list(forParasite: String) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
-                .slice(Rooms.id, name, owner, roomAccessQuery[membersCol])
+                .leftJoin(
+                    messageHistoryQuery,
+                    { Rooms.id.castTo<String>(VarCharColumnType()) },
+                    { messageHistoryQuery[Messages.destination] },
+                    { messageHistoryQuery[Messages.destinationType] eq MessageDestinationTypes.Room })
+                .slice(Rooms.id, name, owner, roomAccessQuery[membersCol], messageHistoryQuery[messagesCol])
                 .select { roomAccessQuery[membersCol] any stringParam(forParasite) }
-                .groupBy(Rooms.id, name, owner, roomAccessQuery[membersCol])
                 .map { resultRowToObject(it) }
+        }
+
+        fun get(roomId: UUID) = transaction {
+            Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
+                .slice(Rooms.id, name, owner, roomAccessQuery[membersCol])
+                .select { Rooms.id eq roomId }
+                .groupBy(Rooms.id, name, owner, roomAccessQuery[membersCol])
+                .firstOrNull()?.let { resultRowToObject(it) }
         }
     }
 }

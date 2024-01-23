@@ -1,13 +1,13 @@
 package com.applepeacock.chat
 
-import com.applepeacock.database.Parasites
-import com.applepeacock.database.Rooms
+import com.applepeacock.database.*
 import com.applepeacock.http.AuthenticationException
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.datetime.toJavaInstant
 import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.properties.ReadOnlyProperty
@@ -21,7 +21,7 @@ enum class ParasiteStatus(val value: String) {
     override fun toString(): String = value
 
     companion object {
-        fun fromString(statusString: String?): ParasiteStatus = values().find { it.value == statusString } ?: Offline
+        fun fromString(statusString: String?): ParasiteStatus = entries.find { it.value == statusString } ?: Offline
     }
 }
 
@@ -60,11 +60,38 @@ object ChatManager {
         broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
     }
 
+    fun handleChatMessage(destinationId: UUID, senderId: String, message: String) {
+        val destinationRoom = Rooms.DAO.get(destinationId)
+        destinationRoom?.let {
+            val memberConnections = currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
+            val parasite = Parasites.DAO.find(senderId)
+            parasite?.let {
+                Messages.DAO.create(
+                    parasite.id,
+                    MessageDestination(destinationId.toString(), MessageDestinationTypes.Room),
+                    mapOf(
+                        "username" to parasite.name,
+                        "color" to parasite.settings.color,
+                        "message" to message
+                    )
+                )?.let {
+                    broadcast(
+                        memberConnections,
+                        mapOf(
+                            "type" to MessageTypes.ChatMessage,
+                            "data" to it.data.plus("room id" to it.destination.id).plus("time" to it.sent.toJavaInstant())
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     fun addConnection(connection: ChatSocketConnection) {
         val wasOffline = (parasiteStatusMap.getOrDefault(
-                connection.parasiteId,
-                ParasiteStatus.Offline
-            ) == ParasiteStatus.Offline)
+            connection.parasiteId,
+            ParasiteStatus.Offline
+        ) == ParasiteStatus.Offline)
         currentSocketConnections.add(connection)
         Parasites.DAO.setLastActive(connection.parasiteId)
         updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)

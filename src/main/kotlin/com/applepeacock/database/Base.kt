@@ -8,6 +8,7 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.statements.api.PreparedStatementApi
 import org.jetbrains.exposed.sql.statements.jdbc.JdbcConnectionImpl
 import org.jetbrains.exposed.sql.transactions.TransactionManager
+import org.jetbrains.exposed.sql.vendors.currentDialect
 import org.postgresql.util.PGobject
 
 
@@ -181,6 +182,18 @@ fun <T : Any> jsonbSetNullable(
 fun <T : Any> jsonbParam(value: T, klass: Class<T>) =
     QueryParameter(value, PostgresJsonBColumn(klass, false))
 
+class JsonBuildObject(vararg val pairs: Pair<String, Expression<*>>): CustomFunction<Map<*, *>>("JSON_BUILD_OBJECT", PostgresJsonBColumn(Map::class.java, false)) {
+    override fun toQueryBuilder(queryBuilder: QueryBuilder) = queryBuilder {
+        append(functionName, "(")
+        pairs.appendTo {(key, value) ->
+            append(stringParam(key), ", ", value)
+        }
+        append(")")
+    }
+}
+
+fun jsonBuildObject(vararg pairs: Pair<String, Expression<*>>) = JsonBuildObject(*pairs)
+
 // json_agg function
 fun <T : Any> jsonAgg(expr: QueryAlias, klass: Class<T>): ExpressionWithColumnType<T> = CustomFunction(
     "JSON_AGG",
@@ -189,7 +202,7 @@ fun <T : Any> jsonAgg(expr: QueryAlias, klass: Class<T>): ExpressionWithColumnTy
 )
 
 // jsonb_agg function
-class JsonbAgg<T : Any>(val expr1: Expression<*>, klass: Class<T>, val filter: Op<Boolean>? = null) : CustomFunction<T>(
+class JsonbAgg<T : Any>(val expr1: Expression<*>, klass: Class<T>, val filter: Op<Boolean>? = null, val orderByCol: Expression<*>? = null, val orderByOrder: SortOrder = SortOrder.ASC) : CustomFunction<T>(
     "JSONB_AGG",
     PostgresJsonBColumn(klass, false)
 ) {
@@ -198,10 +211,14 @@ class JsonbAgg<T : Any>(val expr1: Expression<*>, klass: Class<T>, val filter: O
         filter?.let {
             append(" FILTER (WHERE ", filter, ")")
         }
+        orderByCol?.let {
+            append(" ORDER BY ")
+            currentDialect.dataTypeProvider.precessOrderByClause(this, orderByCol, orderByOrder)
+        }
     }
 }
 
-fun <T : Any> jsonbAgg(expr: Expression<*>, klass: Class<T>, filter: Op<Boolean>? = null) =
+fun <T : Any> jsonbAgg(expr: Expression<*>, klass: Class<T>, filter: Op<Boolean>? = null, orderByCol: Expression<*>? = null, orderByOrder: SortOrder = SortOrder.ASC) =
     JsonbAgg(expr, klass, filter)
 
 fun jsonbTextAgg(col: Column<String>): ExpressionWithColumnType<Array<String>> = CustomFunction(
