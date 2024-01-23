@@ -1,5 +1,10 @@
 package com.applepeacock.chat
 
+import aws.sdk.kotlin.services.s3.S3Client
+import aws.sdk.kotlin.services.s3.listObjects
+import aws.sdk.kotlin.services.s3.model.ObjectCannedAcl
+import aws.sdk.kotlin.services.s3.putObject
+import aws.smithy.kotlin.runtime.content.ByteStream
 import com.applepeacock.database.*
 import com.applepeacock.http.AuthenticationException
 import com.applepeacock.plugins.ChatSocketConnection
@@ -7,6 +12,11 @@ import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.module.kotlin.readValue
+import io.ktor.client.*
+import io.ktor.client.engine.okhttp.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toJavaInstant
 import org.slf4j.LoggerFactory
 import java.util.*
@@ -27,13 +37,29 @@ enum class ParasiteStatus(val value: String) {
 
 object ChatManager {
     val logger = LoggerFactory.getLogger("CHAT")
+    private lateinit var s3Client: S3Client
+    private lateinit var ktorClient: HttpClient
+    private lateinit var imageCacheBucket: String
+    private lateinit var imageCacheHost: String
+
     val currentSocketConnections: MutableSet<ChatSocketConnection> = Collections.synchronizedSet(LinkedHashSet())
     val parasiteStatusMap: MutableMap<String, ParasiteStatus> = mutableMapOf()
     val parasiteTypingStatus: MutableMap<String, String?> = mutableMapOf()
 
-    init {
-        logger.debug("Initializing user list...")
-        logger.debug("User list initialized.")
+    fun configure(imageCacheBucket: String, imageCacheHost: String) {
+        this.imageCacheBucket = imageCacheBucket
+        this.imageCacheHost = imageCacheHost
+        logger.debug("Initializing OkHttp...")
+        ktorClient = HttpClient(OkHttp)
+        logger.debug("OkHttp initialized.")
+
+        logger.debug("Initializing S3 client...")
+        runBlocking {
+            s3Client = S3Client.fromEnvironment {
+                this.region = "us-west-2"
+            }
+        }
+        logger.debug("S3 client initialized.")
     }
 
     fun buildParasiteList(): List<Map<String, Any?>> = Parasites.DAO.list(active = true).map {
@@ -127,6 +153,100 @@ object ChatManager {
         }
     }
 
+    fun handleImageMessage(destination: MessageDestination, senderId: String, url: String, nsfw: Boolean) {
+        var response: String? = null
+        fun handleImageCaching(newMessage: Messages.MessageObject) {
+            val objectKey = "images/${newMessage.id}"
+            val list = runBlocking {
+                s3Client.listObjects {
+                    this.bucket = imageCacheBucket
+                    this.prefix = objectKey
+                }.contents.orEmpty()
+            }
+            if (list.isEmpty()) {
+                runBlocking {
+                    val imageContent = ktorClient.request(url).readBytes()
+                    if (imageContent.size > 0) {
+                        s3Client.putObject {
+                            this.bucket = imageCacheBucket
+                            this.key = objectKey
+                            this.acl = ObjectCannedAcl.PublicRead
+                            this.body = ByteStream.fromBytes(imageContent)
+                        }
+                    }
+                }
+            }
+            response = "${imageCacheHost}/$objectKey"
+        }
+
+        val parasite = Parasites.DAO.find(senderId)
+        when (destination.type) {
+            MessageDestinationTypes.Room -> {
+                val destinationRoom = Rooms.DAO.get(UUID.fromString(destination.id))
+                destinationRoom?.let {
+                    val memberConnections =
+                        currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
+                    parasite?.let {
+                        Messages.DAO.create(
+                            parasite.id,
+                            destination,
+                            mapOf(
+                                "username" to parasite.name,
+                                "color" to parasite.settings.color,
+                                "image url" to url,
+                                "nsfw flag" to nsfw
+                            )
+                        ) {
+                            handleImageCaching(
+                                it
+                            )
+                            broadcast(
+                                memberConnections, mapOf(
+                                    "type" to MessageTypes.ChatMessage,
+                                    "data" to it.data.plus("room id" to it.destination.id)
+                                        .plus("time" to it.sent.toJavaInstant())
+                                        .plus("sender id" to it.sender)
+                                        .plus("image src url" to (response ?: url))
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            MessageDestinationTypes.Parasite -> {
+                parasite?.let {
+                    if (Parasites.DAO.exists(destination.id)) {
+                        Messages.DAO.create(
+                            parasite.id,
+                            destination,
+                            mapOf(
+                                "username" to parasite.name,
+                                "color" to parasite.settings.color,
+                                "image url" to url,
+                                "nsfw flag" to nsfw
+                            )
+                        ) {
+                            handleImageCaching(
+                                it
+                            )
+                            val broadcastContent = mapOf(
+                                "type" to MessageTypes.PrivateMessage,
+                                "data" to it.data.plus("recipient id" to it.destination.id)
+                                    .plus("time" to it.sent.toJavaInstant())
+                                    .plus("sender id" to it.sender)
+                                    .plus("image src url" to (response ?: url))
+                            )
+                            if (destination.id != senderId) {
+                                broadcastToParasite(destination.id, broadcastContent)
+                            }
+                            broadcastToParasite(senderId, broadcastContent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fun addConnection(connection: ChatSocketConnection) {
         val wasOffline = (parasiteStatusMap.getOrDefault(
             connection.parasiteId,
@@ -135,9 +255,9 @@ object ChatManager {
         currentSocketConnections.add(connection)
         Parasites.DAO.setLastActive(connection.parasiteId)
         updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)
-        val roomList = Rooms.DAO.list(connection.parasiteId)
+        val roomList = Rooms.DAO.list(connection.parasiteId, imageCacheHost)
         connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList)))
-        val privateMessagesList = Messages.DAO.list(connection.parasiteId)
+        val privateMessagesList = Messages.DAO.list(connection.parasiteId, imageCacheHost)
         connection.send(ServerMessage(ServerMessageTypes.PrivateMessageList, mapOf("threads" to privateMessagesList)))
         connection.send(
             ServerMessage(

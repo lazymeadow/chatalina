@@ -1,5 +1,6 @@
 package com.applepeacock.database
 
+import com.applepeacock.chat.MessageTypes
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.jacksonTypeRef
@@ -49,20 +50,25 @@ object Messages : UUIDTable("messages"), ChatTable {
             Array::class.java,
             orderByCol = sent
         ).alias("messages")
-    val messageHistoryQuery =
+    val messageHistoryQuery =  // TODO: limit # messages returned
         Messages.slice(destination, destinationType, messagesCol).selectAll()
             .groupBy(destination, destinationType).alias("history")
 
-    fun parseMessagesCol(msgs: Any?) =
+    fun parseMessagesCol(msgs: Any?, imageCacheHost: String? = null) =
         defaultMapper.convertValue<Array<Map<String, Any>>>(msgs, jacksonTypeRef())?.mapNotNull {
             val dataVal = it["data"] ?: return@mapNotNull null
             val idVal = it["id"] ?: return@mapNotNull null
             val sentVal = it["sent"] ?: return@mapNotNull null
             defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal)
                 .plus("time" to Instant.parse(sentVal.toString()).toJavaInstant())
+                .let {
+                    if (it.containsKey("image url")) {
+                        it.plus("image src url" to (if (!imageCacheHost.isNullOrBlank())"$imageCacheHost/images/$idVal" else it["image url"]))
+                    } else it
+                }
         }?.toTypedArray() ?: emptyArray()
 
-    fun parsePrivateMessagesCol(msgs: Any?) =
+    fun parsePrivateMessagesCol(msgs: Any?, imageCacheHost: String? = null) =
         defaultMapper.convertValue<Array<Map<String, Any>>>(msgs, jacksonTypeRef())?.mapNotNull {
             val dataVal = it["data"] ?: return@mapNotNull null
             val idVal = it["id"] ?: return@mapNotNull null
@@ -72,6 +78,11 @@ object Messages : UUIDTable("messages"), ChatTable {
             defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal)
                 .plus("time" to Instant.parse(sentVal.toString()).toJavaInstant()).plus("sender id" to senderVal)
                 .plus("recipient id" to recipientVal)
+                .let {
+                    if (it.containsKey("image url")) {
+                        it.plus("image src url" to (if (!imageCacheHost.isNullOrBlank())"$imageCacheHost/images/$idVal" else it["image url"]))
+                    } else it
+                }
         }?.toTypedArray() ?: emptyArray()
 
     object DAO : ChatTable.DAO() {
@@ -88,7 +99,8 @@ object Messages : UUIDTable("messages"), ChatTable {
         fun create(
             senderId: EntityID<String>,
             destinationInfo: MessageDestination,
-            messageData: Map<*, *>
+            messageData: Map<*, *>,
+            callback: (MessageObject) -> Unit = {}
         ): MessageObject? = transaction {
             Messages.insert {
                 it[sender] = senderId
@@ -96,18 +108,20 @@ object Messages : UUIDTable("messages"), ChatTable {
                 it[destinationType] = destinationInfo.type
                 it[data] = messageData
                 it[sent] = Clock.System.now()
-            }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }
+            }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }?.also(callback)
         }
 
-        fun list(parasiteId: String): List<Map<String, Any>> = transaction {
+        fun list(parasiteId: String, imageCacheHost: String? = null): List<Map<String, Any>> = transaction {
+            // TODO: limit # messages returned
             val recipientCol: ExpressionAlias<String> =
                 Case().When((destination eq parasiteId), sender.castTo<String>(VarCharColumnType())).Else(destination)
                     .alias("recipient")
             Messages.slice(messagesCol, recipientCol).selectAll()
                 .andWhere { destinationType eq MessageDestinationTypes.Parasite }
                 .andWhere { (destination eq parasiteId) or (sender eq parasiteId) }
-                .groupBy(recipientCol).map {
-                    mapOf("recipient id" to it[recipientCol], "messages" to parsePrivateMessagesCol(it[messagesCol]))
+                .groupBy(recipientCol)
+                .map {
+                    mapOf("recipient id" to it[recipientCol], "messages" to parsePrivateMessagesCol(it[messagesCol], imageCacheHost))
                 }
         }
     }

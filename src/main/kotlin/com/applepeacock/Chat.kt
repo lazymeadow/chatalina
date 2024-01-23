@@ -1,10 +1,13 @@
 package com.applepeacock
 
+import aws.sdk.kotlin.services.s3.S3Client
+import com.applepeacock.chat.ChatManager
 import com.applepeacock.database.configureDatabases
 import com.applepeacock.http.configureHTTP
 import com.applepeacock.plugins.*
 import io.ktor.server.application.*
 import io.ktor.util.*
+import kotlinx.coroutines.runBlocking
 import javax.crypto.spec.SecretKeySpec
 
 fun main(args: Array<String>): Unit =
@@ -45,4 +48,5 @@ fun Application.module() {
     configureSerialization()
     configureDatabases()
     configureSockets()
+    ChatManager.configure(environment.config.property("bec.image_cache.bucket").getString(), environment.config.property("bec.image_cache.host").getString())
 }

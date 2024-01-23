@@ -1,10 +1,10 @@
 package com.applepeacock.chat
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.applepeacock.database.ParasiteSettings
-import com.applepeacock.database.Parasites
-import com.applepeacock.database.setProperty
-import com.applepeacock.plugins.*
+import com.applepeacock.database.*
+import com.applepeacock.plugins.CLIENT_VERSION
+import com.applepeacock.plugins.ChatSocketConnection
+import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
@@ -303,6 +303,44 @@ object PrivateMessageHandler : MessageHandler {
     }
 }
 
+object ImageMessageHandler : MessageHandler {
+    class ImageMessageBody(type: MessageTypes) : MessageBody(type) {
+        val url by fromOther("image url")
+        val destination by fromOther("room id")
+        val nsfw by fromOther("nsfw")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<ImageMessageBody>(body) { messageBody ->
+            if (messageBody.destination?.toString().isNullOrBlank() || messageBody.url?.toString().isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                messageBody.destination?.toString()?.let {
+                    try {
+                        UUID.fromString(it)
+                        MessageDestination(it, MessageDestinationTypes.Room)
+                    } catch (e: IllegalArgumentException) {
+                        MessageDestination(it, MessageDestinationTypes.Parasite)
+                    }
+                }?.let {
+                    ChatManager.handleImageMessage(
+                        it,
+                        connection.parasiteId,
+                        messageBody.url.toString(),
+                        messageBody.nsfw.toString().toBoolean()
+                    )
+                } ?: let {
+                    connection.logger.error("Bad message content")
+                }
+            }
+        }
+    }
+}
+
 @Suppress("unused")  // they are used actually
 enum class MessageTypes(val value: String) {
     Version("version") {
@@ -329,7 +367,9 @@ enum class MessageTypes(val value: String) {
         override val handler = PrivateMessageHandler
     },
 
-    //    Image("image"),
+    Image("image") {
+        override val handler = ImageMessageHandler
+    },
 //    ImageUpload("image upload"),
 //    RoomAction("room action"),
 

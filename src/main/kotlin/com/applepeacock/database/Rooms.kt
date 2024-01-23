@@ -1,20 +1,9 @@
 package com.applepeacock.database
 
-import com.applepeacock.plugins.defaultMapper
-import com.fasterxml.jackson.module.kotlin.convertValue
-import com.fasterxml.jackson.module.kotlin.jacksonTypeRef
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
-import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.kotlin.datetime.CustomTimeStampFunction
-import org.jetbrains.exposed.sql.kotlin.datetime.KotlinInstantColumnType
-import org.jetbrains.exposed.sql.kotlin.datetime.KotlinOffsetDateTimeColumnType
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.time.LocalDateTime
-import java.time.OffsetDateTime
 import java.util.*
 
 object Rooms : UUIDTable("rooms"), ChatTable {
@@ -28,7 +17,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         val name: String,
         val owner: EntityID<String>,
         val members: Array<String>,
-        val history: Array<Map<String, Any>> = emptyArray()
+        var history: Array<Map<String, Any?>> = emptyArray()
     ) : ChatTable.ObjectModel()
 
     object DAO : ChatTable.DAO() {
@@ -43,21 +32,33 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 row[id],
                 row[name],
                 row[owner],
-                row[roomAccessQuery[membersCol]],
-                Messages.parseMessagesCol(row.getOrNull(Messages.messageHistoryQuery[Messages.messagesCol]))
+                row[roomAccessQuery[membersCol]]
             )
         }
 
-        fun list(forParasite: String) = transaction {
+        fun list(forParasite: String, imageCacheHost: String? = null) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .leftJoin(
                     Messages.messageHistoryQuery,
                     { Rooms.id.castTo<String>(VarCharColumnType()) },
                     { Messages.messageHistoryQuery[Messages.destination] },
                     { Messages.messageHistoryQuery[Messages.destinationType] eq MessageDestinationTypes.Room })
-                .slice(Rooms.id, name, owner, roomAccessQuery[membersCol], Messages.messageHistoryQuery[Messages.messagesCol])
+                .slice(
+                    Rooms.id,
+                    name,
+                    owner,
+                    roomAccessQuery[membersCol],
+                    Messages.messageHistoryQuery[Messages.messagesCol]
+                )
                 .select { roomAccessQuery[membersCol] any stringParam(forParasite) }
-                .map { resultRowToObject(it) }
+                .map {
+                    resultRowToObject(it).also { room ->
+                        room.history = Messages.parseMessagesCol(
+                            it.getOrNull(Messages.messageHistoryQuery[Messages.messagesCol]),
+                            imageCacheHost
+                        )
+                    }
+                }
         }
 
         fun get(roomId: UUID) = transaction {
