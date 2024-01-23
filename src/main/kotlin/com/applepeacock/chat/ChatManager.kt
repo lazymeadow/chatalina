@@ -60,6 +60,34 @@ object ChatManager {
         broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
     }
 
+    fun handlePrivateMessage(destinationId: String, senderId: String, message: String) {
+        val parasite = Parasites.DAO.find(senderId)
+        parasite?.let {
+            if (Parasites.DAO.exists(destinationId)) {
+                Messages.DAO.create(
+                    parasite.id,
+                    MessageDestination(destinationId, MessageDestinationTypes.Parasite),
+                    mapOf(
+                        "username" to parasite.name,
+                        "color" to parasite.settings.color,
+                        "message" to message
+                    )
+                )?.let {
+                    val broadcastContent = mapOf(
+                        "type" to MessageTypes.PrivateMessage,
+                        "data" to it.data.plus("recipient id" to it.destination.id)
+                            .plus("time" to it.sent.toJavaInstant())
+                            .plus("sender id" to it.sender)
+                    )
+                    if (destinationId != senderId) {
+                        broadcastToParasite(destinationId, broadcastContent)
+                    }
+                    broadcastToParasite(senderId, broadcastContent)
+                }
+            }
+        }
+    }
+
     fun handleChatMessage(destinationId: UUID, senderId: String, message: String) {
         val destinationRoom = Rooms.DAO.get(destinationId)
         destinationRoom?.let {
@@ -79,7 +107,9 @@ object ChatManager {
                         memberConnections,
                         mapOf(
                             "type" to MessageTypes.ChatMessage,
-                            "data" to it.data.plus("room id" to it.destination.id).plus("time" to it.sent.toJavaInstant())
+                            "data" to it.data.plus("room id" to it.destination.id)
+                                .plus("time" to it.sent.toJavaInstant())
+                                .plus("sender id" to it.sender)
                         )
                     )
                 }
@@ -97,6 +127,8 @@ object ChatManager {
         updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)
         val roomList = Rooms.DAO.list(connection.parasiteId)
         connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList)))
+        val privateMessagesList = Messages.DAO.list(connection.parasiteId)
+        connection.send(ServerMessage(ServerMessageTypes.PrivateMessageList, mapOf("threads" to privateMessagesList)))
         connection.send(
             ServerMessage(
                 ServerMessageTypes.Alert,
@@ -132,9 +164,9 @@ object ChatManager {
         }
     }
 
-    fun broadcastToSelf(parasiteObject: String, data: Any) {
+    fun broadcastToParasite(parasiteId: String, data: Any) {
         synchronized(currentSocketConnections) {
-            broadcast(currentSocketConnections.filter { it.parasiteId == parasiteObject }.toList(), data)
+            broadcast(currentSocketConnections.filter { it.parasiteId == parasiteId }.toList(), data)
         }
     }
 
@@ -182,7 +214,8 @@ enum class ServerMessageTypes(val value: String) {
     Update("update"),
     AuthFail("auth fail"),
     UserList("user list"),
-    RoomList("room data");
+    RoomList("room data"),
+    PrivateMessageList("private message data");
 
     override fun toString(): String {
         return this.value

@@ -10,7 +10,6 @@ import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.module.kotlin.convertValue
 import org.slf4j.event.Level
-import java.lang.IllegalArgumentException
 import java.util.*
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
@@ -233,7 +232,7 @@ object SettingsMessageHandler : MessageHandler {
             // broadcast "update" to self connections
             if (!updates.isEmpty()) {
                 // TODO: need to update parasite object on connection. is there any benefit to it being there?
-                ChatManager.broadcastToSelf(parasite.id.value, ServerMessage(ServerMessageTypes.Update, updates))
+                ChatManager.broadcastToParasite(parasite.id.value, ServerMessage(ServerMessageTypes.Update, updates))
             }
             alerts.forEach { connection.send(it) }
         }
@@ -261,7 +260,28 @@ object ChatMessageHandler : MessageHandler {
             }
         }
     }
+}
+object PrivateMessageHandler : MessageHandler {
+    class PrivateMessageBody(type: MessageTypes) : MessageBody(type) {
+        val message by fromOther("message")
+        val recipientId by fromOther("recipient id")
+    }
 
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<PrivateMessageBody>(body) { messageBody ->
+            val destinationParasite = messageBody.recipientId?.toString()
+            val messageContent = messageBody.message?.toString()
+            if (messageContent.isNullOrBlank() || destinationParasite.isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                ChatManager.handlePrivateMessage(destinationParasite, connection.parasiteId, messageContent)
+            }
+        }
+    }
 }
 
 @Suppress("unused")  // they are used actually
@@ -283,8 +303,11 @@ enum class MessageTypes(val value: String) {
         override val handler = ChatMessageHandler
     },
 
-    //    PrivateMessage("private message"),
-//    Image("image"),
+    PrivateMessage("private message") {
+        override val handler = PrivateMessageHandler
+    },
+
+    //    Image("image"),
 //    ImageUpload("image upload"),
 //    RoomAction("room action"),
 // Typing("typing"),

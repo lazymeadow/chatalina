@@ -38,49 +38,24 @@ object Rooms : UUIDTable("rooms"), ChatTable {
             .groupBy(RoomAccess.room)
             .alias("access")
 
-        /*
-        select destination_id,
-                           destination_type,
-                           json_agg(json_build_object('id', id, 'data', data, 'sent', sent) order by sent) as message
-                    from messages
-                    group by destination_id, destination_type
-         */
-        private val messagesCol =
-            jsonbAgg(
-                jsonBuildObject("id" to Messages.id, "data" to Messages.data, "sent" to Messages.sent.castTo<OffsetDateTime>(
-                    KotlinOffsetDateTimeColumnType()
-                )),
-                Array::class.java,
-                orderByCol = Messages.sent
-            ).alias("messages")
-        private val messageHistoryQuery =
-            Messages.slice(Messages.destination, Messages.destinationType, messagesCol).selectAll()
-                .groupBy(Messages.destination, Messages.destinationType).alias("history")
-
         override fun resultRowToObject(row: ResultRow): RoomObject {
             return RoomObject(
                 row[id],
                 row[name],
                 row[owner],
                 row[roomAccessQuery[membersCol]],
-                defaultMapper.convertValue<Array<Map<String, Any>>>(row.getOrNull(messageHistoryQuery[messagesCol]), jacksonTypeRef())?.mapNotNull {
-                    val dataVal = it["data"] ?: return@mapNotNull null
-                    val idVal = it["id"] ?: return@mapNotNull null
-                    val sentVal= it["sent"] ?: return@mapNotNull null
-                    defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal).plus("time" to Instant.parse(sentVal.toString()).toJavaInstant())
-                }?.toTypedArray()
-                        ?: emptyArray()
+                Messages.parseMessagesCol(row.getOrNull(Messages.messageHistoryQuery[Messages.messagesCol]))
             )
         }
 
         fun list(forParasite: String) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .leftJoin(
-                    messageHistoryQuery,
+                    Messages.messageHistoryQuery,
                     { Rooms.id.castTo<String>(VarCharColumnType()) },
-                    { messageHistoryQuery[Messages.destination] },
-                    { messageHistoryQuery[Messages.destinationType] eq MessageDestinationTypes.Room })
-                .slice(Rooms.id, name, owner, roomAccessQuery[membersCol], messageHistoryQuery[messagesCol])
+                    { Messages.messageHistoryQuery[Messages.destination] },
+                    { Messages.messageHistoryQuery[Messages.destinationType] eq MessageDestinationTypes.Room })
+                .slice(Rooms.id, name, owner, roomAccessQuery[membersCol], Messages.messageHistoryQuery[Messages.messagesCol])
                 .select { roomAccessQuery[membersCol] any stringParam(forParasite) }
                 .map { resultRowToObject(it) }
         }
