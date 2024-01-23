@@ -112,6 +112,24 @@ object StatusMessageHandler : MessageHandler {
     }
 }
 
+
+object TypingMessageHandler : MessageHandler {
+    class TypingMessageBody(type: MessageTypes) : MessageBody(type) {
+        val currentDestination by fromOther("status")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<TypingMessageBody>(body) { messageBody ->
+            val newStatus = ParasiteStatus.fromString(messageBody.currentDestination?.toString())
+            ChatManager.updateParasiteTypingStatus(connection.parasiteId, messageBody.currentDestination?.toString())
+        }
+    }
+}
+
 object SettingsMessageHandler : MessageHandler {
     class SettingsMessageBody(type: MessageTypes) : MessageBody(type) {
         val data by fromOther("data")
@@ -261,6 +279,7 @@ object ChatMessageHandler : MessageHandler {
         }
     }
 }
+
 object PrivateMessageHandler : MessageHandler {
     class PrivateMessageBody(type: MessageTypes) : MessageBody(type) {
         val message by fromOther("message")
@@ -295,6 +314,9 @@ enum class MessageTypes(val value: String) {
     Status("status") {
         override val handler = StatusMessageHandler
     },
+    Typing("typing") {
+        override val handler = TypingMessageHandler
+    },
     Settings("settings") {
         override val handler = SettingsMessageHandler
     },
@@ -310,8 +332,8 @@ enum class MessageTypes(val value: String) {
     //    Image("image"),
 //    ImageUpload("image upload"),
 //    RoomAction("room action"),
-// Typing("typing"),
-//    RemoveAlert("remove alert"),
+
+    //    RemoveAlert("remove alert"),
 //    Bug("bug"),
 //    Feature("feature"),
 //    ToolList("tool list"),

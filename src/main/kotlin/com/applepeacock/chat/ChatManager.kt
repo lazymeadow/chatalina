@@ -29,6 +29,7 @@ object ChatManager {
     val logger = LoggerFactory.getLogger("CHAT")
     val currentSocketConnections: MutableSet<ChatSocketConnection> = Collections.synchronizedSet(LinkedHashSet())
     val parasiteStatusMap: MutableMap<String, ParasiteStatus> = mutableMapOf()
+    val parasiteTypingStatus: MutableMap<String, String?> = mutableMapOf()
 
     init {
         logger.debug("Initializing user list...")
@@ -41,7 +42,7 @@ object ChatManager {
             put("email", it.email)
             put("lastActive", it.lastActive?.toString())
             put("status", parasiteStatusMap.getOrDefault(it.id.value, ParasiteStatus.Offline))
-            put("typing", false)
+            put("typing", parasiteTypingStatus[it.id.value])
             put("username", it.name)
             put("faction", it.settings.faction)
             put("color", it.settings.color)
@@ -54,6 +55,15 @@ object ChatManager {
     fun updateParasiteStatus(parasiteId: String, newStatus: ParasiteStatus) {
         // update status map
         parasiteStatusMap[parasiteId] = newStatus
+        // build user list
+        val parasites = buildParasiteList()
+        // broadcast to all connected sockets
+        broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
+    }
+
+    fun updateParasiteTypingStatus(parasiteId: String, newDestination: String?) {
+        // update status map
+        parasiteTypingStatus[parasiteId] = newDestination
         // build user list
         val parasites = buildParasiteList()
         // broadcast to all connected sockets
