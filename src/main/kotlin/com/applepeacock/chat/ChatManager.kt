@@ -319,7 +319,7 @@ object ChatManager {
     suspend fun handleMessage(connection: ChatSocketConnection, body: String) {
         val currentParasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
         val messageBody = defaultMapper.readValue<MessageBody>(body)
-        connection.logger.debug("received message: ${messageBody.type}")
+        connection.logger.debug("received message: {}", messageBody.type)
         messageBody.type.handler.handleMessage(connection, currentParasite, messageBody)
     }
 }

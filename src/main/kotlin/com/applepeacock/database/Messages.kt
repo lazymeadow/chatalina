@@ -1,6 +1,5 @@
 package com.applepeacock.database
 
-import com.applepeacock.chat.MessageTypes
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.jacksonTypeRef

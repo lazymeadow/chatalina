@@ -124,7 +124,6 @@ object TypingMessageHandler : MessageHandler {
         body: MessageBody
     ) {
         onMessage<TypingMessageBody>(body) { messageBody ->
-            val newStatus = ParasiteStatus.fromString(messageBody.currentDestination?.toString())
             ChatManager.updateParasiteTypingStatus(connection.parasiteId, messageBody.currentDestination?.toString())
         }
     }
