@@ -49,5 +49,11 @@ fun Application.module() {
     configureSerialization()
     configureDatabases()
     configureSockets()
-    ChatManager.configure(environment.config.property("bec.image_cache.bucket").getString(), environment.config.property("bec.image_cache.host").getString())
+    ChatManager.configure(
+        environment.config.property("bec.image_cache.bucket").getString(),
+        environment.config.property("bec.image_cache.host").getString(),
+        environment.config.property("bec.github.user").getString(),
+        environment.config.property("bec.github.token").getString(),
+        environment.config.property("bec.github.repo").getString()
+    )
 }

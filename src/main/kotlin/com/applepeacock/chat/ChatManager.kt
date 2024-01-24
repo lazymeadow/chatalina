@@ -5,6 +5,7 @@ import aws.sdk.kotlin.services.s3.model.ObjectCannedAcl
 import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
 import com.applepeacock.database.*
+import com.applepeacock.database.AlertData.Companion.toMap
 import com.applepeacock.http.AuthenticationException
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
@@ -12,10 +13,13 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.client.*
+import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.serialization.jackson.*
 import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toJavaInstant
@@ -43,17 +47,35 @@ object ChatManager {
     private lateinit var ktorClient: HttpClient
     private lateinit var imageCacheBucket: String
     private lateinit var imageCacheHost: String
+    private lateinit var githubUser: String
+    private lateinit var githubToken: String
+    private lateinit var githubRepo: String
 
     val currentSocketConnections: MutableSet<ChatSocketConnection> = Collections.synchronizedSet(LinkedHashSet())
     val parasiteStatusMap: MutableMap<String, ParasiteStatus> = mutableMapOf()
     val parasiteTypingStatus: MutableMap<String, String?> = mutableMapOf()
 
-    fun configure(imageCacheBucket: String, imageCacheHost: String) {
+    fun configure(
+        imageCacheBucket: String,
+        imageCacheHost: String,
+        githubUser: String,
+        githubToken: String,
+        githubRepo: String
+    ) {
+        logger.debug("Initializing Chat Manager...")
+
+        logger.debug("Initializing variables...")
         this.imageCacheBucket = imageCacheBucket
         this.imageCacheHost = imageCacheHost
+        this.githubUser = githubUser
+        this.githubToken = githubToken
+        this.githubRepo = githubRepo
         logger.debug("Initializing OkHttp...")
-        ktorClient = HttpClient(OkHttp)
-        logger.debug("OkHttp initialized.")
+        ktorClient = HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                jackson()
+            }
+        }
 
         logger.debug("Initializing S3 client...")
         runBlocking {
@@ -61,7 +83,8 @@ object ChatManager {
                 this.region = "us-west-2"
             }
         }
-        logger.debug("S3 client initialized.")
+
+        logger.debug("Chat Manager initialized.")
     }
 
     fun buildParasiteList(): List<Map<String, Any?>> = Parasites.DAO.list(active = true).map {
@@ -191,7 +214,8 @@ object ChatManager {
                 val cachedUrl = runBlocking {
                     val imageResponse = ktorClient.request(url)
                     if (imageResponse.status.isSuccess()) {
-                        val imageContentType = imageResponse.contentType() ?: ContentType.fromFilePath(url).firstOrNull()
+                        val imageContentType =
+                            imageResponse.contentType() ?: ContentType.fromFilePath(url).firstOrNull()
                         val imageContent = imageResponse.readBytes()
                         uploadImageToS3(newMessage.id, imageContent, imageContentType) ?: url
                     } else {
@@ -315,6 +339,43 @@ object ChatManager {
         }
     }
 
+    fun handleGithubIssueMessage(
+        connection: ChatSocketConnection,
+        issueType: String,
+        issueTitle: String,
+        issueBody: String
+    ) {
+        runBlocking {
+            try {
+                val githubResponse = ktorClient.post("https://api.github.com/repos/$githubUser/$githubRepo/issues") {
+                    this.setBody(mapOf("title" to issueTitle, "body" to issueBody, "labels" to listOf(issueType)))
+                    this.contentType(ContentType.Application.Json)
+                    this.accept(ContentType.parse("application/vnd.github+json"))
+                    this.basicAuth(githubUser, githubToken)
+                }
+                val responseBody = githubResponse.body<Map<String, *>>()
+                val message = if (githubResponse.status.isSuccess()) {
+                    "${issueType.replaceFirstChar { it.uppercase() }} #${responseBody["number"]} created! View it at <a href=${responseBody["html_url"]}>${responseBody["html_url"]}</a>"
+                } else {
+                    "Failed to create ${issueType.replaceFirstChar { it.uppercase() }}! (${responseBody["message"]})"
+                }
+                connection.send(ServerMessage(ServerMessageTypes.Alert, AlertData("dismiss", message, "OK")))
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                connection.send(
+                    ServerMessage(
+                        ServerMessageTypes.Alert,
+                        AlertData(
+                            "dismiss",
+                            "Failed to create ${issueType.replaceFirstChar { it.uppercase() }}!",
+                            "OK"
+                        )
+                    )
+                )
+            }
+        }
+    }
+
     fun addConnection(connection: ChatSocketConnection) {
         val wasOffline = (parasiteStatusMap.getOrDefault(
             connection.parasiteId,
@@ -424,4 +485,6 @@ enum class ServerMessageTypes(val value: String) {
     }
 }
 
-data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any?>)
+data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any?>) {
+    constructor(type: ServerMessageTypes, data: AlertData) : this(type, data.toMap())
+}

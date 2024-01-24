@@ -61,12 +61,14 @@ dependencies {
     implementation("org.flywaydb:flyway-core:9.21.1")
 
     implementation("ch.qos.logback:logback-classic:$logback_version")
-    implementation("io.ktor:ktor-server-core-jvm:2.3.7")
-    implementation("io.ktor:ktor-server-sessions-jvm:2.3.7")
+    implementation("io.ktor:ktor-server-core-jvm")
+    implementation("io.ktor:ktor-server-sessions-jvm")
 
     implementation("aws.sdk.kotlin:s3:1.0.40")
-    implementation("io.ktor:ktor-client-core:2.3.7")
-    implementation("io.ktor:ktor-client-okhttp-jvm:2.3.7")
+    implementation("io.ktor:ktor-client-core")
+    implementation("io.ktor:ktor-client-okhttp-jvm")
+    implementation("io.ktor:ktor-client-content-negotiation")
+    implementation("io.ktor:ktor-serialization-jackson")
 
     testImplementation("io.ktor:ktor-server-tests")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")

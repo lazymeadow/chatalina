@@ -2,7 +2,6 @@ package com.applepeacock.chat
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.applepeacock.database.*
-import com.applepeacock.database.AlertData.Companion.toMap
 import com.applepeacock.plugins.CLIENT_VERSION
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
@@ -336,7 +335,12 @@ object ImageMessageHandler : MessageHandler {
                         )
                     } catch (e: Throwable) {
                         e.printStackTrace()
-                        connection.send(ServerMessage(ServerMessageTypes.Alert, AlertData("dismiss", "Failed to send image.", "dismiss").toMap()))
+                        connection.send(
+                            ServerMessage(
+                                ServerMessageTypes.Alert,
+                                AlertData("dismiss", "Failed to send image.", "dismiss")
+                            )
+                        )
                     }
                 } ?: let {
                     connection.logger.error("Bad message content")
@@ -360,7 +364,9 @@ object ImageUploadMessageHandler : MessageHandler {
         body: MessageBody
     ) {
         onMessage<ImageUploadMessageBody>(body) { messageBody ->
-            if (messageBody.destination?.toString().isNullOrBlank() || messageBody.imageData?.toString().isNullOrBlank() || messageBody.imageType?.toString().isNullOrBlank()) {
+            if (messageBody.destination?.toString().isNullOrBlank() || messageBody.imageData?.toString()
+                    .isNullOrBlank() || messageBody.imageType?.toString().isNullOrBlank()
+            ) {
                 connection.logger.error("Bad message content")
             } else {
                 messageBody.destination?.toString()?.let {
@@ -381,7 +387,12 @@ object ImageUploadMessageHandler : MessageHandler {
                         )
                     } catch (e: Throwable) {
                         e.printStackTrace()
-                        connection.send(ServerMessage(ServerMessageTypes.Alert, AlertData("dismiss", "Failed to upload image.", "dismiss").toMap()))
+                        connection.send(
+                            ServerMessage(
+                                ServerMessageTypes.Alert,
+                                AlertData("dismiss", "Failed to upload image.", "dismiss")
+                            )
+                        )
                     }
                 } ?: let {
                     connection.logger.error("Bad message content")
@@ -390,6 +401,29 @@ object ImageUploadMessageHandler : MessageHandler {
         }
     }
 }
+open class GithubIssueMessageHandler(val issueType: String) : MessageHandler {
+    class GithubIssueMessageBody(type: MessageTypes) : MessageBody(type) {
+        val title by fromOther("title")
+        val body by fromOther("body")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<GithubIssueMessageBody>(body) { messageBody ->
+            if (messageBody.title?.toString().isNullOrBlank() || messageBody.body?.toString().isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                ChatManager.handleGithubIssueMessage(connection, issueType, messageBody.title.toString(), messageBody.body.toString())
+            }
+        }
+    }
+}
+
+object BugReportMessageHandler: GithubIssueMessageHandler("bug")
+object FeatureRequestMessageHandler: GithubIssueMessageHandler("bug")
 
 @Suppress("unused")  // they are used actually
 enum class MessageTypes(val value: String) {
@@ -408,25 +442,27 @@ enum class MessageTypes(val value: String) {
     Settings("settings") {
         override val handler = SettingsMessageHandler
     },
-
     ChatMessage("chat message") {
         override val handler = ChatMessageHandler
     },
-
     PrivateMessage("private message") {
         override val handler = PrivateMessageHandler
     },
-
     Image("image") {
         override val handler = ImageMessageHandler
     },
     ImageUpload("image upload") {
         override val handler = ImageUploadMessageHandler
     },
-//    RoomAction("room action"),
+    Bug("bug") {
+        override val handler = BugReportMessageHandler
+    },
+    Feature("feature") {
+        override val handler = FeatureRequestMessageHandler
+    },
+
+    //    RoomAction("room action"),
 //    RemoveAlert("remove alert"),
-//    Bug("bug"),
-//    Feature("feature"),
 //    ToolList("tool list"),
 //    DataRequest("data request"),
 //    AdminRequest("admin request"),
