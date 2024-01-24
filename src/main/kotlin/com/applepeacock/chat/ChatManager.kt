@@ -16,6 +16,7 @@ import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toJavaInstant
 import org.slf4j.LoggerFactory
@@ -165,18 +166,21 @@ object ChatManager {
             }
             if (list.isEmpty()) {
                 runBlocking {
-                    val imageContent = ktorClient.request(url).readBytes()
+                    val imageResponse = ktorClient.request(url)
+                    val imageContentType = imageResponse.contentType() ?: ContentType.fromFilePath(url).firstOrNull()
+                    val imageContent = imageResponse.readBytes()
                     if (imageContent.size > 0) {
                         s3Client.putObject {
                             this.bucket = imageCacheBucket
                             this.key = objectKey
                             this.acl = ObjectCannedAcl.PublicRead
                             this.body = ByteStream.fromBytes(imageContent)
+                            this.contentType = imageContentType.toString()
                         }
+                        response = "${imageCacheHost}/$objectKey"
                     }
                 }
             }
-            response = "${imageCacheHost}/$objectKey"
         }
 
         val parasite = Parasites.DAO.find(senderId)
