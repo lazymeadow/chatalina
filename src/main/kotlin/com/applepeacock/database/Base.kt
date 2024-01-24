@@ -207,7 +207,7 @@ class JsonbAgg<T : Any>(val expr1: Expression<*>, klass: Class<T>, val filter: O
     PostgresJsonBColumn(klass, false)
 ) {
     override fun toQueryBuilder(queryBuilder: QueryBuilder) = queryBuilder {
-        append(functionName, "(", expr1, ")")
+        append(functionName, "(", expr1)
         filter?.let {
             append(" FILTER (WHERE ", filter, ")")
         }
@@ -215,11 +215,12 @@ class JsonbAgg<T : Any>(val expr1: Expression<*>, klass: Class<T>, val filter: O
             append(" ORDER BY ")
             currentDialect.dataTypeProvider.precessOrderByClause(this, orderByCol, orderByOrder)
         }
+        append(")")
     }
 }
 
 fun <T : Any> jsonbAgg(expr: Expression<*>, klass: Class<T>, filter: Op<Boolean>? = null, orderByCol: Expression<*>? = null, orderByOrder: SortOrder = SortOrder.ASC) =
-    JsonbAgg(expr, klass, filter)
+    JsonbAgg(expr, klass, filter, orderByCol, orderByOrder)
 
 fun jsonbTextAgg(col: Column<String>): ExpressionWithColumnType<Array<String>> = CustomFunction(
     "JSONB_AGG",
