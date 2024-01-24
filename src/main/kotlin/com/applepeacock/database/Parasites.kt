@@ -62,17 +62,17 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         }
 
         fun list(active: Boolean = true): List<ParasiteObject> = transaction {
-            val query = Parasites.select { Parasites.active eq active }
+            val query = Parasites.selectAll().where { Parasites.active eq active }
             query.map { resultRowToObject(it) }
         }
 
         fun find(parasiteId: String): ParasiteObject? = transaction {
-            Parasites.select { Parasites.id eq parasiteId }.singleOrNull()?.let { resultRowToObject(it) }
+            Parasites.selectAll().where { Parasites.id eq parasiteId }.singleOrNull()?.let { resultRowToObject(it) }
         }
 
         fun checkPassword(parasiteId: String, password: String): Boolean = transaction {
             val hashedPassword =
-                ParasitePasswords.slice(ParasitePasswords.password).select { ParasitePasswords.parasite eq parasiteId }
+                ParasitePasswords.select(ParasitePasswords.password).where { ParasitePasswords.parasite eq parasiteId }
                     .singleOrNull()?.get(ParasitePasswords.password)
             hashedPassword?.let {
                 val verifyResult =
@@ -89,7 +89,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         }
 
         fun checkToken(parasiteId: String, token: String): Boolean = transaction {
-            ParasitePasswords.slice(ParasitePasswords.resetToken).select { ParasitePasswords.parasite eq parasiteId }
+            ParasitePasswords.select(ParasitePasswords.resetToken).where { ParasitePasswords.parasite eq parasiteId }
                 .singleOrNull()?.getOrNull(ParasitePasswords.resetToken) == token
         }
 
@@ -106,12 +106,13 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         }
 
         fun isValidUsername(newUserName: String): Boolean = transaction {
-            Parasites.select { Parasites.id eq newUserName }.orWhere { settings doubleArrow "username" eq newUserName }
+            Parasites.selectAll().where { Parasites.id eq newUserName }
+                .orWhere { settings doubleArrow "username" eq newUserName }
                 .count() == 0L
         }
 
         fun exists(parasiteId: String): Boolean = transaction {
-            Parasites.select { Parasites.id eq parasiteId }.count() > 0
+            Parasites.selectAll().where { Parasites.id eq parasiteId }.count() > 0
         }
 
         fun create(newUserName: String, newEmail: String, hashedPassword: ByteArray): ParasiteObject? = transaction {

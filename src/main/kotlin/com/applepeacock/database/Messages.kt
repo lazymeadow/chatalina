@@ -50,20 +50,20 @@ object Messages : UUIDTable("messages"), ChatTable {
             orderByCol = sent
         ).alias("messages")
     val messageHistoryQuery =  // TODO: limit # messages returned
-        Messages.slice(destination, destinationType, messagesCol).selectAll()
+        Messages.select(destination, destinationType, messagesCol)
             .groupBy(destination, destinationType).alias("history")
 
-    fun parseMessagesCol(msgs: Any?) =
-        defaultMapper.convertValue<Array<Map<String, Any>>>(msgs, jacksonTypeRef())?.mapNotNull {
+    fun parseMessagesCol(messagesVal: Any?) =
+        defaultMapper.convertValue<Array<Map<String, Any>>>(messagesVal, jacksonTypeRef())?.mapNotNull {
             val dataVal = it["data"] ?: return@mapNotNull null
             val idVal = it["id"] ?: return@mapNotNull null
             val sentVal = it["sent"] ?: return@mapNotNull null
             defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal)
                 .plus("time" to Instant.parse(sentVal.toString()).toJavaInstant())
-        }?.toTypedArray() ?: emptyArray()
+        }.orEmpty()
 
-    fun parsePrivateMessagesCol(msgs: Any?) =
-        defaultMapper.convertValue<Array<Map<String, Any>>>(msgs, jacksonTypeRef())?.mapNotNull {
+    fun parsePrivateMessagesCol(messagesVal: Any?) =
+        defaultMapper.convertValue<Array<Map<String, Any>>>(messagesVal, jacksonTypeRef())?.mapNotNull {
             val dataVal = it["data"] ?: return@mapNotNull null
             val idVal = it["id"] ?: return@mapNotNull null
             val sentVal = it["sent"] ?: return@mapNotNull null
@@ -72,7 +72,7 @@ object Messages : UUIDTable("messages"), ChatTable {
             defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal)
                 .plus("time" to Instant.parse(sentVal.toString()).toJavaInstant()).plus("sender id" to senderVal)
                 .plus("recipient id" to recipientVal)
-        }?.toTypedArray() ?: emptyArray()
+        }.orEmpty()
 
     object DAO : ChatTable.DAO() {
         override fun resultRowToObject(row: ResultRow): MessageObject {
@@ -101,16 +101,17 @@ object Messages : UUIDTable("messages"), ChatTable {
         }
 
         fun update(messageId: EntityID<UUID>, newData: Map<String, Any?>) = transaction {
-            Messages.update ({ Messages.id eq messageId }) {
+            Messages.update({ Messages.id eq messageId }) {
                 it[data] = newData
             }
         }
+
         fun list(parasiteId: String): List<Map<String, Any>> = transaction {
             // TODO: limit # messages returned
             val recipientCol: ExpressionAlias<String> =
                 Case().When((destination eq parasiteId), sender.castTo<String>(VarCharColumnType())).Else(destination)
                     .alias("recipient")
-            Messages.slice(messagesCol, recipientCol).selectAll()
+            Messages.select(messagesCol, recipientCol)
                 .andWhere { destinationType eq MessageDestinationTypes.Parasite }
                 .andWhere { (destination eq parasiteId) or (sender eq parasiteId) }
                 .groupBy(recipientCol)

@@ -16,14 +16,14 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         val id: EntityID<UUID>,
         val name: String,
         val owner: EntityID<String>,
-        val members: Array<String>,
-        var history: Array<Map<String, Any>> = emptyArray()
+        val members: List<String>,
+        var history: List<Map<String, Any>> = emptyList()
     ) : ChatTable.ObjectModel()
 
     object DAO : ChatTable.DAO() {
         private val membersCol = RoomAccess.parasite.arrayAgg().alias("members")
-        private val roomAccessQuery = RoomAccess.slice(RoomAccess.room, membersCol)
-            .select { RoomAccess.inRoom eq true }
+        private val roomAccessQuery = RoomAccess.select(RoomAccess.room, membersCol)
+            .where { RoomAccess.inRoom eq true }
             .groupBy(RoomAccess.room)
             .alias("access")
 
@@ -32,7 +32,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 row[id],
                 row[name],
                 row[owner],
-                row[roomAccessQuery[membersCol]]
+                row[roomAccessQuery[membersCol]].toList()
             )
         }
 
@@ -43,14 +43,14 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                     { Rooms.id.castTo<String>(VarCharColumnType()) },
                     { Messages.messageHistoryQuery[Messages.destination] },
                     { Messages.messageHistoryQuery[Messages.destinationType] eq MessageDestinationTypes.Room })
-                .slice(
+                .select(
                     Rooms.id,
                     name,
                     owner,
                     roomAccessQuery[membersCol],
                     Messages.messageHistoryQuery[Messages.messagesCol]
                 )
-                .select { roomAccessQuery[membersCol] any stringParam(forParasite) }
+                .where { roomAccessQuery[membersCol] any stringParam(forParasite) }
                 .map {
                     resultRowToObject(it).also { room ->
                         room.history = Messages.parseMessagesCol(
@@ -62,8 +62,8 @@ object Rooms : UUIDTable("rooms"), ChatTable {
 
         fun get(roomId: UUID) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
-                .slice(Rooms.id, name, owner, roomAccessQuery[membersCol])
-                .select { Rooms.id eq roomId }
+                .select(Rooms.id, name, owner, roomAccessQuery[membersCol])
+                .where { Rooms.id eq roomId }
                 .groupBy(Rooms.id, name, owner, roomAccessQuery[membersCol])
                 .firstOrNull()?.let { resultRowToObject(it) }
         }
