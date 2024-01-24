@@ -1,7 +1,6 @@
 package com.applepeacock.chat
 
 import aws.sdk.kotlin.services.s3.S3Client
-import aws.sdk.kotlin.services.s3.listObjects
 import aws.sdk.kotlin.services.s3.model.ObjectCannedAcl
 import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
@@ -17,14 +16,11 @@ import io.ktor.client.engine.okhttp.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.http.content.*
-import io.ktor.server.plugins.*
 import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.slf4j.LoggerFactory
-import java.net.URI
 import java.util.*
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
@@ -158,7 +154,12 @@ object ChatManager {
             }
         }
     }
-    private suspend fun uploadImageToS3(messageId: EntityID<UUID>, imageContent: ByteArray, imageContentType: ContentType?): String? {
+
+    private suspend fun uploadImageToS3(
+        messageId: EntityID<UUID>,
+        imageContent: ByteArray,
+        imageContentType: ContentType?
+    ): String? {
         return if (imageContent.size > 0) {
             val objectKey = "images/${messageId}"
             s3Client.putObject {
@@ -188,144 +189,135 @@ object ChatManager {
             }
         }
 
-        val parasite = Parasites.DAO.find(senderId)
+        fun createMessageAndCacheImage(
+            parasite: Parasites.ParasiteObject,
+            broadcastImage: (Map<String, Any?>) -> Unit
+        ) {
+            Messages.DAO.create(
+                parasite.id,
+                destination,
+                mapOf(
+                    "username" to parasite.name,
+                    "color" to parasite.settings.color,
+                    "image url" to url,
+                    "nsfw flag" to nsfw
+                )
+            ) {
+                val cachedUrl = handleImageCaching(it)
+                val newData = it.data.plus("image src url" to cachedUrl)
+                Messages.DAO.update(it.id, newData)
+                broadcastImage(
+                    newData.plus("time" to it.sent.toJavaInstant())
+                        .plus("sender id" to it.sender)
+                )
+            }
+        }
+
+        val parasite = Parasites.DAO.find(senderId) ?: return
         when (destination.type) {
             MessageDestinationTypes.Room -> {
-                val destinationRoom = Rooms.DAO.get(UUID.fromString(destination.id))
-                destinationRoom?.let {
+                Rooms.DAO.get(UUID.fromString(destination.id))?.let { destinationRoom ->
                     val memberConnections =
                         currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
-                    parasite?.let {
-                        Messages.DAO.create(
-                            parasite.id,
-                            destination,
+                    createMessageAndCacheImage(parasite) { data ->
+                        broadcast(
+                            memberConnections,
                             mapOf(
-                                "username" to parasite.name,
-                                "color" to parasite.settings.color,
-                                "image url" to url,
-                                "nsfw flag" to nsfw
+                                "type" to MessageTypes.ChatMessage,
+                                "data" to data.plus("room id" to destination.id)
                             )
-                        ) {
-                            val cachedUrl = handleImageCaching(it)
-                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
-                            broadcast(
-                                memberConnections, mapOf(
-                                    "type" to MessageTypes.ChatMessage,
-                                    "data" to it.data.plus("room id" to it.destination.id)
-                                        .plus("time" to it.sent.toJavaInstant())
-                                        .plus("sender id" to it.sender)
-                                        .plus("image src url" to cachedUrl)
-                                )
-                            )
-                        }
+                        )
                     }
                 }
             }
             MessageDestinationTypes.Parasite -> {
-                parasite?.let {
-                    if (Parasites.DAO.exists(destination.id)) {
-                        Messages.DAO.create(
-                            parasite.id,
-                            destination,
-                            mapOf(
-                                "username" to parasite.name,
-                                "color" to parasite.settings.color,
-                                "image url" to url,
-                                "nsfw flag" to nsfw
-                            )
-                        ) {
-                            val cachedUrl = handleImageCaching(it)
-                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
-                            val broadcastContent = mapOf(
-                                "type" to MessageTypes.PrivateMessage,
-                                "data" to it.data.plus("recipient id" to it.destination.id)
-                                    .plus("time" to it.sent.toJavaInstant())
-                                    .plus("sender id" to it.sender)
-                                    .plus("image src url" to cachedUrl)
-                            )
-                            if (destination.id != senderId) {
-                                broadcastToParasite(destination.id, broadcastContent)
-                            }
-                            broadcastToParasite(senderId, broadcastContent)
+                if (Parasites.DAO.exists(destination.id)) {
+                    createMessageAndCacheImage(parasite) { data ->
+                        val broadcastContent = mapOf(
+                            "type" to MessageTypes.PrivateMessage,
+                            "data" to data.plus("recipient id" to destination.id)
+                        )
+                        if (destination.id != senderId) {
+                            broadcastToParasite(destination.id, broadcastContent)
                         }
+                        broadcastToParasite(senderId, broadcastContent)
                     }
                 }
             }
         }
     }
 
-    fun handleImageUploadMessage(destination: MessageDestination, senderId: String, imageData: String, imageType: String, nsfw: Boolean) {
+    fun handleImageUploadMessage(
+        destination: MessageDestination,
+        senderId: String,
+        imageData: String,
+        imageType: String,
+        nsfw: Boolean
+    ) {
         val imageContentType = ContentType.parse(imageType)
         val imageBytes = runBlocking {
             imageData.substringAfter(",").decodeBase64Bytes()
         }
 
-        val parasite = Parasites.DAO.find(senderId)
+        fun createMessageAndUploadImage(
+            parasite: Parasites.ParasiteObject,
+            broadcastResult: (Map<String, Any?>) -> Unit
+        ) {
+            Messages.DAO.create(
+                parasite.id,
+                destination,
+                mapOf(
+                    "username" to parasite.name,
+                    "color" to parasite.settings.color,
+                    "image url" to "",
+                    "nsfw flag" to nsfw
+                )
+            ) {
+                runBlocking {
+                    uploadImageToS3(it.id, imageBytes, imageContentType)
+                }?.let { cachedUrl ->
+                    Messages.DAO.update(
+                        it.id,
+                        it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl)
+                    )
+                    broadcastResult(
+                        it.data.plus("time" to it.sent.toJavaInstant())
+                            .plus("sender id" to it.sender)
+                            .plus("image url" to cachedUrl)
+                            .plus("image src url" to cachedUrl)
+                    )
+                } ?: throw IllegalStateException("Image upload failed")
+            }
+        }
+
+        val parasite = Parasites.DAO.find(senderId) ?: return
         when (destination.type) {
             MessageDestinationTypes.Room -> {
-                val destinationRoom = Rooms.DAO.get(UUID.fromString(destination.id))
-                destinationRoom?.let {
+                Rooms.DAO.get(UUID.fromString(destination.id))?.let { destinationRoom ->
                     val memberConnections =
                         currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
-                    parasite?.let {
-                        Messages.DAO.create(
-                            parasite.id,
-                            destination,
+                    createMessageAndUploadImage(parasite) { data ->
+                        broadcast(
+                            memberConnections,
                             mapOf(
-                                "username" to parasite.name,
-                                "color" to parasite.settings.color,
-                                "image url" to "",
-                                "nsfw flag" to nsfw
+                                "type" to MessageTypes.ChatMessage,
+                                "data" to data.plus("room id" to destination.id)
                             )
-                        ) {
-                            val cachedUrl = runBlocking {
-                                uploadImageToS3(it.id, imageBytes, imageContentType)
-                            } ?: throw BadRequestException("Bad image data")
-                            Messages.DAO.update(it.id, it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl))
-                            broadcast(
-                                memberConnections, mapOf(
-                                    "type" to MessageTypes.ChatMessage,
-                                    "data" to it.data.plus("room id" to it.destination.id)
-                                        .plus("time" to it.sent.toJavaInstant())
-                                        .plus("sender id" to it.sender)
-                                        .plus("image url" to cachedUrl)
-                                        .plus("image src url" to cachedUrl)
-                                )
-                            )
-                        }
+                        )
                     }
                 }
             }
             MessageDestinationTypes.Parasite -> {
-                parasite?.let {
-                    if (Parasites.DAO.exists(destination.id)) {
-                        Messages.DAO.create(
-                            parasite.id,
-                            destination,
-                            mapOf(
-                                "username" to parasite.name,
-                                "color" to parasite.settings.color,
-                                "image url" to "",
-                                "nsfw flag" to nsfw
-                            )
-                        ) {
-                            val cachedUrl = runBlocking {
-                                uploadImageToS3(it.id, imageBytes, imageContentType)
-                            } ?: throw BadRequestException("Bad image data")
-                            Messages.DAO.update(it.id, it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl))
-                            val broadcastContent = mapOf(
-                                "type" to MessageTypes.PrivateMessage,
-                                "data" to it.data.plus("recipient id" to it.destination.id)
-                                    .plus("time" to it.sent.toJavaInstant())
-                                    .plus("sender id" to it.sender)
-                                    .plus("image url" to cachedUrl)
-                                    .plus("image src url" to cachedUrl)
-                            )
-                            if (destination.id != senderId) {
-                                broadcastToParasite(destination.id, broadcastContent)
-                            }
-                            broadcastToParasite(senderId, broadcastContent)
+                if (Parasites.DAO.exists(destination.id)) {
+                    createMessageAndUploadImage(parasite) { data ->
+                        val broadcastContent = mapOf(
+                            "type" to MessageTypes.PrivateMessage,
+                            "data" to data.plus("recipient id" to destination.id)
+                        )
+                        if (destination.id != senderId) {
+                            broadcastToParasite(destination.id, broadcastContent)
                         }
+                        broadcastToParasite(senderId, broadcastContent)
                     }
                 }
             }

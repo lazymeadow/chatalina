@@ -28,14 +28,14 @@ object Messages : UUIDTable("messages"), ChatTable {
     val sender = reference("sender_id", Parasites)
     val destination = text("destination_id")
     val destinationType = enumerationByName<MessageDestinationTypes>("destination_type", 48)
-    val data = jsonb<Map<*, *>>("data")
+    val data = jsonb<Map<String, Any?>>("data")
     val sent = systemTimestamp("sent")
 
     data class MessageObject(
         val id: EntityID<UUID>,
         val sender: EntityID<String>,
         val destination: MessageDestination,
-        val data: Map<*, *>,
+        val data: Map<String, Any?>,
         val sent: Instant
     ) : ChatTable.ObjectModel()
 
@@ -88,7 +88,7 @@ object Messages : UUIDTable("messages"), ChatTable {
         fun create(
             senderId: EntityID<String>,
             destinationInfo: MessageDestination,
-            messageData: Map<*, *>,
+            messageData: Map<String, Any?>,
             callback: (MessageObject) -> Unit = {}
         ): MessageObject? = transaction {
             Messages.insert {
@@ -100,7 +100,7 @@ object Messages : UUIDTable("messages"), ChatTable {
             }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }?.also(callback)
         }
 
-        fun update(messageId: EntityID<UUID>, newData: Map<*, *>) = transaction {
+        fun update(messageId: EntityID<UUID>, newData: Map<String, Any?>) = transaction {
             Messages.update ({ Messages.id eq messageId }) {
                 it[data] = newData
             }

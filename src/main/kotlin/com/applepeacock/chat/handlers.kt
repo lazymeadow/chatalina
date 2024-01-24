@@ -2,6 +2,7 @@ package com.applepeacock.chat
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.applepeacock.database.*
+import com.applepeacock.database.AlertData.Companion.toMap
 import com.applepeacock.plugins.CLIENT_VERSION
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
@@ -9,7 +10,6 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.module.kotlin.convertValue
-import io.ktor.http.content.*
 import org.slf4j.event.Level
 import java.util.*
 import kotlin.reflect.KProperty1
@@ -327,12 +327,17 @@ object ImageMessageHandler : MessageHandler {
                         MessageDestination(it, MessageDestinationTypes.Parasite)
                     }
                 }?.let {
-                    ChatManager.handleImageMessage(
-                        it,
-                        connection.parasiteId,
-                        messageBody.url.toString(),
-                        messageBody.nsfw.toString().toBoolean()
-                    )
+                    try {
+                        ChatManager.handleImageMessage(
+                            it,
+                            connection.parasiteId,
+                            messageBody.url.toString(),
+                            messageBody.nsfw.toString().toBoolean()
+                        )
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                        connection.send(ServerMessage(ServerMessageTypes.Alert, AlertData("dismiss", "Failed to send image.", "dismiss").toMap()))
+                    }
                 } ?: let {
                     connection.logger.error("Bad message content")
                 }
@@ -366,13 +371,18 @@ object ImageUploadMessageHandler : MessageHandler {
                         MessageDestination(it, MessageDestinationTypes.Parasite)
                     }
                 }?.let {
-                    ChatManager.handleImageUploadMessage(
-                        it,
-                        connection.parasiteId,
-                        messageBody.imageData.toString(),
-                        messageBody.imageType.toString(),
-                        messageBody.nsfw.toString().toBoolean()
-                    )
+                    try {
+                        ChatManager.handleImageUploadMessage(
+                            it,
+                            connection.parasiteId,
+                            messageBody.imageData.toString(),
+                            messageBody.imageType.toString(),
+                            messageBody.nsfw.toString().toBoolean()
+                        )
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                        connection.send(ServerMessage(ServerMessageTypes.Alert, AlertData("dismiss", "Failed to upload image.", "dismiss").toMap()))
+                    }
                 } ?: let {
                     connection.logger.error("Bad message content")
                 }
