@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.module.kotlin.convertValue
+import io.ktor.http.content.*
 import org.slf4j.event.Level
 import java.util.*
 import kotlin.reflect.KProperty1
@@ -340,6 +341,46 @@ object ImageMessageHandler : MessageHandler {
     }
 }
 
+object ImageUploadMessageHandler : MessageHandler {
+    class ImageUploadMessageBody(type: MessageTypes) : MessageBody(type) {
+        val imageData by fromOther("image data")
+        val imageType by fromOther("image type")
+        val destination by fromOther("room id")
+        val nsfw by fromOther("nsfw")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<ImageUploadMessageBody>(body) { messageBody ->
+            if (messageBody.destination?.toString().isNullOrBlank() || messageBody.imageData?.toString().isNullOrBlank() || messageBody.imageType?.toString().isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                messageBody.destination?.toString()?.let {
+                    try {
+                        UUID.fromString(it)
+                        MessageDestination(it, MessageDestinationTypes.Room)
+                    } catch (e: IllegalArgumentException) {
+                        MessageDestination(it, MessageDestinationTypes.Parasite)
+                    }
+                }?.let {
+                    ChatManager.handleImageUploadMessage(
+                        it,
+                        connection.parasiteId,
+                        messageBody.imageData.toString(),
+                        messageBody.imageType.toString(),
+                        messageBody.nsfw.toString().toBoolean()
+                    )
+                } ?: let {
+                    connection.logger.error("Bad message content")
+                }
+            }
+        }
+    }
+}
+
 @Suppress("unused")  // they are used actually
 enum class MessageTypes(val value: String) {
     Version("version") {
@@ -369,10 +410,11 @@ enum class MessageTypes(val value: String) {
     Image("image") {
         override val handler = ImageMessageHandler
     },
-//    ImageUpload("image upload"),
+    ImageUpload("image upload") {
+        override val handler = ImageUploadMessageHandler
+    },
 //    RoomAction("room action"),
-
-    //    RemoveAlert("remove alert"),
+//    RemoveAlert("remove alert"),
 //    Bug("bug"),
 //    Feature("feature"),
 //    ToolList("tool list"),

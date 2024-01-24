@@ -17,10 +17,14 @@ import io.ktor.client.engine.okhttp.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.http.content.*
+import io.ktor.server.plugins.*
+import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.slf4j.LoggerFactory
+import java.net.URI
 import java.util.*
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
@@ -203,6 +207,7 @@ object ChatManager {
                             )
                         ) {
                             val cachedUrl = handleImageCaching(it)
+                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
                             broadcast(
                                 memberConnections, mapOf(
                                     "type" to MessageTypes.ChatMessage,
@@ -212,7 +217,6 @@ object ChatManager {
                                         .plus("image src url" to cachedUrl)
                                 )
                             )
-                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
                         }
                     }
                 }
@@ -231,6 +235,7 @@ object ChatManager {
                             )
                         ) {
                             val cachedUrl = handleImageCaching(it)
+                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
                             val broadcastContent = mapOf(
                                 "type" to MessageTypes.PrivateMessage,
                                 "data" to it.data.plus("recipient id" to it.destination.id)
@@ -242,7 +247,84 @@ object ChatManager {
                                 broadcastToParasite(destination.id, broadcastContent)
                             }
                             broadcastToParasite(senderId, broadcastContent)
-                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun handleImageUploadMessage(destination: MessageDestination, senderId: String, imageData: String, imageType: String, nsfw: Boolean) {
+        val imageContentType = ContentType.parse(imageType)
+        val imageBytes = runBlocking {
+            imageData.substringAfter(",").decodeBase64Bytes()
+        }
+
+        val parasite = Parasites.DAO.find(senderId)
+        when (destination.type) {
+            MessageDestinationTypes.Room -> {
+                val destinationRoom = Rooms.DAO.get(UUID.fromString(destination.id))
+                destinationRoom?.let {
+                    val memberConnections =
+                        currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
+                    parasite?.let {
+                        Messages.DAO.create(
+                            parasite.id,
+                            destination,
+                            mapOf(
+                                "username" to parasite.name,
+                                "color" to parasite.settings.color,
+                                "image url" to "",
+                                "nsfw flag" to nsfw
+                            )
+                        ) {
+                            val cachedUrl = runBlocking {
+                                uploadImageToS3(it.id, imageBytes, imageContentType)
+                            } ?: throw BadRequestException("Bad image data")
+                            Messages.DAO.update(it.id, it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl))
+                            broadcast(
+                                memberConnections, mapOf(
+                                    "type" to MessageTypes.ChatMessage,
+                                    "data" to it.data.plus("room id" to it.destination.id)
+                                        .plus("time" to it.sent.toJavaInstant())
+                                        .plus("sender id" to it.sender)
+                                        .plus("image url" to cachedUrl)
+                                        .plus("image src url" to cachedUrl)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            MessageDestinationTypes.Parasite -> {
+                parasite?.let {
+                    if (Parasites.DAO.exists(destination.id)) {
+                        Messages.DAO.create(
+                            parasite.id,
+                            destination,
+                            mapOf(
+                                "username" to parasite.name,
+                                "color" to parasite.settings.color,
+                                "image url" to "",
+                                "nsfw flag" to nsfw
+                            )
+                        ) {
+                            val cachedUrl = runBlocking {
+                                uploadImageToS3(it.id, imageBytes, imageContentType)
+                            } ?: throw BadRequestException("Bad image data")
+                            Messages.DAO.update(it.id, it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl))
+                            val broadcastContent = mapOf(
+                                "type" to MessageTypes.PrivateMessage,
+                                "data" to it.data.plus("recipient id" to it.destination.id)
+                                    .plus("time" to it.sent.toJavaInstant())
+                                    .plus("sender id" to it.sender)
+                                    .plus("image url" to cachedUrl)
+                                    .plus("image src url" to cachedUrl)
+                            )
+                            if (destination.id != senderId) {
+                                broadcastToParasite(destination.id, broadcastContent)
+                            }
+                            broadcastToParasite(senderId, broadcastContent)
                         }
                     }
                 }
