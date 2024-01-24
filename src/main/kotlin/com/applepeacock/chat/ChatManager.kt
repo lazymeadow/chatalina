@@ -19,6 +19,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toJavaInstant
+import org.jetbrains.exposed.dao.id.EntityID
 import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.properties.ReadOnlyProperty
@@ -153,32 +154,32 @@ object ChatManager {
             }
         }
     }
+    private suspend fun uploadImageToS3(messageId: EntityID<UUID>, imageContent: ByteArray, imageContentType: ContentType?): String? {
+        return if (imageContent.size > 0) {
+            val objectKey = "images/${messageId}"
+            s3Client.putObject {
+                this.bucket = imageCacheBucket
+                this.key = objectKey
+                this.acl = ObjectCannedAcl.PublicRead
+                this.body = ByteStream.fromBytes(imageContent)
+                this.contentType = imageContentType.toString()
+            }
+            "${imageCacheHost}/$objectKey"
+        } else {
+            null
+        }
+    }
 
     fun handleImageMessage(destination: MessageDestination, senderId: String, url: String, nsfw: Boolean) {
-        var response: String? = null
-        fun handleImageCaching(newMessage: Messages.MessageObject) {
-            val objectKey = "images/${newMessage.id}"
-            val list = runBlocking {
-                s3Client.listObjects {
-                    this.bucket = imageCacheBucket
-                    this.prefix = objectKey
-                }.contents.orEmpty()
-            }
-            if (list.isEmpty()) {
-                runBlocking {
-                    val imageResponse = ktorClient.request(url)
+        fun handleImageCaching(newMessage: Messages.MessageObject): String {
+            return runBlocking {
+                val imageResponse = ktorClient.request(url)
+                if (imageResponse.status.isSuccess()) {
                     val imageContentType = imageResponse.contentType() ?: ContentType.fromFilePath(url).firstOrNull()
                     val imageContent = imageResponse.readBytes()
-                    if (imageContent.size > 0) {
-                        s3Client.putObject {
-                            this.bucket = imageCacheBucket
-                            this.key = objectKey
-                            this.acl = ObjectCannedAcl.PublicRead
-                            this.body = ByteStream.fromBytes(imageContent)
-                            this.contentType = imageContentType.toString()
-                        }
-                        response = "${imageCacheHost}/$objectKey"
-                    }
+                    uploadImageToS3(newMessage.id, imageContent, imageContentType) ?: url
+                } else {
+                    url
                 }
             }
         }
@@ -201,18 +202,17 @@ object ChatManager {
                                 "nsfw flag" to nsfw
                             )
                         ) {
-                            handleImageCaching(
-                                it
-                            )
+                            val cachedUrl = handleImageCaching(it)
                             broadcast(
                                 memberConnections, mapOf(
                                     "type" to MessageTypes.ChatMessage,
                                     "data" to it.data.plus("room id" to it.destination.id)
                                         .plus("time" to it.sent.toJavaInstant())
                                         .plus("sender id" to it.sender)
-                                        .plus("image src url" to (response ?: url))
+                                        .plus("image src url" to cachedUrl)
                                 )
                             )
+                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
                         }
                     }
                 }
@@ -230,20 +230,19 @@ object ChatManager {
                                 "nsfw flag" to nsfw
                             )
                         ) {
-                            handleImageCaching(
-                                it
-                            )
+                            val cachedUrl = handleImageCaching(it)
                             val broadcastContent = mapOf(
                                 "type" to MessageTypes.PrivateMessage,
                                 "data" to it.data.plus("recipient id" to it.destination.id)
                                     .plus("time" to it.sent.toJavaInstant())
                                     .plus("sender id" to it.sender)
-                                    .plus("image src url" to (response ?: url))
+                                    .plus("image src url" to cachedUrl)
                             )
                             if (destination.id != senderId) {
                                 broadcastToParasite(destination.id, broadcastContent)
                             }
                             broadcastToParasite(senderId, broadcastContent)
+                            Messages.DAO.update(it.id, it.data.plus("image src url" to cachedUrl))
                         }
                     }
                 }
@@ -259,9 +258,9 @@ object ChatManager {
         currentSocketConnections.add(connection)
         Parasites.DAO.setLastActive(connection.parasiteId)
         updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)
-        val roomList = Rooms.DAO.list(connection.parasiteId, imageCacheHost)
+        val roomList = Rooms.DAO.list(connection.parasiteId)
         connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList)))
-        val privateMessagesList = Messages.DAO.list(connection.parasiteId, imageCacheHost)
+        val privateMessagesList = Messages.DAO.list(connection.parasiteId)
         connection.send(ServerMessage(ServerMessageTypes.PrivateMessageList, mapOf("threads" to privateMessagesList)))
         connection.send(
             ServerMessage(

@@ -17,7 +17,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         val name: String,
         val owner: EntityID<String>,
         val members: Array<String>,
-        var history: Array<Map<String, Any?>> = emptyArray()
+        var history: Array<Map<String, Any>> = emptyArray()
     ) : ChatTable.ObjectModel()
 
     object DAO : ChatTable.DAO() {
@@ -36,7 +36,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
             )
         }
 
-        fun list(forParasite: String, imageCacheHost: String? = null) = transaction {
+        fun list(forParasite: String) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .leftJoin(
                     Messages.messageHistoryQuery,
@@ -54,8 +54,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 .map {
                     resultRowToObject(it).also { room ->
                         room.history = Messages.parseMessagesCol(
-                            it.getOrNull(Messages.messageHistoryQuery[Messages.messagesCol]),
-                            imageCacheHost
+                            it.getOrNull(Messages.messageHistoryQuery[Messages.messagesCol])
                         )
                     }
                 }
