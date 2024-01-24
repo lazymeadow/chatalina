@@ -98,59 +98,53 @@ object ChatManager {
         broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
     }
 
-    fun handlePrivateMessage(destinationId: String, senderId: String, message: String) {
-        val parasite = Parasites.DAO.find(senderId)
-        parasite?.let {
-            if (Parasites.DAO.exists(destinationId)) {
-                Messages.DAO.create(
-                    parasite.id,
-                    MessageDestination(destinationId, MessageDestinationTypes.Parasite),
-                    mapOf(
-                        "username" to parasite.name,
-                        "color" to parasite.settings.color,
-                        "message" to message
-                    )
-                )?.let {
-                    val broadcastContent = mapOf(
-                        "type" to MessageTypes.PrivateMessage,
-                        "data" to it.data.plus("recipient id" to it.destination.id)
-                            .plus("time" to it.sent.toJavaInstant())
-                            .plus("sender id" to it.sender)
-                    )
-                    if (destinationId != senderId) {
-                        broadcastToParasite(destinationId, broadcastContent)
-                    }
-                    broadcastToParasite(senderId, broadcastContent)
+    fun handlePrivateMessage(destinationId: String, sender: Parasites.ParasiteObject, message: String) {
+        if (Parasites.DAO.exists(destinationId)) {
+            Messages.DAO.create(
+                sender.id,
+                MessageDestination(destinationId, MessageDestinationTypes.Parasite),
+                mapOf(
+                    "username" to sender.name,
+                    "color" to sender.settings.color,
+                    "message" to message
+                )
+            )?.let {
+                val broadcastContent = mapOf(
+                    "type" to MessageTypes.PrivateMessage,
+                    "data" to it.data.plus("recipient id" to it.destination.id)
+                        .plus("time" to it.sent.toJavaInstant())
+                        .plus("sender id" to it.sender)
+                )
+                if (destinationId != sender.id.value) {
+                    broadcastToParasite(destinationId, broadcastContent)
                 }
+                broadcastToParasite(sender.id.value, broadcastContent)
             }
         }
     }
 
-    fun handleChatMessage(destinationId: UUID, senderId: String, message: String) {
+    fun handleChatMessage(destinationId: UUID, sender: Parasites.ParasiteObject, message: String) {
         val destinationRoom = Rooms.DAO.get(destinationId)
         destinationRoom?.let {
             val memberConnections = currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
-            val parasite = Parasites.DAO.find(senderId)
-            parasite?.let {
-                Messages.DAO.create(
-                    parasite.id,
-                    MessageDestination(destinationId.toString(), MessageDestinationTypes.Room),
+            Messages.DAO.create(
+                sender.id,
+                MessageDestination(destinationId.toString(), MessageDestinationTypes.Room),
+                mapOf(
+                    "username" to sender.name,
+                    "color" to sender.settings.color,
+                    "message" to message
+                )
+            )?.let {
+                broadcast(
+                    memberConnections,
                     mapOf(
-                        "username" to parasite.name,
-                        "color" to parasite.settings.color,
-                        "message" to message
+                        "type" to MessageTypes.ChatMessage,
+                        "data" to it.data.plus("room id" to it.destination.id)
+                            .plus("time" to it.sent.toJavaInstant())
+                            .plus("sender id" to it.sender)
                     )
-                )?.let {
-                    broadcast(
-                        memberConnections,
-                        mapOf(
-                            "type" to MessageTypes.ChatMessage,
-                            "data" to it.data.plus("room id" to it.destination.id)
-                                .plus("time" to it.sent.toJavaInstant())
-                                .plus("sender id" to it.sender)
-                        )
-                    )
-                }
+                )
             }
         }
     }
@@ -175,51 +169,50 @@ object ChatManager {
         }
     }
 
-    fun handleImageMessage(destination: MessageDestination, senderId: String, url: String, nsfw: Boolean) {
-        fun handleImageCaching(newMessage: Messages.MessageObject): String {
-            return runBlocking {
-                val imageResponse = ktorClient.request(url)
-                if (imageResponse.status.isSuccess()) {
-                    val imageContentType = imageResponse.contentType() ?: ContentType.fromFilePath(url).firstOrNull()
-                    val imageContent = imageResponse.readBytes()
-                    uploadImageToS3(newMessage.id, imageContent, imageContentType) ?: url
-                } else {
-                    url
-                }
-            }
-        }
-
+    fun handleImageMessage(
+        destination: MessageDestination,
+        sender: Parasites.ParasiteObject,
+        url: String,
+        nsfw: Boolean
+    ) {
         fun createMessageAndCacheImage(
-            parasite: Parasites.ParasiteObject,
             broadcastImage: (Map<String, Any?>) -> Unit
         ) {
             Messages.DAO.create(
-                parasite.id,
+                sender.id,
                 destination,
                 mapOf(
-                    "username" to parasite.name,
-                    "color" to parasite.settings.color,
+                    "username" to sender.name,
+                    "color" to sender.settings.color,
                     "image url" to url,
                     "nsfw flag" to nsfw
                 )
-            ) {
-                val cachedUrl = handleImageCaching(it)
-                val newData = it.data.plus("image src url" to cachedUrl)
-                Messages.DAO.update(it.id, newData)
+            ) { newMessage ->
+                val cachedUrl = runBlocking {
+                    val imageResponse = ktorClient.request(url)
+                    if (imageResponse.status.isSuccess()) {
+                        val imageContentType = imageResponse.contentType() ?: ContentType.fromFilePath(url).firstOrNull()
+                        val imageContent = imageResponse.readBytes()
+                        uploadImageToS3(newMessage.id, imageContent, imageContentType) ?: url
+                    } else {
+                        url
+                    }
+                }
+                val newData = newMessage.data.plus("image src url" to cachedUrl)
+                Messages.DAO.update(newMessage.id, newData)
                 broadcastImage(
-                    newData.plus("time" to it.sent.toJavaInstant())
-                        .plus("sender id" to it.sender)
+                    newData.plus("time" to newMessage.sent.toJavaInstant())
+                        .plus("sender id" to newMessage.sender)
                 )
             }
         }
 
-        val parasite = Parasites.DAO.find(senderId) ?: return
         when (destination.type) {
             MessageDestinationTypes.Room -> {
                 Rooms.DAO.get(UUID.fromString(destination.id))?.let { destinationRoom ->
                     val memberConnections =
                         currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
-                    createMessageAndCacheImage(parasite) { data ->
+                    createMessageAndCacheImage { data ->
                         broadcast(
                             memberConnections,
                             mapOf(
@@ -232,15 +225,15 @@ object ChatManager {
             }
             MessageDestinationTypes.Parasite -> {
                 if (Parasites.DAO.exists(destination.id)) {
-                    createMessageAndCacheImage(parasite) { data ->
+                    createMessageAndCacheImage { data ->
                         val broadcastContent = mapOf(
                             "type" to MessageTypes.PrivateMessage,
                             "data" to data.plus("recipient id" to destination.id)
                         )
-                        if (destination.id != senderId) {
+                        if (destination.id != sender.id.value) {
                             broadcastToParasite(destination.id, broadcastContent)
                         }
-                        broadcastToParasite(senderId, broadcastContent)
+                        broadcastToParasite(sender.id, broadcastContent)
                     }
                 }
             }
@@ -249,7 +242,7 @@ object ChatManager {
 
     fun handleImageUploadMessage(
         destination: MessageDestination,
-        senderId: String,
+        sender: Parasites.ParasiteObject,
         imageData: String,
         imageType: String,
         nsfw: Boolean
@@ -260,15 +253,14 @@ object ChatManager {
         }
 
         fun createMessageAndUploadImage(
-            parasite: Parasites.ParasiteObject,
             broadcastResult: (Map<String, Any?>) -> Unit
         ) {
             Messages.DAO.create(
-                parasite.id,
+                sender.id,
                 destination,
                 mapOf(
-                    "username" to parasite.name,
-                    "color" to parasite.settings.color,
+                    "username" to sender.name,
+                    "color" to sender.settings.color,
                     "image url" to "",
                     "nsfw flag" to nsfw
                 )
@@ -290,13 +282,12 @@ object ChatManager {
             }
         }
 
-        val parasite = Parasites.DAO.find(senderId) ?: return
         when (destination.type) {
             MessageDestinationTypes.Room -> {
                 Rooms.DAO.get(UUID.fromString(destination.id))?.let { destinationRoom ->
                     val memberConnections =
                         currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
-                    createMessageAndUploadImage(parasite) { data ->
+                    createMessageAndUploadImage { data ->
                         broadcast(
                             memberConnections,
                             mapOf(
@@ -309,15 +300,15 @@ object ChatManager {
             }
             MessageDestinationTypes.Parasite -> {
                 if (Parasites.DAO.exists(destination.id)) {
-                    createMessageAndUploadImage(parasite) { data ->
+                    createMessageAndUploadImage { data ->
                         val broadcastContent = mapOf(
                             "type" to MessageTypes.PrivateMessage,
                             "data" to data.plus("recipient id" to destination.id)
                         )
-                        if (destination.id != senderId) {
+                        if (destination.id != sender.id.value) {
                             broadcastToParasite(destination.id, broadcastContent)
                         }
-                        broadcastToParasite(senderId, broadcastContent)
+                        broadcastToParasite(sender.id, broadcastContent)
                     }
                 }
             }
@@ -369,6 +360,10 @@ object ChatManager {
                 )
             )
         }
+    }
+
+    fun broadcastToParasite(parasiteId: EntityID<String>, data: Any) {
+        broadcastToParasite(parasiteId.value, data)
     }
 
     fun broadcastToParasite(parasiteId: String, data: Any) {

@@ -274,7 +274,7 @@ object ChatMessageHandler : MessageHandler {
             if (messageContent.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleChatMessage(destinationRoom, connection.parasiteId, messageContent)
+                ChatManager.handleChatMessage(destinationRoom, parasite, messageContent)
             }
         }
     }
@@ -297,7 +297,7 @@ object PrivateMessageHandler : MessageHandler {
             if (messageContent.isNullOrBlank() || destinationParasite.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handlePrivateMessage(destinationParasite, connection.parasiteId, messageContent)
+                ChatManager.handlePrivateMessage(destinationParasite, parasite, messageContent)
             }
         }
     }
@@ -330,7 +330,7 @@ object ImageMessageHandler : MessageHandler {
                     try {
                         ChatManager.handleImageMessage(
                             it,
-                            connection.parasiteId,
+                            parasite,
                             messageBody.url.toString(),
                             messageBody.nsfw.toString().toBoolean()
                         )
@@ -374,7 +374,7 @@ object ImageUploadMessageHandler : MessageHandler {
                     try {
                         ChatManager.handleImageUploadMessage(
                             it,
-                            connection.parasiteId,
+                            parasite,
                             messageBody.imageData.toString(),
                             messageBody.imageType.toString(),
                             messageBody.nsfw.toString().toBoolean()
