@@ -6,10 +6,30 @@ import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
 import org.jetbrains.exposed.sql.transactions.transaction
 import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty1
 
+
+enum class ParasitePermissions {
+    Admin,
+    Mod,
+    User;
+
+    override fun toString() = super.toString().lowercase()
+
+    companion object {
+        fun permissionLevelAccess(accessLevel: ParasitePermissions, permission: ParasitePermissions): Boolean {
+            fun checkPermissionAccess(vararg allowed: ParasitePermissions) = allowed.any { it == accessLevel }
+            return when (permission) {
+                Admin -> checkPermissionAccess(Admin, Mod, User)
+                Mod -> checkPermissionAccess(Mod, User)
+                User -> checkPermissionAccess(User)
+            }
+        }
+    }
+}
 
 data class ParasiteSettings(
     var displayName: String? = null,
@@ -17,7 +37,7 @@ data class ParasiteSettings(
     var volume: String = "100",
     var soundSet: String = "AIM",
     var faction: String = "rebel",
-    var permission: String = "user"
+    var permission: ParasitePermissions = ParasitePermissions.User
 )
 
 inline fun <reified T : Any?> ParasiteSettings.setProperty(prop: KProperty1<ParasiteSettings, T>, newValue: T) {
@@ -64,6 +84,53 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         fun list(active: Boolean = true): List<ParasiteObject> = transaction {
             val query = Parasites.selectAll().where { Parasites.active eq active }
             query.map { resultRowToObject(it) }
+        }
+
+        fun listWithoutPermissions(
+            excludeParasiteId: String,
+            vararg permissions: ParasitePermissions
+        ): List<Map<String, String>> = listForPermissions(
+            excludeParasiteId,
+            false,
+            permissions.map { it.toString() }
+        )
+
+        fun listWithPermissions(
+            excludeParasiteId: String,
+            vararg permissions: ParasitePermissions
+        ): List<Map<String, String>> = listForPermissions(
+            excludeParasiteId,
+            true,
+            permissions.map { it.toString() }
+        )
+
+        private fun listForPermissions(
+            excludeParasiteId: String,
+            hasPermission: Boolean,
+            permissionStrings: List<String>
+        ): List<Map<String, String>> = transaction {
+            val permissionCol = coalesce(
+                settings doubleArrow "permission",
+                stringLiteral(ParasitePermissions.User.toString())
+            )
+            Parasites.select(Parasites.id, settings)
+                .where { Parasites.id neq excludeParasiteId }
+                .let {
+                    if (hasPermission) {
+                        it.andWhere { permissionCol inList permissionStrings }
+                    } else {
+                        it.andWhere { permissionCol notInList permissionStrings }
+                    }
+                }.map { row ->
+                    val rowSettings = row.getOrNull(settings) ?: ParasiteSettings()
+                    mapOf(
+                        "username" to (
+                                rowSettings.displayName?.let { "${it} (${row[Parasites.id]})" }
+                                        ?: row[Parasites.id].value
+                                ),
+                        "id" to row[Parasites.id].value
+                    )
+                }
         }
 
         fun find(parasiteId: String): ParasiteObject? = transaction {

@@ -33,7 +33,7 @@ private fun Route.getMain() {
         call.response.cookies.append("volume", sessionParasite.settings.volume)
         call.response.cookies.append("email", sessionParasite.email)
         call.response.cookies.append("faction", sessionParasite.settings.faction)
-        call.response.cookies.append("permission", sessionParasite.settings.permission)
+        call.response.cookies.append("permission", sessionParasite.settings.permission.toString())
         call.response.cookies.append("soundSet", sessionParasite.settings.soundSet)
         call.response.cookies.append("id", sessionParasite.id.value)
 

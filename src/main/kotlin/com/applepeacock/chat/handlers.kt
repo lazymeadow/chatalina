@@ -401,6 +401,7 @@ object ImageUploadMessageHandler : MessageHandler {
         }
     }
 }
+
 open class GithubIssueMessageHandler(val issueType: String) : MessageHandler {
     class GithubIssueMessageBody(type: MessageTypes) : MessageBody(type) {
         val title by fromOther("title")
@@ -416,14 +417,60 @@ open class GithubIssueMessageHandler(val issueType: String) : MessageHandler {
             if (messageBody.title?.toString().isNullOrBlank() || messageBody.body?.toString().isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleGithubIssueMessage(connection, issueType, messageBody.title.toString(), messageBody.body.toString())
+                ChatManager.handleGithubIssueMessage(
+                    connection,
+                    issueType,
+                    messageBody.title.toString(),
+                    messageBody.body.toString()
+                )
             }
         }
     }
 }
 
-object BugReportMessageHandler: GithubIssueMessageHandler("bug")
-object FeatureRequestMessageHandler: GithubIssueMessageHandler("bug")
+object BugReportMessageHandler : GithubIssueMessageHandler("bug")
+object FeatureRequestMessageHandler : GithubIssueMessageHandler("bug")
+
+object ToolListMessageHandler : MessageHandler {
+    class ToolListMessageBody(type: MessageTypes) : MessageBody(type) {
+        val permissionLevel by fromOther("tool set")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<ToolListMessageBody>(body) { messageBody ->
+            if (messageBody.permissionLevel?.toString().isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                enumValues<ParasitePermissions>().find { it.toString() == messageBody.permissionLevel.toString() }?.let { accessLevel ->
+                    ChatManager.handleToolListRequest(connection, parasite, accessLevel)
+                }
+            }
+        }
+    }
+}
+object ToolDataMessageHandler : MessageHandler {
+    class ToolDataMessageBody(type: MessageTypes) : MessageBody(type) {
+        val toolId by fromOther("data type")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<ToolDataMessageBody>(body) { messageBody ->
+            if (messageBody.toolId?.toString().isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                ChatManager.handleToolDataRequest(connection, parasite, messageBody.toolId.toString())
+            }
+        }
+    }
+}
 
 @Suppress("unused")  // they are used actually
 enum class MessageTypes(val value: String) {
@@ -454,18 +501,23 @@ enum class MessageTypes(val value: String) {
     ImageUpload("image upload") {
         override val handler = ImageUploadMessageHandler
     },
+
+    //    RoomAction("room action"),
+//    RemoveAlert("remove alert"),
     Bug("bug") {
         override val handler = BugReportMessageHandler
     },
     Feature("feature") {
         override val handler = FeatureRequestMessageHandler
     },
-
-    //    RoomAction("room action"),
-//    RemoveAlert("remove alert"),
-//    ToolList("tool list"),
-//    DataRequest("data request"),
+    ToolList("tool list") {
+        override val handler = ToolListMessageHandler
+    },
+    ToolData("data request") {
+        override val handler = ToolDataMessageHandler
+                                },
 //    AdminRequest("admin request"),
+
     @JsonEnumDefaultValue Unknown("unknown") {
         override val handler = UnknownMessageHandler
     };

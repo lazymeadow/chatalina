@@ -36,6 +36,35 @@ object Rooms : UUIDTable("rooms"), ChatTable {
             )
         }
 
+
+        fun sparseList(forParasite: String? = null, withMembers: Boolean = false, onlyEmpty: Boolean = false) =
+            transaction {
+                Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
+                    .select(Rooms.id, name, roomAccessQuery[membersCol])
+                    .also { q ->
+                        forParasite?.let { p ->
+                            q.where { roomAccessQuery[membersCol] any stringParam(p) }
+                        }
+                        if (onlyEmpty) {
+                            q.where {
+                                CustomFunction<Int>(
+                                    "CARDINALITY",
+                                    IntegerColumnType(),
+                                    roomAccessQuery[membersCol]
+                                ) eq intLiteral(0)
+                            }
+                        }
+                    }.map {
+                        buildMap {
+                            put("id", it[Rooms.id])
+                            put("name", it[name])
+                            if (withMembers) {
+                                put("members", it[roomAccessQuery[membersCol]])
+                            }
+                        }
+                    }
+            }
+
         fun list(forParasite: String) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .leftJoin(

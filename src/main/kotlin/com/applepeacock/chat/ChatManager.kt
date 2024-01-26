@@ -376,6 +376,43 @@ object ChatManager {
         }
     }
 
+    fun handleToolListRequest(
+        connection: ChatSocketConnection,
+        sender: Parasites.ParasiteObject,
+        accessLevel: ParasitePermissions
+    ) {
+        if (ParasitePermissions.permissionLevelAccess(accessLevel, sender.settings.permission)) {
+            connection.logger.debug("Sending {} tool list to parasite.", accessLevel)
+            val toolList = accessLevel.getToolList()
+            connection.send(
+                ServerMessage(
+                    ServerMessageTypes.ToolList,
+                    mapOf("perm level" to accessLevel, "data" to toolList)
+                )
+            )
+        }
+    }
+
+    fun handleToolDataRequest(connection: ChatSocketConnection, sender: Parasites.ParasiteObject, toolId: String) {
+        toolDefinitions.find { it.id == toolId }?.let { definition ->
+            var data: Any? = null
+            var info: ToolDefinition<*, *>? = null
+            var error: String? = null
+            if (ParasitePermissions.permissionLevelAccess(definition.accessLevel, sender.settings.permission)) {
+                info = definition
+                data = definition.dataFunction(sender)
+            } else {
+                error = "Insufficient permissions"
+            }
+            connection.send(
+                ServerMessage(
+                    ServerMessageTypes.ToolResponse,
+                    mapOf("tool info" to info, "data" to data, "request" to toolId, "error" to error)
+                )
+            )
+        }
+    }
+
     fun addConnection(connection: ChatSocketConnection) {
         val wasOffline = (parasiteStatusMap.getOrDefault(
             connection.parasiteId,
@@ -478,7 +515,9 @@ enum class ServerMessageTypes(val value: String) {
     AuthFail("auth fail"),
     UserList("user list"),
     RoomList("room data"),
-    PrivateMessageList("private message data");
+    PrivateMessageList("private message data"),
+    ToolList("tool list"),
+    ToolResponse("data response");
 
     override fun toString(): String {
         return this.value
