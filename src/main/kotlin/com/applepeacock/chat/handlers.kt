@@ -402,7 +402,7 @@ object ImageUploadMessageHandler : MessageHandler {
     }
 }
 
-open class GithubIssueMessageHandler(val issueType: String) : MessageHandler {
+object GithubIssueMessageHandler : MessageHandler {
     class GithubIssueMessageBody(type: MessageTypes) : MessageBody(type) {
         val title by fromOther("title")
         val body by fromOther("body")
@@ -419,7 +419,7 @@ open class GithubIssueMessageHandler(val issueType: String) : MessageHandler {
             } else {
                 ChatManager.handleGithubIssueMessage(
                     connection,
-                    issueType,
+                    messageBody.type.toString(),
                     messageBody.title.toString(),
                     messageBody.body.toString()
                 )
@@ -428,8 +428,6 @@ open class GithubIssueMessageHandler(val issueType: String) : MessageHandler {
     }
 }
 
-object BugReportMessageHandler : GithubIssueMessageHandler("bug")
-object FeatureRequestMessageHandler : GithubIssueMessageHandler("bug")
 
 object ToolListMessageHandler : MessageHandler {
     class ToolListMessageBody(type: MessageTypes) : MessageBody(type) {
@@ -505,10 +503,10 @@ enum class MessageTypes(val value: String) {
     //    RoomAction("room action"),
 //    RemoveAlert("remove alert"),
     Bug("bug") {
-        override val handler = BugReportMessageHandler
+        override val handler = GithubIssueMessageHandler
     },
     Feature("feature") {
-        override val handler = FeatureRequestMessageHandler
+        override val handler = GithubIssueMessageHandler
     },
     ToolList("tool list") {
         override val handler = ToolListMessageHandler
