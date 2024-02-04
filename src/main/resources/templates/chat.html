@@ -9,7 +9,6 @@
 
 {% block content %}
 <div id="alerts"></div>
-
 <div class="left">
     <div id="current-user" class="active">
         <span class="online-status"></span>
@@ -50,7 +49,7 @@
                     </div>
                 </div>
                 <table id="emoji_list">
-                    {% for emojis in emoji_list %}
+                    {% for emoji in emojiList %}
                     {% if (loop.index % 12) == 0 %}
                     <tr>
                     {% endif %}

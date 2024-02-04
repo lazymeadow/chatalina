@@ -33,6 +33,7 @@ fun Application.configureHTTP() {
     install(Pebble) {
         loader(ClasspathLoader().apply {
             prefix = "templates"
+            charset = "UTF-8"
         })
     }
     routing {

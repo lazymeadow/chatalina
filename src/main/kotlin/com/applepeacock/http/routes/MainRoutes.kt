@@ -1,6 +1,7 @@
 package com.applepeacock.http.routes
 
 import com.applepeacock.database.Parasites
+import com.applepeacock.emoji.EmojiManager
 import com.applepeacock.http.RedirectException
 import com.applepeacock.http.getPebbleContent
 import com.applepeacock.plugins.ParasiteSession
@@ -37,7 +38,7 @@ private fun Route.getMain() {
         call.response.cookies.append("soundSet", sessionParasite.settings.soundSet)
         call.response.cookies.append("id", sessionParasite.id.value)
 
-        call.respond(application.getPebbleContent("chat.html"))
+        call.respond(application.getPebbleContent("chat.html", "emojiList" to EmojiManager.curatedEmojis))
     }
 }
 
@@ -54,6 +55,6 @@ private fun Route.getMobile() {
         call.response.cookies.append("soundSet", sessionParasite.settings.soundSet)
         call.response.cookies.append("id", sessionParasite.id.value)
 
-        call.respond(application.getPebbleContent("mobile.html"))
+        call.respond(application.getPebbleContent("mobile.html", "emojiList" to EmojiManager.curatedEmojis))
     }
 }
