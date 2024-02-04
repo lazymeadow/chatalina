@@ -1,14 +1,10 @@
 package com.applepeacock.emoji
 
 import io.ktor.util.*
-import org.junit.BeforeClass
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 
-internal class AsciiTest {
-    private fun String.getExpectedEmojiVal() = emojiManager.emojiData.find { it.hexcode == this }?.emoji
-    private fun String.formatEmojis(vararg args: String) = this.format(*args.map { it.getExpectedEmojiVal() }.toTypedArray())
-
+internal class AsciiTest: EmojiTestSuite() {
     @Test
     fun testAscii() {
         val smile = emojiManager.asciiToUnicode(":)")
@@ -83,16 +79,6 @@ internal class AsciiTest {
                     e1.value.getExpectedEmojiVal()
                 ), result
             )
-        }
-    }
-
-    companion object {
-        val emojiManager = EmojiManager
-
-        @JvmStatic
-        @BeforeClass
-        fun ready() {
-            EmojiManager.configure()
         }
     }
 }

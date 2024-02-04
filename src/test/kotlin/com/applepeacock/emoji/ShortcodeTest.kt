@@ -1,14 +1,11 @@
 package com.applepeacock.emoji
 
 import io.ktor.util.*
-import org.junit.BeforeClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class ShortcodeTest {
+class ShortcodeTest : EmojiTestSuite() {
     private fun String.asShortcode() = ":$this:"
-    private fun String.getExpectedEmojiVal() = emojiManager.emojiData.find { it.hexcode == this }?.emoji
-    private fun String.formatEmojis(vararg args: String) = this.format(*args.map { it.getExpectedEmojiVal() }.toTypedArray())
 
     @Test
     fun testShortcode() {
@@ -16,7 +13,7 @@ class ShortcodeTest {
         assertEquals("1F602".getExpectedEmojiVal(), joy)
     }
 
-    @org.junit.Test
+    @Test
     fun testIndividual() {
         val errors = mutableListOf<String>()
         emojiManager.shortcodeMap.forEach { (hex, shortcodes) ->
@@ -28,7 +25,7 @@ class ShortcodeTest {
         assert(errors.isEmpty()) { "Failed to match ${errors.size} shortcodes to emoji:\n${errors.joinToString("\n")}" }
     }
 
-    @org.junit.Test
+    @Test
     fun testThreeSpaced() {
         // 10 sets of 3 random ascii values separated by spaces
         val template = "%s %s %s"
@@ -49,7 +46,7 @@ class ShortcodeTest {
         }
     }
 
-    @org.junit.Test
+    @Test
     fun testWords() {
         // 10 sets of 3 random ascii values
         val template = "hey, i am words %s words words %s words"
@@ -57,16 +54,22 @@ class ShortcodeTest {
         for (i in 1..1000) {
             val e1 = shortcodeEntries.random()
             val e2 = shortcodeEntries.random()
-            val result = emojiManager.shortcodeToUnicode(template.format(e1.value.random().asShortcode(), e2.value.random().asShortcode()))
+            val result =
+                emojiManager.shortcodeToUnicode(
+                    template.format(
+                        e1.value.random().asShortcode(),
+                        e2.value.random().asShortcode()
+                    )
+                )
             assertEquals(template.formatEmojis(e1.key, e2.key), result)
         }
     }
 
-    @org.junit.Test
+    @Test
     fun testEscaped() {
         val errors = mutableListOf<String>()
         emojiManager.shortcodeMap.forEach { (hex, codes) ->
-            codes.forEach {code ->
+            codes.forEach { code ->
                 val escapedCode = code.asShortcode().escapeHTML()
                 val result = emojiManager.shortcodeToUnicode(escapedCode)
                 if (result != hex.getExpectedEmojiVal()) errors.add("$escapedCode <> $result")
@@ -75,7 +78,7 @@ class ShortcodeTest {
         assert(errors.isEmpty()) { "Failed to match ${errors.size} ascii to emoji:\n${errors.joinToString("\n")}" }
     }
 
-    @org.junit.Test
+    @Test
     fun testWithTags() {
         // 10 sets of 3 random ascii values
         // the penultimate should be IGNORED, since its involved with the innards of an <a>
@@ -87,6 +90,7 @@ class ShortcodeTest {
             val s1 = e1.value.random().asShortcode()
             val s2 = e2.value.random().asShortcode()
             val result = emojiManager.shortcodeToUnicode(template.format(s1, s2, s1, s2, s1, s1))
+            out.println(result)
             assertEquals(
                 template.format(
                     e1.key.getExpectedEmojiVal(),
@@ -97,16 +101,6 @@ class ShortcodeTest {
                     e1.key.getExpectedEmojiVal()
                 ), result
             )
-        }
-    }
-
-    companion object {
-        val emojiManager = EmojiManager
-
-        @JvmStatic
-        @BeforeClass
-        fun ready() {
-            EmojiManager.configure()
         }
     }
 }

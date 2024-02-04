@@ -59,13 +59,14 @@ object EmojiManager {
         return msg
     }
 
-    private fun convertHexToUnicode(hex: String): String {
-        return emojiData.find { it.hexcode == hex }?.emoji ?: hex
+    internal fun convertHexToUnicode(hex: String): String {
+        return hex.split('-').joinToString("") { Character.toString(it.toInt(16)) }
     }
 
     internal fun shortcodeToUnicode(text: String): String {
         return shortcodeRegex.replace(HtmlEscape.unescapeHtml(text)) { match ->
-            shortcodeMap.entries.find { it.value.contains(match.value.trim(':')) }?.let { convertHexToUnicode(it.key) }
+            shortcodeMap.entries.find { it.value.contains(match.value.trim(':')) }
+                ?.let { convertHexToUnicode(it.key) }
                     ?: match.value
         }
     }
