@@ -6,6 +6,7 @@ import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
 import com.applepeacock.database.*
 import com.applepeacock.database.AlertData.Companion.toMap
+import com.applepeacock.emoji.EmojiManager
 import com.applepeacock.http.AuthenticationException
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
@@ -121,15 +122,20 @@ object ChatManager {
         broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
     }
 
+    private fun processMessage(message: String): String {
+        return EmojiManager.convertEmojis(message)
+    }
+
     fun handlePrivateMessage(destinationId: String, sender: Parasites.ParasiteObject, message: String) {
         if (Parasites.DAO.exists(destinationId)) {
+            val processedMessage = processMessage(message)
             Messages.DAO.create(
                 sender.id,
                 MessageDestination(destinationId, MessageDestinationTypes.Parasite),
                 mapOf(
                     "username" to sender.name,
                     "color" to sender.settings.color,
-                    "message" to message
+                    "message" to processedMessage
                 )
             )?.let {
                 val broadcastContent = mapOf(
@@ -150,13 +156,14 @@ object ChatManager {
         val destinationRoom = Rooms.DAO.get(destinationId)
         destinationRoom?.let {
             val memberConnections = currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
+            val processedMessage = processMessage(message)
             Messages.DAO.create(
                 sender.id,
                 MessageDestination(destinationId.toString(), MessageDestinationTypes.Room),
                 mapOf(
                     "username" to sender.name,
                     "color" to sender.settings.color,
-                    "message" to message
+                    "message" to processedMessage
                 )
             )?.let {
                 broadcast(

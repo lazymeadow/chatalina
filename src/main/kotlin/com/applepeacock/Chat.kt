@@ -2,6 +2,7 @@ package com.applepeacock
 
 import com.applepeacock.chat.ChatManager
 import com.applepeacock.database.configureDatabases
+import com.applepeacock.emoji.EmojiManager
 import com.applepeacock.http.configureHTTP
 import com.applepeacock.plugins.configureMonitoring
 import com.applepeacock.plugins.configureSerialization
@@ -41,6 +42,8 @@ val Application.secretKey
 fun Application.module() {
     val secretKeyString = environment.config.property("bec.secret_key").getString()
     secretKeyField = SecretKeySpec(secretKeyString.decodeBase64Bytes(), "AES")
+
+    EmojiManager.configure()
 
 //    configureSecurity()
     configureSessions()
