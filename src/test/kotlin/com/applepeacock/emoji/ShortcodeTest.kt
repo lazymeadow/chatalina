@@ -90,7 +90,6 @@ class ShortcodeTest : EmojiTestSuite() {
             val s1 = e1.value.random().asShortcode()
             val s2 = e2.value.random().asShortcode()
             val result = emojiManager.shortcodeToUnicode(template.format(s1, s2, s1, s2, s1, s1))
-            out.println(result)
             assertEquals(
                 template.format(
                     e1.key.getExpectedEmojiVal(),

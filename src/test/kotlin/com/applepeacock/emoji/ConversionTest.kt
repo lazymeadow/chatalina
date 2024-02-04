@@ -13,7 +13,7 @@ class ConversionTest:EmojiTestSuite() {
     @Test
     fun testLibrary() {
         val errors = mutableListOf<String>()
-        emojiManager.emojiData.forEachIndexed { index, it ->
+        emojiManager.emojiData.forEach { it ->
             val result = emojiManager.convertHexToUnicode(it.hexcode)
             if (result != it.emoji) {
                 // a TON of the emojis in the library are mismatched between the hexcode and the emoji having 1 vs 2 bytes.

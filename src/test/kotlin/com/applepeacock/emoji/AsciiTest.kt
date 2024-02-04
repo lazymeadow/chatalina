@@ -18,6 +18,7 @@ internal class AsciiTest: EmojiTestSuite() {
             val result = emojiManager.asciiToUnicode(ascii)
             if (hex.getExpectedEmojiVal() != result) errors.add("$ascii <> $result")
         }
+
         assert(errors.isEmpty()) { "Failed to match ${errors.size} ascii to emoji:\n${errors.joinToString("\n")}" }
     }
 

@@ -85,4 +85,29 @@ object EmojiManager {
             asciiMap[match.value]?.let { convertHexToUnicode(it) } ?: match.value
         }
     }
+
+    fun search(query: String): List<String> {
+        val results = mutableSetOf<String>()
+        // exact matches first
+        // find any shortcode matches
+        shortcodeMap.entries.filter { it.value.any{sc -> sc.lowercase() == query.lowercase() } }.mapTo(results) { convertHexToUnicode(it.key) }
+        if (results.size >= 108) return results.take(108)
+        // find any ascii matches
+        asciiMap.entries.filter { it.key.lowercase() == query.lowercase() }.mapTo(results) { convertHexToUnicode(it.value) }
+        if (results.size >= 108) return results.take(108)
+        // emojis that have the exact tag
+        emojiData.filter { it.tags.split(",").any { it.lowercase() == query.lowercase() } }.mapTo(results) { it.emoji }
+        if (results.size >= 108) return results.take(108)
+
+        // then partial matches
+        // find any shortcode matches
+        shortcodeMap.entries.filter { it.value.any{sc -> sc.contains(query, ignoreCase = true) } }.mapTo(results) { convertHexToUnicode(it.key) }
+        if (results.size >= 108) return results.take(108)
+        // find any ascii matches
+        asciiMap.entries.filter { it.key.contains(query, ignoreCase = true) }.mapTo(results) { convertHexToUnicode(it.value) }
+        if (results.size >= 108) return results.take(108)
+        // find matches in tags
+        emojiData.filter { it.tags.contains(query, ignoreCase = true) }.mapTo(results) { it.emoji }
+        return results.take(108)
+    }
 }

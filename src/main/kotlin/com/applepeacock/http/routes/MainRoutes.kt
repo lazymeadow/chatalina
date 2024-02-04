@@ -13,6 +13,7 @@ import io.ktor.server.routing.*
 fun Route.mainRoutes() {
     getMain()
     getMobile()
+    emojiSearch()
 }
 
 private fun Route.getMain() {
@@ -56,5 +57,17 @@ private fun Route.getMobile() {
         call.response.cookies.append("id", sessionParasite.id.value)
 
         call.respond(application.getPebbleContent("mobile.html", "emojiList" to EmojiManager.curatedEmojis))
+    }
+}
+
+private fun Route.emojiSearch() {
+    get("/emoji_search") {
+        val search = call.request.queryParameters["search"] ?: ""
+        val result = if (search.isBlank()) {
+            EmojiManager.curatedEmojis
+        } else {
+            EmojiManager.search(search)
+        }
+        call.respond(mapOf("search" to search, "result" to result))
     }
 }
