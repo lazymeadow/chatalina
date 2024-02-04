@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.databind.ser.std.StdSerializer
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import com.fasterxml.jackson.module.kotlin.jacksonMapperBuilder
@@ -26,13 +25,13 @@ import io.ktor.utils.io.*
 import io.ktor.utils.io.charsets.*
 import org.jetbrains.exposed.dao.id.EntityID
 import java.io.IOException
-import java.util.*
 
-val defaultMapper = jacksonMapperBuilder()
+val defaultMapper: JsonMapper = jacksonMapperBuilder()
     .configure(SerializationFeature.INDENT_OUTPUT, true)
     .configure(SerializationFeature.WRITE_ENUMS_USING_TO_STRING, true)
     .configure(DeserializationFeature.READ_ENUMS_USING_TO_STRING, true)
     .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE, true)
+    .configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true)
     .addModule(JavaTimeModule())
     .addModule(SimpleModule().addSerializer(EntityID::class.java, EntityIdSerializer()))
     .build()

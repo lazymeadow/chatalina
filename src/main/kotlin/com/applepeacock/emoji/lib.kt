@@ -27,20 +27,23 @@ internal data class EmojiDefinition(
 object EmojiManager {
     private val logger = LoggerFactory.getLogger("Emoji")
     internal lateinit var emojiData: List<EmojiDefinition>
-    private lateinit var shortcodeMap: Map<String, String>
+    internal lateinit var shortcodeMap: Map<String, List<String>>
     internal lateinit var asciiMap: Map<String, String>
 
     private val ignoredRegexPart =
         """<(?:object|embed|svg|img|div|span|p|a)[^>]*>|<\/(?:object|embed|svg|img|div|span|p|a)>"""
     private val asciiRegexPart =
         """(\A|(?<=[\s|>]))(([0O>']?[:=;B*#8X%]'?-?[\\/\(\)D*#${'$'}|\]\[@o0OXPpbSL])|([\(\[D][-]?[:=])|([oO>-](.|_+)?[oO<-])|(<[\\/]?3))(\Z|(?=[\s|<]))"""
+    private val shortcodeRegexPart = """:[-+\w]+:"""
     private val asciiRegex = "$ignoredRegexPart|($asciiRegexPart)".toRegex()
+    private val shortcodeRegex = "$ignoredRegexPart|($shortcodeRegexPart)".toRegex()
+
     fun configure() {
         logger.debug("Initializing Emoji Manager...")
         val emojiDataFile = this::class.java.getResource("/emoji/openmoji-15.0.json")
         emojiData = emojiDataFile?.let { defaultMapper.readValue(it) }
                 ?: throw ApplicationConfigurationException("No emoji data files available")
-        val shortcodeDataFile = this::class.java.getResource("/emoji/emojibase-15.3.0-cldr-shortcodes.json")
+        val shortcodeDataFile = this::class.java.getResource("/emoji/emojibase-15.0-shortcodes.json")
         shortcodeMap = shortcodeDataFile?.let { defaultMapper.readValue(it) }
                 ?: throw ApplicationConfigurationException("No shortcode files available")
         val asciiDataFile = this::class.java.getResource("/emoji/ascii-emoji-map.json")
@@ -61,7 +64,10 @@ object EmojiManager {
     }
 
     internal fun shortcodeToUnicode(text: String): String {
-        return text
+        return shortcodeRegex.replace(HtmlEscape.unescapeHtml(text)) { match ->
+            shortcodeMap.entries.find { it.value.contains(match.value.trim(':')) }?.let { convertHexToUnicode(it.key) }
+                    ?: match.value
+        }
     }
 
     internal fun asciiToUnicode(text: String): String {
