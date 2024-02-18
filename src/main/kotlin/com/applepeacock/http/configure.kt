@@ -32,7 +32,7 @@ fun Application.configureHTTP() {
     }
     install(Pebble) {
         loader(ClasspathLoader().apply {
-            prefix = "templates"
+            prefix = "templates/static"
             charset = "UTF-8"
         })
     }

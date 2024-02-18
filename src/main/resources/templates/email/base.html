@@ -1,0 +1,44 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      lang="en">
+<head>
+    <!--[if gte mso 9]>
+    <xml>
+        <o:OfficeDocumentSettings>
+            <o:AllowPNG/>
+            <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+    </xml>
+    <![endif]-->
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <!--[if !mso]><!-->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->
+    <title>{{ title }}</title>
+
+    <!--[if !mso]><!-->
+    <link href="https://fonts.googleapis.com/css2?family=Amiko:wght@400;600;700&display=swap" rel="stylesheet"
+          type="text/css"><!--<![endif]-->
+
+</head>
+<body style="font-family:'Amiko',sans-serif;margin: 0;padding: 0;-webkit-text-size-adjust: 100%;background-color: #ffffff;color: #000000">
+<div style="display:none !important;visibility:hidden;mso-hide:all;font-size:1px;color:#ffffff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+    {{ preview }}
+</div>
+<div style="text-align: center;font-family:'Amiko',sans-serif;">
+    <h1 style="font-family:'Amiko',sans-serif;">{{ title }}</h1>
+    <img src="{{ image }}"
+         alt="{{ image_alt }}"
+         title="{{ image_title }}"
+         width="480"
+    />
+    {% block html_body %}
+    {% endblock %}
+    <p style="font-size: 1.25em;padding-top:1em;font-family:'Amiko',sans-serif;">
+        The {{ site_name }} Server <img src="heart.png" alt="(heart)" title="love u <3" style="width: 1em;"/>
+    </p>
+</div>
+</body>
+</html>

@@ -69,6 +69,9 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
     }
 
     object DAO : ChatTable.DAO() {
+        private val permissionCol =
+            coalesce(settings doubleArrow "permission", stringLiteral(ParasitePermissions.User.toString()))
+
         override fun resultRowToObject(row: ResultRow): ParasiteObject {
             return ParasiteObject(
                 row[id],
@@ -81,10 +84,12 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             )
         }
 
-        fun list(active: Boolean = true): List<ParasiteObject> = transaction {
-            val query = Parasites.selectAll().where { Parasites.active eq active }
-            query.map { resultRowToObject(it) }
-        }
+        fun list(active: Boolean = true, permissionFilter: ParasitePermissions? = null): List<ParasiteObject> =
+            transaction {
+                val query = Parasites.selectAll().where { Parasites.active eq active }
+                permissionFilter?.also { query.andWhere { permissionCol eq stringParam(permissionFilter.toString()) } }
+                query.map { resultRowToObject(it) }
+            }
 
         fun listWithoutPermissions(
             excludeParasiteId: String,
@@ -109,10 +114,6 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             hasPermission: Boolean,
             permissionStrings: List<String>
         ): List<Map<String, String>> = transaction {
-            val permissionCol = coalesce(
-                settings doubleArrow "permission",
-                stringLiteral(ParasitePermissions.User.toString())
-            )
             Parasites.select(Parasites.id, settings)
                 .where { Parasites.id neq excludeParasiteId }
                 .let {
@@ -161,15 +162,15 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         }
 
         fun updatePassword(parasiteId: EntityID<String>, hashedPassword: ByteArray): Boolean = transaction {
-            updatePassword(parasiteId.value, hashedPassword)
-        }
-
-        fun updatePassword(parasiteId: String, hashedPassword: ByteArray): Boolean = transaction {
-            ParasitePasswords.update {
+            ParasitePasswords.upsert {
                 it[parasite] = parasiteId
                 it[password] = hashedPassword.decodeToString()
                 it[resetToken] = null
-            } == 1
+            }.insertedCount > 0
+        }
+
+        fun updatePassword(parasiteId: String, hashedPassword: ByteArray): Boolean = transaction {
+            updatePassword(EntityID(parasiteId, Parasites), hashedPassword)
         }
 
         fun isValidUsername(newUserName: String): Boolean = transaction {

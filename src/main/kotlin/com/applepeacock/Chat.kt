@@ -1,6 +1,7 @@
 package com.applepeacock
 
 import com.applepeacock.chat.ChatManager
+import com.applepeacock.chat.EmailHandler
 import com.applepeacock.database.configureDatabases
 import com.applepeacock.emoji.EmojiManager
 import com.applepeacock.http.configureHTTP
@@ -35,6 +36,8 @@ val Application.siteName
     get() = environment.config.property("bec.site_name").getString()
 
 lateinit var secretKeyField: SecretKeySpec
+
+@Suppress("UnusedReceiverParameter")  // shut up, i like it this way
 val Application.secretKey
     get() = secretKeyField
 
@@ -58,5 +61,13 @@ fun Application.module() {
         environment.config.property("bec.github.user").getString(),
         environment.config.property("bec.github.token").getString(),
         environment.config.property("bec.github.repo").getString()
+    )
+    EmailHandler.configure(
+        environment.config.property("bec.email.from_address").getString(),
+        environment.config.property("bec.email.smtp_host").getString(),
+        environment.config.property("bec.email.smtp_port").getString(),
+        environment.config.propertyOrNull("bec.email.smtp_tls")?.getString()?.toBooleanStrictOrNull(),
+        environment.config.propertyOrNull("bec.email.smtp_user")?.getString(),
+        environment.config.propertyOrNull("bec.email.smtp_pass")?.getString(),
     )
 }

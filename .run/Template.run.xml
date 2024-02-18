@@ -1,0 +1,31 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Template" type="JetRunConfigurationType">
+    <envs>
+      <env name="AWS_ACCESS_KEY_ID" value="" />
+      <env name="AWS_SECRET_ACCESS_KEY" value="" />
+      <env name="CLIENT_DOMAIN" value="" />
+      <env name="CLIENT_SECURE" value="" />
+      <env name="ENV" value="" />
+      <env name="FROM_ADDRESS" value="" />
+      <env name="GITHUB_REPO" value="" />
+      <env name="GITHUB_TOKEN" value="" />
+      <env name="GITHUB_USER" value="" />
+      <env name="IMAGE_CACHE_BUCKET" value="" />
+      <env name="IMAGE_CACHE_HOST" value="" />
+      <env name="PG_PASS" value="" />
+      <env name="PG_URL" value="" />
+      <env name="PG_USER" value="" />
+      <env name="SECRET_KEY" value="" />
+      <env name="SMTP_HOST" value="" />
+      <env name="SMTP_PASS" value="" />
+      <env name="SMTP_TLS" value="" />
+      <env name="SMTP_USER" value="" />
+    </envs>
+    <option name="MAIN_CLASS_NAME" value="com.applepeacock.ChatKt" />
+    <module name="chatalina-again.main" />
+    <shortenClasspath name="NONE" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

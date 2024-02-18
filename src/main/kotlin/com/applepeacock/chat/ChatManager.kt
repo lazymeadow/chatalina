@@ -21,6 +21,8 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.jackson.*
+import io.ktor.server.plugins.*
+import io.ktor.server.websocket.*
 import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.toJavaInstant
@@ -379,6 +381,7 @@ object ChatManager {
                         )
                     )
                 )
+                connection.session.application.sendErrorEmail(e)
             }
         }
     }
@@ -495,7 +498,12 @@ object ChatManager {
 
     suspend fun handleMessage(connection: ChatSocketConnection, body: String) {
         val currentParasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
-        val messageBody = defaultMapper.readValue<MessageBody>(body)
+        val messageBody = try {
+            defaultMapper.readValue<MessageBody>(body)
+        } catch (e: Throwable) {
+            connection.session.application.sendErrorEmail(e)
+            throw BadRequestException("Bad message content")
+        }
         connection.logger.debug("received message: {}", messageBody.type)
         messageBody.type.handler.handleMessage(connection, currentParasite, messageBody)
     }

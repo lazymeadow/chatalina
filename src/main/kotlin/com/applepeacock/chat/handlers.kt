@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.module.kotlin.convertValue
+import io.ktor.server.websocket.*
 import org.slf4j.event.Level
 import java.util.*
 import kotlin.reflect.KProperty1
@@ -168,6 +169,7 @@ object SettingsMessageHandler : MessageHandler {
                         passwordBody["password"]!!.toByteArray()
                     )
                     val success = Parasites.DAO.updatePassword(parasite.id, hashed)
+                    if (success) connection.session.application.sendEmail(EmailTypes.ChangedPassword, parasite)
                     alerts.add(
                         ServerMessage(
                             ServerMessageTypes.Alert,
@@ -338,9 +340,14 @@ object ImageMessageHandler : MessageHandler {
                         connection.send(
                             ServerMessage(
                                 ServerMessageTypes.Alert,
-                                AlertData("dismiss", "Failed to send image.", "dismiss")
+                                AlertData(
+                                    "dismiss",
+                                    "Failed to send image. Admins have been notified of this incident.",
+                                    "dismiss"
+                                )
                             )
                         )
+                        connection.session.application.sendErrorEmail(e)
                     }
                 } ?: let {
                     connection.logger.error("Bad message content")
@@ -390,9 +397,14 @@ object ImageUploadMessageHandler : MessageHandler {
                         connection.send(
                             ServerMessage(
                                 ServerMessageTypes.Alert,
-                                AlertData("dismiss", "Failed to upload image.", "dismiss")
+                                AlertData(
+                                    "dismiss",
+                                    "Failed to upload image. Admins have been notified of this incident.",
+                                    "dismiss"
+                                )
                             )
                         )
+                        connection.session.application.sendErrorEmail(e)
                     }
                 } ?: let {
                     connection.logger.error("Bad message content")
@@ -443,13 +455,15 @@ object ToolListMessageHandler : MessageHandler {
             if (messageBody.permissionLevel?.toString().isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                enumValues<ParasitePermissions>().find { it.toString() == messageBody.permissionLevel.toString() }?.let { accessLevel ->
-                    ChatManager.handleToolListRequest(connection, parasite, accessLevel)
-                }
+                enumValues<ParasitePermissions>().find { it.toString() == messageBody.permissionLevel.toString() }
+                    ?.let { accessLevel ->
+                        ChatManager.handleToolListRequest(connection, parasite, accessLevel)
+                    }
             }
         }
     }
 }
+
 object ToolDataMessageHandler : MessageHandler {
     class ToolDataMessageBody(type: MessageTypes) : MessageBody(type) {
         val toolId by fromOther("data type")
@@ -513,7 +527,7 @@ enum class MessageTypes(val value: String) {
     },
     ToolData("data request") {
         override val handler = ToolDataMessageHandler
-                                },
+    },
 //    AdminRequest("admin request"),
 
     @JsonEnumDefaultValue Unknown("unknown") {

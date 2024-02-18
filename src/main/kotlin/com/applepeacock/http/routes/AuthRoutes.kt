@@ -1,6 +1,8 @@
 package com.applepeacock.http.routes
 
 import at.favre.lib.crypto.bcrypt.BCrypt
+import com.applepeacock.chat.EmailTypes
+import com.applepeacock.chat.sendEmail
 import com.applepeacock.database.Parasites
 import com.applepeacock.hostUrl
 import com.applepeacock.http.AuthenticationException
@@ -21,6 +23,7 @@ import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import io.ktor.util.*
 import javax.crypto.Cipher
+import javax.crypto.IllegalBlockSizeException
 
 fun Route.authenticationRoutes() {
     route("/login") {
@@ -149,18 +152,16 @@ private fun Route.postForgotPassword() {
         data class ForgotPasswordRequest(val parasite: String)
 
         val body = call.receive<ForgotPasswordRequest>()
-        if (Parasites.DAO.exists(body.parasite)) {
+        val foundParasite = Parasites.DAO.find(body.parasite)
+        if (foundParasite != null) {
             val cipher = Cipher.getInstance("AES")
             cipher.init(Cipher.ENCRYPT_MODE, application.secretKey)
             val newResetToken = cipher.doFinal(body.parasite.toByteArray()).encodeBase64()
 
             Parasites.DAO.newPasswordResetToken(body.parasite, newResetToken)
 
-            if (application.isProduction) {
-                TODO("send an email")
-            } else {
-                application.log.debug("Password reset link for parasite ${body.parasite}: ${application.hostUrl}/reset-password?token=${newResetToken}")
-            }
+            val resetLink = "${application.hostUrl}/reset-password?token=${newResetToken}"
+            application.sendEmail(EmailTypes.ForgotPassword, foundParasite, mapOf("reset_link" to resetLink))
         } else {
             application.log.debug("Password reset request failed for parasite id: ${body.parasite}")
         }
@@ -179,30 +180,37 @@ private fun Route.getResetPassword() {
 private fun Route.postResetPassword() {
     post {
         data class ResetPasswordRequest(val token: String, val password: String, val password2: String)
+
         val body = call.receive<ResetPasswordRequest>()
 
-        val cipher = Cipher.getInstance("AES")
-        cipher.init(Cipher.DECRYPT_MODE, application.secretKey)
-        val parasiteId = cipher.doFinal(body.token.decodeBase64Bytes()).decodeToString()
-        if (!Parasites.DAO.checkToken(parasiteId, body.token)) {
+        try {
+            val cipher = Cipher.getInstance("AES")
+            cipher.init(Cipher.DECRYPT_MODE, application.secretKey)
+            val parasiteId = cipher.doFinal(body.token.decodeBase64Bytes()).decodeToString()
+            val parasite = Parasites.DAO.find(parasiteId)
+            if (parasite == null || !Parasites.DAO.checkToken(parasiteId, body.token)) {
+                throw BadRequestException("Invalid password reset link.")
+            }
+            val error = if (body.password.isBlank()) {
+                "Password is required."
+            } else if (body.password != body.password2) {
+                "Password entries must match."
+            } else {
+                null
+            }
+            error?.let {
+                throw BadRequestException(error)
+            }
+            val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
+            val success = Parasites.DAO.updatePassword(parasiteId, hashed)
+            if (success) {
+                call.respond(HttpStatusCode.Accepted)
+                application.sendEmail(EmailTypes.ChangedPassword, parasite)
+            } else {
+                throw BadRequestException("Password update failed.")
+            }
+        } catch (e: IllegalBlockSizeException) {
             throw BadRequestException("Invalid password reset link.")
-        }
-        val error = if (body.password.isBlank()) {
-            "Password is required."
-        } else if (body.password != body.password2) {
-            "Password entries must match."
-        } else {
-            null
-        }
-        error?.let {
-            throw BadRequestException(error)
-        }
-        val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
-        val success = Parasites.DAO.updatePassword(parasiteId, hashed)
-        if (success) {
-            call.respond(HttpStatusCode.Accepted)
-        } else {
-            throw BadRequestException("Password update failed.")
         }
     }
 }

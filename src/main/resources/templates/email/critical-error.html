@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% set title = 'CRITICAL ERROR' %}
+{% set image = 'cat_poo.png' %}
+{% set image_alt = 'a fat cat making a poo in a litter box' %}
+{% set image_title = 'poopy cat' %}
+
+{% block html_body %}
+<p>
+    Critical error logged in {{site_name}}
+</p>
+<pre>
+    {{ error }}
+</pre>
+{% endblock %}
