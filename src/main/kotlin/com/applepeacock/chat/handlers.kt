@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
 import com.fasterxml.jackson.module.kotlin.convertValue
+import io.ktor.server.plugins.*
 import io.ktor.server.websocket.*
 import org.slf4j.event.Level
 import java.util.*
@@ -60,9 +61,7 @@ object VersionMessageHandler : MessageHandler {
                 null
             }
             message?.let {
-                connection.send(
-                    ServerMessage(ServerMessageTypes.Alert, mapOf("message" to message, "type" to "permanent"))
-                )
+                connection.send(ServerMessage(AlertData.permanent(message)))
             }
         }
     }
@@ -157,12 +156,7 @@ object SettingsMessageHandler : MessageHandler {
             val passwordBody = defaultMapper.convertValue<Map<String, String?>>(thingsToUpdate.password)
             if (!passwordBody["password"].isNullOrBlank()) {
                 if (passwordBody["password"] != passwordBody["password2"]) {
-                    connection.send(
-                        ServerMessage(
-                            ServerMessageTypes.Alert,
-                            mapOf("message" to "Password entries did not match.")
-                        )
-                    )
+                    connection.send(ServerMessage(AlertData.fade("Password entries did not match.")))
                 } else {
                     val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(
                         12,
@@ -170,12 +164,7 @@ object SettingsMessageHandler : MessageHandler {
                     )
                     val success = Parasites.DAO.updatePassword(parasite.id, hashed)
                     if (success) connection.session.application.sendEmail(EmailTypes.ChangedPassword, parasite)
-                    alerts.add(
-                        ServerMessage(
-                            ServerMessageTypes.Alert,
-                            mapOf("message" to "Password ${if (!success) "not " else ""}changed.")
-                        )
-                    )
+                    alerts.add(ServerMessage(AlertData.fade("Password ${if (!success) "not " else ""}changed.")))
                 }
             }
 
@@ -339,11 +328,9 @@ object ImageMessageHandler : MessageHandler {
                         e.printStackTrace()
                         connection.send(
                             ServerMessage(
-                                ServerMessageTypes.Alert,
-                                AlertData(
-                                    "dismiss",
+                                AlertData.dismiss(
                                     "Failed to send image. Admins have been notified of this incident.",
-                                    "dismiss"
+                                    "Sorry"
                                 )
                             )
                         )
@@ -396,11 +383,9 @@ object ImageUploadMessageHandler : MessageHandler {
                         e.printStackTrace()
                         connection.send(
                             ServerMessage(
-                                ServerMessageTypes.Alert,
-                                AlertData(
-                                    "dismiss",
+                                AlertData.dismiss(
                                     "Failed to upload image. Admins have been notified of this incident.",
-                                    "dismiss"
+                                    "Sorry"
                                 )
                             )
                         )
@@ -410,6 +395,27 @@ object ImageUploadMessageHandler : MessageHandler {
                     connection.logger.error("Bad message content")
                 }
             }
+        }
+    }
+}
+
+object RemoveAlertHandler : MessageHandler {
+    class RemoveAlertMessageBody(type: MessageTypes) : MessageBody(type) {
+        val id by fromOther("id")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<RemoveAlertMessageBody>(body) { messageBody ->
+            val alertId = try {
+                UUID.fromString(messageBody.id.toString())
+            } catch (e: IllegalArgumentException) {
+                throw BadRequestException("Invalid alert id")
+            }
+            Alerts.DAO.delete(alertId, parasite.id)
         }
     }
 }
@@ -515,7 +521,9 @@ enum class MessageTypes(val value: String) {
     },
 
     //    RoomAction("room action"),
-//    RemoveAlert("remove alert"),
+    RemoveAlert("remove alert") {
+        override val handler = RemoveAlertHandler
+    },
     Bug("bug") {
         override val handler = GithubIssueMessageHandler
     },

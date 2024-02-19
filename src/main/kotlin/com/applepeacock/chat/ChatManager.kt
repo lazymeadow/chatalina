@@ -311,6 +311,8 @@ object ChatManager {
         issueBody: String
     ) {
         runBlocking {
+            val issueTypeFormatted = issueType.replaceFirstChar { it.uppercase() }
+            val errorMessage = "Failed to create ${issueTypeFormatted}! Admins have been notified of this incident."
             try {
                 val githubResponse = ktorClient.post("https://api.github.com/repos/$githubUser/$githubRepo/issues") {
                     this.setBody(mapOf("title" to issueTitle, "body" to issueBody, "labels" to listOf(issueType)))
@@ -319,24 +321,22 @@ object ChatManager {
                     this.basicAuth(githubUser, githubToken)
                 }
                 val responseBody = githubResponse.body<Map<String, *>>()
-                val message = if (githubResponse.status.isSuccess()) {
-                    "${issueType.replaceFirstChar { it.uppercase() }} #${responseBody["number"]} created! View it at <a href=${responseBody["html_url"]}>${responseBody["html_url"]}</a>"
-                } else {
-                    "Failed to create ${issueType.replaceFirstChar { it.uppercase() }}! (${responseBody["message"]})"
-                }
-                connection.send(ServerMessage(ServerMessageTypes.Alert, AlertData("dismiss", message, "OK")))
-            } catch (e: Throwable) {
-                e.printStackTrace()
-                connection.send(
-                    ServerMessage(
-                        ServerMessageTypes.Alert,
-                        AlertData(
-                            "dismiss",
-                            "Failed to create ${issueType.replaceFirstChar { it.uppercase() }}!",
-                            "OK"
+                if (githubResponse.status.isSuccess()) {
+                    connection.send(
+                        ServerMessage(
+                            AlertData.dismiss(
+                                "<a href=${responseBody["html_url"]}>${issueTypeFormatted} #${responseBody["number"]}</a> created!",
+                                "OK"
+                            )
                         )
                     )
-                )
+                } else {
+                    connection.send(ServerMessage(AlertData.dismiss(errorMessage, "Oops")))
+                    connection.session.application.sendErrorEmail("Failed to create ${issueTypeFormatted} in github.\n\nStatus: ${githubResponse.status}\nResponse: ${responseBody["message"]}")
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                connection.send(ServerMessage(AlertData.dismiss(errorMessage, "Uh oh")))
                 connection.session.application.sendErrorEmail(e)
             }
         }
@@ -380,10 +380,8 @@ object ChatManager {
     }
 
     fun addConnection(connection: ChatSocketConnection) {
-        val wasOffline = (parasiteStatusMap.getOrDefault(
-            connection.parasiteId,
-            ParasiteStatus.Offline
-        ) == ParasiteStatus.Offline)
+        val wasOffline =
+            (parasiteStatusMap.getOrDefault(connection.parasiteId, ParasiteStatus.Offline) == ParasiteStatus.Offline)
         currentSocketConnections.add(connection)
         Parasites.DAO.setLastActive(connection.parasiteId)
         updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)
@@ -391,20 +389,16 @@ object ChatManager {
         connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList)))
         val privateMessagesList = Messages.DAO.list(connection.parasiteId)
         connection.send(ServerMessage(ServerMessageTypes.PrivateMessageList, mapOf("threads" to privateMessagesList)))
-        connection.send(
-            ServerMessage(
-                ServerMessageTypes.Alert,
-                mapOf("message" to "Connection successful.", "type" to "fade")
-            )
-        )
+        val outstandingAlerts = Alerts.DAO.list(connection.parasiteId)
+        outstandingAlerts.forEach {
+            connection.send(ServerMessage(it.data, it.id))
+        }
+        connection.send(ServerMessage(AlertData.fade("Connection successful.")))
         val parasiteName = Parasites.DAO.find(connection.parasiteId)?.name
         if (wasOffline) {
             broadcastToOthers(
                 connection.parasiteId,
-                ServerMessage(
-                    ServerMessageTypes.Alert,
-                    mapOf("message" to "${parasiteName ?: connection.parasiteId} is online.", "type" to "fade")
-                )
+                ServerMessage(AlertData.fade("${parasiteName ?: connection.parasiteId} is online."))
             )
         }
     }
@@ -418,10 +412,7 @@ object ChatManager {
             val parasiteName = Parasites.DAO.find(connection.parasiteId)?.name
             broadcastToOthers(
                 connection.parasiteId,
-                ServerMessage(
-                    ServerMessageTypes.Alert,
-                    mapOf("message" to "${parasiteName ?: connection.parasiteId} is offline.", "type" to "fade")
-                )
+                ServerMessage(AlertData.fade("${parasiteName ?: connection.parasiteId} is offline."))
             )
         }
     }
@@ -496,5 +487,11 @@ enum class ServerMessageTypes(val value: String) {
 }
 
 data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any?>) {
-    constructor(type: ServerMessageTypes, data: AlertData) : this(type, data.toMap())
+    constructor(data: AlertData, id: EntityID<UUID>? = null) : this(
+        ServerMessageTypes.Alert,
+        buildMap {
+            id?.let { put("id", it) }
+            putAll(data.toMap())
+        }
+    )
 }

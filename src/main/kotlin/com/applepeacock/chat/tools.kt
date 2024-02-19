@@ -57,8 +57,7 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         },
         "Everyone's already a moderator.",
         { parasite -> "${parasite.name} is now a moderator." },
-        affectedAlert = AlertData(
-            "dismiss",
+        affectedAlert = AlertData.dismiss(
             "You are now a moderator. You have access to the moderator tools. For great justice.",
             "What you say !!"
         ),
@@ -80,11 +79,7 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         },
         "Nobody is a moderator.",
         { parasite -> "${parasite.name} is no longer a moderator." },
-        affectedAlert = AlertData(
-            "dismiss",
-            "You are no longer a moderator.",
-            "Oh no."
-        ),
+        affectedAlert = AlertData.dismiss("You are no longer a moderator.", "Oh no."),
         grant = ParasitePermissions.User
     ),
     ToolDefinition<List<Map<*, *>>, Parasites.ParasiteObject>(
@@ -97,8 +92,7 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         { parasite -> Parasites.DAO.listWithoutPermissions(parasite.id.value, ParasitePermissions.Admin) },
         "Everyone's already an admin.",
         { parasite -> "${parasite.name} is now an admin." },
-        affectedAlert = AlertData(
-            "dismiss",
+        affectedAlert = AlertData.dismiss(
             "You are now an admin. You have access to the admin and moderator tools.",
             "I accept."
         ),
@@ -114,11 +108,7 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         { parasite -> Parasites.DAO.listWithPermissions(parasite.id.value, ParasitePermissions.Admin) },
         "Nobody is an admin.",
         { parasite -> "${parasite.name} is no longer an admin." },
-        affectedAlert = AlertData(
-            "dismiss",
-            "You are no longer an admin.",
-            "Oh, fiddlesticks."
-        ),
+        affectedAlert = AlertData.dismiss("You are no longer an admin.", "Oh, fiddlesticks."),
         grant = ParasitePermissions.User
     ),
     ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
@@ -192,8 +182,7 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "No candidates for zombification.",
         { parasite -> "You've resurrected ${parasite.id}. Now you must live with that choice." },
         action = "reactivate",
-        affectedAlert = AlertData(
-            "dismiss",
+        affectedAlert = AlertData.dismiss(
             "Your account was reactivated. All settings are back to default, and if you were in any rooms...  well, you aren't anymore. Welcome back!",
             "Sick"
         )
@@ -205,9 +194,9 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "View parasite data",
         "Plz",
         "View whatever a parasite's current data looks like.",
-        {_ -> Parasites.DAO.list(true).map { mapOf("username" to it.name, "id" to it.id) }},
+        { _ -> Parasites.DAO.list(true).map { mapOf("username" to it.name, "id" to it.id) } },
         "There is nobody to view. Where did you go?",
-        {parasite -> defaultMapper.writeValueAsString(parasite)},
+        { parasite -> defaultMapper.writeValueAsString(parasite) },
         dataType = "parasite"
     ),
     ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
@@ -217,9 +206,9 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "View room data",
         "Plz",
         "View whatever a room's current data looks like.",
-        {_ -> Rooms.DAO.sparseList()},
+        { _ -> Rooms.DAO.sparseList() },
         "There are no rooms to view. Sad.",
-        {room -> defaultMapper.writeValueAsString(room)},
+        { room -> defaultMapper.writeValueAsString(room) },
         dataType = "room"
     )
 )
