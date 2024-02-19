@@ -234,13 +234,12 @@ object SettingsMessageHandler : MessageHandler {
 
             // if changes should be broadcast, do it now
             if (shouldBroadcastChange) {
-                ChatManager.broadcastToOthers(parasite.id.value, ChatManager.buildParasiteList())
+                ChatManager.broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to ChatManager.buildParasiteList())))
             }
             broadcastAlerts.forEach { ChatManager.broadcastToOthers(parasite.id.value, it) }
 
             // broadcast "update" to self connections
-            if (!updates.isEmpty()) {
-                // TODO: need to update parasite object on connection. is there any benefit to it being there?
+            if (updates.isNotEmpty()) {
                 ChatManager.broadcastToParasite(parasite.id.value, ServerMessage(ServerMessageTypes.Update, updates))
             }
             alerts.forEach { connection.send(it) }
