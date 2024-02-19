@@ -1,8 +1,6 @@
 package com.applepeacock.database
 
-import com.applepeacock.plugins.defaultMapper
-import com.fasterxml.jackson.module.kotlin.convertValue
-import com.fasterxml.jackson.module.kotlin.jacksonTypeRef
+import com.applepeacock.historyLimit
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.toJavaInstant
@@ -10,9 +8,10 @@ import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.kotlin.datetime.KotlinOffsetDateTimeColumnType
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNull
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.rowNumber
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.time.OffsetDateTime
 import java.util.*
 
 enum class MessageDestinationTypes {
@@ -37,51 +36,37 @@ object Messages : UUIDTable("messages"), ChatTable {
         val destination: MessageDestination,
         val data: Map<String, Any?>,
         val sent: Instant
-    ) : ChatTable.ObjectModel()
+    ) : ChatTable.ObjectModel() {
+        fun toMessageBody() = buildMap {
+            put("id", id)
+            put("time", sent.toJavaInstant())
+            when (this@MessageObject.destination.type) {
+                MessageDestinationTypes.Parasite -> {
+                    put("sender id", sender)
+                    put("recipient id", destination.id)
+                }
+                MessageDestinationTypes.Room -> {
+                    put("room id", destination.id)
+                }
+            }
+            putAll(data)
+        }
+    }
 
-    val messagesCol =
-        jsonbAgg(
-            jsonBuildObject(
-                "id" to Messages.id, "data" to data, "sent" to sent.castTo<OffsetDateTime>(
-                    KotlinOffsetDateTimeColumnType()
-                ), "sender" to sender, "destination" to destination
-            ),
-            Array::class.java,
-            orderByCol = sent
-        ).alias("messages")
-    val messageHistoryQuery =  // TODO: limit # messages returned
-        Messages.select(destination, destinationType, messagesCol)
-            .groupBy(destination, destinationType).alias("history")
-
-    fun parseMessagesCol(messagesVal: Any?) =
-        defaultMapper.convertValue<Array<Map<String, Any>>>(messagesVal, jacksonTypeRef())?.mapNotNull {
-            val dataVal = it["data"] ?: return@mapNotNull null
-            val idVal = it["id"] ?: return@mapNotNull null
-            val sentVal = it["sent"] ?: return@mapNotNull null
-            defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal)
-                .plus("time" to Instant.parse(sentVal.toString()).toJavaInstant())
-        }.orEmpty()
-
-    fun parsePrivateMessagesCol(messagesVal: Any?) =
-        defaultMapper.convertValue<Array<Map<String, Any>>>(messagesVal, jacksonTypeRef())?.mapNotNull {
-            val dataVal = it["data"] ?: return@mapNotNull null
-            val idVal = it["id"] ?: return@mapNotNull null
-            val sentVal = it["sent"] ?: return@mapNotNull null
-            val senderVal = it["sender"] ?: return@mapNotNull null
-            val recipientVal = it["destination"] ?: return@mapNotNull null
-            defaultMapper.convertValue<Map<String, Any>>(dataVal).plus("id" to idVal)
-                .plus("time" to Instant.parse(sentVal.toString()).toJavaInstant()).plus("sender id" to senderVal)
-                .plus("recipient id" to recipientVal)
-        }.orEmpty()
 
     object DAO : ChatTable.DAO() {
         override fun resultRowToObject(row: ResultRow): MessageObject {
+            return resultRowToObject(row, null)
+        }
+
+        internal fun resultRowToObject(row: ResultRow, subQuery: MessageHistorySubQuery? = null): MessageObject {
+            fun <T : Any?> getVal(col: Column<T>) = subQuery?.let { row[it.alias[col]] } ?: row[col]
             return MessageObject(
-                row[id],
-                row[sender],
-                MessageDestination(row[destination], row[destinationType]),
-                row[data],
-                row[sent]
+                getVal(id),
+                getVal(sender),
+                MessageDestination(getVal(destination), getVal(destinationType)),
+                getVal(data),
+                getVal(sent)
             )
         }
 
@@ -107,17 +92,79 @@ object Messages : UUIDTable("messages"), ChatTable {
         }
 
         fun list(parasiteId: String): List<Map<String, Any>> = transaction {
-            // TODO: limit # messages returned
-            val recipientCol: ExpressionAlias<String> =
-                Case().When((destination eq parasiteId), sender.castTo<String>(VarCharColumnType())).Else(destination)
-                    .alias("recipient")
-            Messages.select(messagesCol, recipientCol)
-                .andWhere { destinationType eq MessageDestinationTypes.Parasite }
-                .andWhere { (destination eq parasiteId) or (sender eq parasiteId) }
-                .groupBy(recipientCol)
-                .map {
-                    mapOf("recipient id" to it[recipientCol], "messages" to parsePrivateMessagesCol(it[messagesCol]))
-                }
+            val recipientCol = Case().When((destination eq parasiteId), sender.castTo<String>(VarCharColumnType()))
+                .Else(destination).alias("r")
+
+            val subQuery = selectPrivateMessageHistory(recipientCol, parasiteId)
+
+            Select(subQuery.alias, subQuery.alias.fields).selectAll()
+                .where { subQuery.getHistoryLengthCondition() }
+                .toList()
+                .groupBy(
+                    { it[recipientCol.aliasOnlyExpression()] },
+                    { resultRowToObject(it, subQuery).toMessageBody() })
+                .map { (r, m) -> mapOf("recipient id" to r, "messages" to m) }
         }
+
+        /** FOR MESSAGE HISTORY **/
+
+        private fun selectPrivateMessageHistory(countOver: Expression<*>, parasiteId: String) =
+            PrivateMessageHistorySubQuery(countOver, parasiteId)
+
+        internal fun Query.withRoomMessageHistory(): MessageHistorySubQuery {
+            val subQuery = RoomMessageHistorySubQuery()
+
+            this.adjustColumnSet {
+                leftJoin(
+                    subQuery.alias,
+                    { Rooms.id.castTo<String>(VarCharColumnType()) },
+                    { subQuery.alias[destination] })
+            }
+                .adjustSelect { select(it.fields + subQuery.alias.fields) }
+                .andWhere { subQuery.getHistoryLengthCondition() }
+            return subQuery
+        }
+
+        private class PrivateMessageHistorySubQuery(
+            countOver: Expression<*>,
+            parasiteId: String
+        ) : MessageHistorySubQuery(
+            MessageDestinationTypes.Parasite,
+            countOver,
+            (destination eq parasiteId) or (sender eq parasiteId)
+        ) {
+            init {
+                adjustSelect { select(it.fields + countOver) }
+            }
+        }
+
+        internal class RoomMessageHistorySubQuery() : MessageHistorySubQuery(MessageDestinationTypes.Room, destination)
+
+        internal abstract class MessageHistorySubQuery(
+            destType: MessageDestinationTypes,
+            countOver: Expression<*>,
+            where: Op<Boolean>? = null
+        ) : Query(Messages, (destinationType eq destType)) {
+            private val numCol: ExpressionAlias<Long> =
+                rowNumber().over().partitionBy(
+                    when (countOver) {
+                        is ExpressionAlias<*> -> countOver.delegate
+                        else -> countOver
+                    }
+                ).orderBy(sent, SortOrder.DESC).alias("n")
+
+            private fun alias() = this.alias("m")
+
+            val alias: QueryAlias by lazy { alias() }
+            fun getHistoryLengthCondition() =
+                this.alias[numCol].isNull() or (this.alias[numCol] lessEq longLiteral(historyLimit.toLong()))
+
+            init {
+                adjustSelect { select(it.fields + numCol) }
+                where?.let { andWhere { where } }
+                orderBy(sent, SortOrder.ASC)
+            }
+        }
+
     }
 }

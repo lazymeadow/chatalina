@@ -1,5 +1,6 @@
 package com.applepeacock.database
 
+import com.applepeacock.database.Messages.DAO.withRoomMessageHistory
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
@@ -17,7 +18,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         val name: String,
         val owner: EntityID<String>,
         val members: List<String>,
-        var history: List<Map<String, Any>> = emptyList()
+        var history: List<Map<String, Any?>> = emptyList()
     ) : ChatTable.ObjectModel()
 
     object DAO : ChatTable.DAO() {
@@ -66,26 +67,25 @@ object Rooms : UUIDTable("rooms"), ChatTable {
             }
 
         fun list(forParasite: String) = transaction {
-            Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
-                .leftJoin(
-                    Messages.messageHistoryQuery,
-                    { Rooms.id.castTo<String>(VarCharColumnType()) },
-                    { Messages.messageHistoryQuery[Messages.destination] },
-                    { Messages.messageHistoryQuery[Messages.destinationType] eq MessageDestinationTypes.Room })
+            val query = Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(
                     Rooms.id,
                     name,
                     owner,
-                    roomAccessQuery[membersCol],
-                    Messages.messageHistoryQuery[Messages.messagesCol]
+                    roomAccessQuery[membersCol]
                 )
                 .where { roomAccessQuery[membersCol] any stringParam(forParasite) }
-                .map {
-                    resultRowToObject(it).also { room ->
-                        room.history = Messages.parseMessagesCol(
-                            it.getOrNull(Messages.messageHistoryQuery[Messages.messagesCol])
-                        )
+            val historyQuery = query.withRoomMessageHistory()
+
+            query.toList()
+                .groupBy { it[Rooms.id] }
+                .map { (_, rows) ->
+                    val msgs = rows.mapNotNull { m ->
+                        m.getOrNull(historyQuery.alias[Messages.id])?.let {
+                            Messages.DAO.resultRowToObject(m, historyQuery).toMessageBody()
+                        }
                     }
+                    resultRowToObject(rows.first()).apply { history = msgs }
                 }
         }
 

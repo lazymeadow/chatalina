@@ -41,10 +41,16 @@ lateinit var secretKeyField: SecretKeySpec
 val Application.secretKey
     get() = secretKeyField
 
+private const val HISTORY_LIMIT_DEFAULT = 200L
+lateinit var historyLimit: Number
+
 @Suppress("unused") // application.conf references the main function. This annotation prevents the IDE from marking it as unused.
 fun Application.module() {
     val secretKeyString = environment.config.property("bec.secret_key").getString()
     secretKeyField = SecretKeySpec(secretKeyString.decodeBase64Bytes(), "AES")
+
+    historyLimit = environment.config.propertyOrNull("bec.history_limit_override")?.getString()?.toLong()
+            ?: HISTORY_LIMIT_DEFAULT
 
     EmojiManager.configure()
 

@@ -25,7 +25,6 @@ import io.ktor.server.plugins.*
 import io.ktor.server.websocket.*
 import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.slf4j.LoggerFactory
 import java.util.*
@@ -140,12 +139,7 @@ object ChatManager {
                     "message" to processedMessage
                 )
             )?.let {
-                val broadcastContent = mapOf(
-                    "type" to MessageTypes.PrivateMessage,
-                    "data" to it.data.plus("recipient id" to it.destination.id)
-                        .plus("time" to it.sent.toJavaInstant())
-                        .plus("sender id" to it.sender)
-                )
+                val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to it.toMessageBody())
                 if (destinationId != sender.id.value) {
                     broadcastToParasite(destinationId, broadcastContent)
                 }
@@ -168,15 +162,7 @@ object ChatManager {
                     "message" to processedMessage
                 )
             )?.let {
-                broadcast(
-                    memberConnections,
-                    mapOf(
-                        "type" to MessageTypes.ChatMessage,
-                        "data" to it.data.plus("room id" to it.destination.id)
-                            .plus("time" to it.sent.toJavaInstant())
-                            .plus("sender id" to it.sender)
-                    )
-                )
+                broadcast(memberConnections, mapOf("type" to MessageTypes.ChatMessage, "data" to it.toMessageBody()))
             }
         }
     }
@@ -207,9 +193,7 @@ object ChatManager {
         url: String,
         nsfw: Boolean
     ) {
-        fun createMessageAndCacheImage(
-            broadcastImage: (Map<String, Any?>) -> Unit
-        ) {
+        fun createMessageAndCacheImage(broadcastImage: (Map<String, Any?>) -> Unit) {
             Messages.DAO.create(
                 sender.id,
                 destination,
@@ -233,10 +217,7 @@ object ChatManager {
                 }
                 val newData = newMessage.data.plus("image src url" to cachedUrl)
                 Messages.DAO.update(newMessage.id, newData)
-                broadcastImage(
-                    newData.plus("time" to newMessage.sent.toJavaInstant())
-                        .plus("sender id" to newMessage.sender)
-                )
+                broadcastImage(newMessage.toMessageBody() + newData)
             }
         }
 
@@ -246,23 +227,14 @@ object ChatManager {
                     val memberConnections =
                         currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
                     createMessageAndCacheImage { data ->
-                        broadcast(
-                            memberConnections,
-                            mapOf(
-                                "type" to MessageTypes.ChatMessage,
-                                "data" to data.plus("room id" to destination.id)
-                            )
-                        )
+                        broadcast(memberConnections, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
                     }
                 }
             }
             MessageDestinationTypes.Parasite -> {
                 if (Parasites.DAO.exists(destination.id)) {
                     createMessageAndCacheImage { data ->
-                        val broadcastContent = mapOf(
-                            "type" to MessageTypes.PrivateMessage,
-                            "data" to data.plus("recipient id" to destination.id)
-                        )
+                        val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to data)
                         if (destination.id != sender.id.value) {
                             broadcastToParasite(destination.id, broadcastContent)
                         }
@@ -301,16 +273,9 @@ object ChatManager {
                 runBlocking {
                     uploadImageToS3(it.id, imageBytes, imageContentType)
                 }?.let { cachedUrl ->
-                    Messages.DAO.update(
-                        it.id,
-                        it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl)
-                    )
-                    broadcastResult(
-                        it.data.plus("time" to it.sent.toJavaInstant())
-                            .plus("sender id" to it.sender)
-                            .plus("image url" to cachedUrl)
-                            .plus("image src url" to cachedUrl)
-                    )
+                    val newData = it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl)
+                    Messages.DAO.update(it.id, newData)
+                    broadcastResult(it.toMessageBody() + newData)
                 } ?: throw IllegalStateException("Image upload failed")
             }
         }
@@ -321,23 +286,14 @@ object ChatManager {
                     val memberConnections =
                         currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
                     createMessageAndUploadImage { data ->
-                        broadcast(
-                            memberConnections,
-                            mapOf(
-                                "type" to MessageTypes.ChatMessage,
-                                "data" to data.plus("room id" to destination.id)
-                            )
-                        )
+                        broadcast(memberConnections, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
                     }
                 }
             }
             MessageDestinationTypes.Parasite -> {
                 if (Parasites.DAO.exists(destination.id)) {
                     createMessageAndUploadImage { data ->
-                        val broadcastContent = mapOf(
-                            "type" to MessageTypes.PrivateMessage,
-                            "data" to data.plus("recipient id" to destination.id)
-                        )
+                        val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to data)
                         if (destination.id != sender.id.value) {
                             broadcastToParasite(destination.id, broadcastContent)
                         }
