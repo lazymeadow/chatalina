@@ -39,6 +39,26 @@ enum class ParasiteStatus(val value: String) {
     }
 }
 
+object ParasiteStatusMap {
+    private val map = mutableMapOf<String, ParasiteStatusObject>()
+
+    data class ParasiteStatusObject(var status: ParasiteStatus = ParasiteStatus.Offline, var typing: String? = null)
+
+    private fun getAlways(parasiteId: String) = map.getOrPut(parasiteId, { ParasiteStatusObject() })
+
+    fun getStatus(parasiteId: String): ParasiteStatus = map[parasiteId]?.status ?: ParasiteStatus.Offline
+    fun getStatus(parasiteId: EntityID<String>): ParasiteStatus = getStatus(parasiteId.value)
+    fun setStatus(parasiteId: String, newStatus: ParasiteStatus) =
+        getAlways(parasiteId).also { it.status = newStatus }.status
+
+    fun setStatus(parasiteId: EntityID<String>, newStatus: ParasiteStatus) = setStatus(parasiteId.value, newStatus)
+
+    fun getTyping(parasiteId: String): String? = map[parasiteId]?.typing
+    fun getTyping(parasiteId: EntityID<String>): String? = getTyping(parasiteId.value)
+    fun setTyping(parasiteId: String, newTyping: String?) = getAlways(parasiteId).also { it.typing = newTyping }.typing
+    fun setTyping(parasiteId: EntityID<String>, newTyping: String?) = setTyping(parasiteId.value, newTyping)
+}
+
 object ChatManager {
     val logger = LoggerFactory.getLogger("CHAT")
     private lateinit var s3Client: S3Client
@@ -50,8 +70,6 @@ object ChatManager {
     private lateinit var githubRepo: String
 
     val currentSocketConnections: MutableSet<ChatSocketConnection> = Collections.synchronizedSet(LinkedHashSet())
-    val parasiteStatusMap: MutableMap<String, ParasiteStatus> = mutableMapOf()
-    val parasiteTypingStatus: MutableMap<String, String?> = mutableMapOf()
 
     fun configure(
         imageCacheBucket: String,
@@ -90,8 +108,8 @@ object ChatManager {
             put("id", it.id.value)
             put("email", it.email)
             put("lastActive", it.lastActive?.toString())
-            put("status", parasiteStatusMap.getOrDefault(it.id.value, ParasiteStatus.Offline))
-            put("typing", parasiteTypingStatus[it.id.value])
+            put("status", ParasiteStatusMap.getStatus(it.id))
+            put("typing", ParasiteStatusMap.getTyping(it.id))
             put("username", it.name)
             put("faction", it.settings.faction)
             put("color", it.settings.color)
@@ -101,22 +119,27 @@ object ChatManager {
         }
     }
 
-    fun updateParasiteStatus(parasiteId: String, newStatus: ParasiteStatus) {
-        // update status map
-        parasiteStatusMap[parasiteId] = newStatus
+
+    private fun broadcastUserList() {
         // build user list
         val parasites = buildParasiteList()
         // broadcast to all connected sockets
         broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
     }
 
-    fun updateParasiteTypingStatus(parasiteId: String, newDestination: String?) {
-        // update status map
-        parasiteTypingStatus[parasiteId] = newDestination
-        // build user list
-        val parasites = buildParasiteList()
-        // broadcast to all connected sockets
-        broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to parasites)))
+    fun updateParasiteStatus(parasiteId: EntityID<String>, newStatus: ParasiteStatus) {
+        ParasiteStatusMap.setStatus(parasiteId, newStatus)
+        broadcastUserList()
+    }
+
+    fun updateParasiteStatus(parasiteId: String, newStatus: ParasiteStatus) {
+        ParasiteStatusMap.setStatus(parasiteId, newStatus)
+        broadcastUserList()
+    }
+
+    fun updateParasiteTypingStatus(parasiteId: EntityID<String>, newDestination: String?) {
+        ParasiteStatusMap.setTyping(parasiteId, newDestination)
+        broadcastUserList()
     }
 
     private fun processMessage(message: String): String {
@@ -145,7 +168,7 @@ object ChatManager {
     }
 
     fun handleChatMessage(destinationId: UUID, sender: Parasites.ParasiteObject, message: String) {
-        val destinationRoom = Rooms.DAO.get(destinationId)
+        val destinationRoom = Rooms.DAO.find(destinationId)
         destinationRoom?.let {
             val memberConnections = currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
             val processedMessage = processMessage(message)
@@ -219,7 +242,7 @@ object ChatManager {
 
         when (destination.type) {
             MessageDestinationTypes.Room -> {
-                Rooms.DAO.get(UUID.fromString(destination.id))?.let { destinationRoom ->
+                Rooms.DAO.find(UUID.fromString(destination.id))?.let { destinationRoom ->
                     val memberConnections =
                         currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
                     createMessageAndCacheImage { data ->
@@ -376,25 +399,29 @@ object ChatManager {
     }
 
     fun addConnection(connection: ChatSocketConnection) {
-        val wasOffline =
-            (parasiteStatusMap.getOrDefault(connection.parasiteId, ParasiteStatus.Offline) == ParasiteStatus.Offline)
-        currentSocketConnections.add(connection)
-        Parasites.DAO.setLastActive(connection.parasiteId)
-        updateParasiteStatus(connection.parasiteId, ParasiteStatus.Active)
-        val roomList = Rooms.DAO.list(connection.parasiteId)
+        val parasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
+
+        val roomList = Rooms.DAO.list(parasite.id)
         connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList)))
-        val privateMessagesList = Messages.DAO.list(connection.parasiteId)
+        val privateMessagesList = Messages.DAO.list(parasite.id)
         connection.send(ServerMessage(ServerMessageTypes.PrivateMessageList, mapOf("threads" to privateMessagesList)))
-        val outstandingAlerts = Alerts.DAO.list(connection.parasiteId)
-        outstandingAlerts.forEach {
-            connection.send(ServerMessage(it.data, it.id))
+        val outstandingAlerts = Alerts.DAO.list(parasite.id)
+        outstandingAlerts.forEach { connection.send(ServerMessage(it.data, it.id)) }
+        val outstandingInvitations = RoomInvitations.DAO.list(parasite.id)
+        outstandingInvitations.forEach {
+            connection.send(ServerMessage(ServerMessageTypes.Invitation, it.toMessageBody()))
         }
+
+        val wasOffline = ParasiteStatusMap.getStatus(parasite.id) == ParasiteStatus.Offline
+
+        Parasites.DAO.setLastActive(parasite.id)
+        currentSocketConnections.add(connection)
+        updateParasiteStatus(parasite.id, ParasiteStatus.Active)
         connection.send(ServerMessage(AlertData.fade("Connection successful.")))
-        val parasiteName = Parasites.DAO.find(connection.parasiteId)?.name
         if (wasOffline) {
             broadcastToOthers(
                 connection.parasiteId,
-                ServerMessage(AlertData.fade("${parasiteName ?: connection.parasiteId} is online."))
+                ServerMessage(AlertData.fade("${parasite.name} is online."))
             )
         }
     }
@@ -404,12 +431,13 @@ object ChatManager {
         // if that was the last connection for a parasite, make their status "offline" and tell everyone
         val hasMoreConnections = currentSocketConnections.any { it.parasiteId == connection.parasiteId }
         if (!hasMoreConnections) {
-            updateParasiteStatus(connection.parasiteId, ParasiteStatus.Offline)
-            val parasiteName = Parasites.DAO.find(connection.parasiteId)?.name
-            broadcastToOthers(
-                connection.parasiteId,
-                ServerMessage(AlertData.fade("${parasiteName ?: connection.parasiteId} is offline."))
-            )
+            Parasites.DAO.find(connection.parasiteId)?.let { parasite ->
+                updateParasiteStatus(parasite.id, ParasiteStatus.Offline)
+                broadcastToOthers(
+                    connection.parasiteId,
+                    ServerMessage(AlertData.fade("${parasite.name} is offline."))
+                )
+            } ?: updateParasiteStatus(connection.parasiteId, ParasiteStatus.Offline)
         }
     }
 

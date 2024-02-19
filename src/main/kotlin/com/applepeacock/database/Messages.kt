@@ -91,8 +91,8 @@ object Messages : UUIDTable("messages"), ChatTable {
             }
         }
 
-        fun list(parasiteId: String): List<Map<String, Any>> = transaction {
-            val recipientCol = Case().When((destination eq parasiteId), sender.castTo<String>(VarCharColumnType()))
+        fun list(parasiteId: EntityID<String>): List<Map<String, Any>> = transaction {
+            val recipientCol = Case().When((destination eq parasiteId.value), sender.castTo<String>(VarCharColumnType()))
                 .Else(destination).alias("r")
 
             val subQuery = selectPrivateMessageHistory(recipientCol, parasiteId)
@@ -108,7 +108,7 @@ object Messages : UUIDTable("messages"), ChatTable {
 
         /** FOR MESSAGE HISTORY **/
 
-        private fun selectPrivateMessageHistory(countOver: Expression<*>, parasiteId: String) =
+        private fun selectPrivateMessageHistory(countOver: Expression<*>, parasiteId: EntityID<String>) =
             PrivateMessageHistorySubQuery(countOver, parasiteId)
 
         internal fun Query.withRoomMessageHistory(): MessageHistorySubQuery {
@@ -127,11 +127,11 @@ object Messages : UUIDTable("messages"), ChatTable {
 
         private class PrivateMessageHistorySubQuery(
             countOver: Expression<*>,
-            parasiteId: String
+            parasiteId: EntityID<String>
         ) : MessageHistorySubQuery(
             MessageDestinationTypes.Parasite,
             countOver,
-            (destination eq parasiteId) or (sender eq parasiteId)
+            (destination eq parasiteId.value) or (sender eq parasiteId)
         ) {
             init {
                 adjustSelect { select(it.fields + countOver) }

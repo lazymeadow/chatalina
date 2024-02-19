@@ -54,7 +54,7 @@ object Alerts : UUIDTable("alerts"), ChatTable {
             Alerts.deleteWhere { (Alerts.id eq alertId) and (parasite eq parasiteId) }
         }
 
-        fun list(forParasite: String): List<AlertObject> = transaction {
+        fun list(forParasite: EntityID<String>): List<AlertObject> = transaction {
             Alerts.select(Alerts.id, parasite, data, created)
                 .where { parasite eq forParasite }
                 .orderBy(created)

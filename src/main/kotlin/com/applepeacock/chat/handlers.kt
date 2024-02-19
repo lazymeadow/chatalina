@@ -108,7 +108,7 @@ object StatusMessageHandler : MessageHandler {
     ) {
         onMessage<StatusMessageBody>(body) { messageBody ->
             val newStatus = ParasiteStatus.fromString(messageBody.status?.toString())
-            ChatManager.updateParasiteStatus(connection.parasiteId, newStatus)
+            ChatManager.updateParasiteStatus(parasite.id, newStatus)
         }
     }
 }
@@ -125,7 +125,7 @@ object TypingMessageHandler : MessageHandler {
         body: MessageBody
     ) {
         onMessage<TypingMessageBody>(body) { messageBody ->
-            ChatManager.updateParasiteTypingStatus(connection.parasiteId, messageBody.currentDestination)
+            ChatManager.updateParasiteTypingStatus(parasite.id, messageBody.currentDestination)
         }
     }
 }
@@ -234,7 +234,9 @@ object SettingsMessageHandler : MessageHandler {
 
             // if changes should be broadcast, do it now
             if (shouldBroadcastChange) {
-                ChatManager.broadcast(ServerMessage(ServerMessageTypes.UserList, mapOf("users" to ChatManager.buildParasiteList())))
+                ChatManager.broadcast(
+                    ServerMessage(ServerMessageTypes.UserList, mapOf("users" to ChatManager.buildParasiteList()))
+                )
             }
             broadcastAlerts.forEach { ChatManager.broadcastToOthers(parasite.id.value, it) }
 

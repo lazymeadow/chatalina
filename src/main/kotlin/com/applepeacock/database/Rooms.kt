@@ -4,6 +4,7 @@ import com.applepeacock.database.Messages.DAO.withRoomMessageHistory
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
 
@@ -66,7 +67,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                     }
             }
 
-        fun list(forParasite: String) = transaction {
+        fun list(forParasite: EntityID<String>) = transaction {
             val query = Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(
                     Rooms.id,
@@ -74,7 +75,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                     owner,
                     roomAccessQuery[membersCol]
                 )
-                .where { roomAccessQuery[membersCol] any stringParam(forParasite) }
+                .where { roomAccessQuery[membersCol] any stringParam(forParasite.value) }
             val historyQuery = query.withRoomMessageHistory()
 
             query.toList()
@@ -89,7 +90,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 }
         }
 
-        fun get(roomId: UUID) = transaction {
+        fun find(roomId: UUID) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(Rooms.id, name, owner, roomAccessQuery[membersCol])
                 .where { Rooms.id eq roomId }

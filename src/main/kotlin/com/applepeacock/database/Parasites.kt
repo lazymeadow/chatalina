@@ -206,7 +206,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                 }
             }
 
-        fun setLastActive(parasiteId: String) = transaction {
+        fun setLastActive(parasiteId: EntityID<String>) = transaction {
             Parasites.update({ Parasites.id eq parasiteId }) {
                 it[lastActive] = Clock.System.now()
             }
