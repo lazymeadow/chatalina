@@ -3,9 +3,11 @@ package com.applepeacock.plugins
 import com.applepeacock.chat.ChatManager
 import com.applepeacock.chat.ServerMessage
 import com.applepeacock.chat.ServerMessageTypes
+import com.applepeacock.database.AlertData
 import com.applepeacock.http.AuthenticationException
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.plugins.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -38,13 +40,19 @@ fun Application.configureSockets() {
                     incoming.consumeEach { frame ->
                         when (frame) {
                             is Frame.Text -> {
-                                ChatManager.handleMessage(theConnection, frame.readText())
+                                try {
+                                    ChatManager.handleMessage(theConnection, frame.readText())
+                                } catch (e: BadRequestException) {
+                                    theConnection.send(ServerMessage(AlertData.dismiss(e.message ?: "Bad message content", "Oops")))
+                                } catch (e: NotImplementedError) {
+                                    theConnection.send(ServerMessage(AlertData.fade(e.message ?: "Not implemented")))
+                                }
                             }
                             else -> outgoing.send(Frame.Text("huh???"))
                         }
                     }
                 } catch (e: ClosedReceiveChannelException) {
-                    theConnection.logger.debug("${theConnection.name}: onClose ${closeReason.await()}")
+                    theConnection.logger.debug("{}: onClose {}", theConnection.name, closeReason.await())
                 } catch (e: AuthenticationException) {
                     theConnection.send(
                         ServerMessage(
