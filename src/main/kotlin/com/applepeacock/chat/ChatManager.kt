@@ -10,8 +10,6 @@ import com.applepeacock.emoji.EmojiManager
 import com.applepeacock.http.AuthenticationException
 import com.applepeacock.plugins.ChatSocketConnection
 import com.applepeacock.plugins.defaultMapper
-import com.fasterxml.jackson.annotation.JsonAnyGetter
-import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -28,8 +26,6 @@ import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.dao.id.EntityID
 import org.slf4j.LoggerFactory
 import java.util.*
-import kotlin.properties.ReadOnlyProperty
-import kotlin.reflect.KProperty
 
 enum class ParasiteStatus(val value: String) {
     Active("active"),
@@ -454,21 +450,6 @@ object ChatManager {
         connection.logger.debug("received message: {}", messageBody.type)
         messageBody.type.handler.handleMessage(connection, currentParasite, messageBody)
     }
-}
-
-open class MessageBody(
-    val type: MessageTypes,
-    @JsonAnySetter
-    @JsonAnyGetter
-    val other: MutableMap<String, Any?> = mutableMapOf()
-) {
-    private fun <T, TValue> map(properties: MutableMap<String, TValue>, key: String): ReadOnlyProperty<T, TValue?> {
-        return object : ReadOnlyProperty<T, TValue?> {
-            override fun getValue(thisRef: T, property: KProperty<*>) = properties[key]
-        }
-    }
-
-    fun <T> fromOther(key: String): ReadOnlyProperty<T, Any?> = map(other, key)
 }
 
 enum class ServerMessageTypes(val value: String) {
