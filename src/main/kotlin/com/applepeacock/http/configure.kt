@@ -37,11 +37,7 @@ fun Application.configureHTTP() {
         })
     }
     routing {
-        staticResources("/style", "static/style")
-        staticResources("/images", "static/images")
-        staticResources("/js", "static/js")
-        staticResources("/fonts", "static/fonts")
-        staticResources("/static", "static")
+        staticResources("/", "static")
 
         authenticationRoutes()
         authenticate("auth-parasite") {
