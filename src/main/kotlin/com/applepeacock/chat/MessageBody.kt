@@ -4,6 +4,7 @@ import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.module.kotlin.convertValue
+import java.util.*
 import kotlin.enums.enumEntries
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
@@ -31,10 +32,18 @@ open class MessageBody(
     inline fun <reified T : Any, B : MessageBody> other(key: String) =
         OtherMapDelegate<B, T>(key) { thisRef, property ->
             thisRef.other[key]?.let {
-                try {
-                    it as T
-                } catch (e: ClassCastException) {
-                    defaultMapper.convertValue(it)
+                if (T::class == UUID::class) {
+                    try {
+                        UUID.fromString(it.toString()) as T
+                    } catch (e: IllegalArgumentException) {
+                        null
+                    }
+                } else {
+                    try {
+                        it as T
+                    } catch (e: ClassCastException) {
+                        defaultMapper.convertValue(it)
+                    }
                 }
             }
         }

@@ -120,6 +120,16 @@ object ChatManager {
     }
 
 
+    private fun sendRoomList(parasiteId: EntityID<String>, room: Rooms.RoomObject?) =
+        sendRoomList(parasiteId.value, room)
+
+    private fun sendRoomList(parasiteId: String, room: Rooms.RoomObject?) {
+        val data = room?.let {
+            mapOf("rooms" to listOf(it), "all" to false)
+        } ?: mapOf("rooms" to Rooms.DAO.list(parasiteId))
+        broadcastToParasite(parasiteId, ServerMessage(ServerMessageTypes.RoomList, data))
+    }
+
     private fun broadcastUserList() {
         // build user list
         val parasites = buildParasiteList()
@@ -128,11 +138,6 @@ object ChatManager {
     }
 
     fun updateParasiteStatus(parasiteId: EntityID<String>, newStatus: ParasiteStatus) {
-        ParasiteStatusMap.setStatus(parasiteId, newStatus)
-        broadcastUserList()
-    }
-
-    fun updateParasiteStatus(parasiteId: String, newStatus: ParasiteStatus) {
         ParasiteStatusMap.setStatus(parasiteId, newStatus)
         broadcastUserList()
     }
@@ -157,7 +162,7 @@ object ChatManager {
                     "color" to sender.settings.color,
                     "message" to processedMessage
                 )
-            )?.let {
+            ) {
                 val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to it.toMessageBody())
                 if (destinationId != sender.id.value) {
                     broadcastToParasite(destinationId, broadcastContent)
@@ -170,7 +175,6 @@ object ChatManager {
     fun handleChatMessage(destinationId: UUID, sender: Parasites.ParasiteObject, message: String) {
         val destinationRoom = Rooms.DAO.find(destinationId)
         destinationRoom?.let {
-            val memberConnections = currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
             val processedMessage = processMessage(message)
             Messages.DAO.create(
                 sender.id,
@@ -180,8 +184,11 @@ object ChatManager {
                     "color" to sender.settings.color,
                     "message" to processedMessage
                 )
-            )?.let {
-                broadcast(memberConnections, mapOf("type" to MessageTypes.ChatMessage, "data" to it.toMessageBody()))
+            ) {
+                broadcastToRoom(
+                    destinationRoom,
+                    mapOf("type" to MessageTypes.ChatMessage, "data" to it.toMessageBody())
+                )
             }
         }
     }
@@ -243,10 +250,8 @@ object ChatManager {
         when (destination.type) {
             MessageDestinationTypes.Room -> {
                 Rooms.DAO.find(UUID.fromString(destination.id))?.let { destinationRoom ->
-                    val memberConnections =
-                        currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
                     createMessageAndCacheImage { data ->
-                        broadcast(memberConnections, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
+                        broadcastToRoom(destinationRoom, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
                     }
                 }
             }
@@ -301,11 +306,9 @@ object ChatManager {
 
         when (destination.type) {
             MessageDestinationTypes.Room -> {
-                Rooms.DAO.get(UUID.fromString(destination.id))?.let { destinationRoom ->
-                    val memberConnections =
-                        currentSocketConnections.filter { destinationRoom.members.contains(it.parasiteId) }
+                Rooms.DAO.find(UUID.fromString(destination.id))?.let { destinationRoom ->
                     createMessageAndUploadImage { data ->
-                        broadcast(memberConnections, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
+                        broadcastToRoom(destinationRoom, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
                     }
                 }
             }
@@ -319,6 +322,99 @@ object ChatManager {
                         broadcastToParasite(sender.id, broadcastContent)
                     }
                 }
+            }
+        }
+    }
+
+    fun handleSendInvitations(
+        connection: ChatSocketConnection,
+        roomId: UUID,
+        sender: Parasites.ParasiteObject,
+        invitees: List<String>
+    ) {
+        val room = Rooms.DAO.find(roomId) ?: throw BadRequestException("Invalid invitation")
+        if (!room.members.contains(sender.id.value)) throw BadRequestException("Invalid invitation")
+        val invalidParasites = invitees.filter { i -> i == sender.id.value }.toSet()
+        val inviteeParasites = Parasites.DAO.find(*invitees.toTypedArray())
+        invalidParasites.plus(invitees.filterNot { i -> inviteeParasites.any { it.id.value == i } })
+
+        if (inviteeParasites.isNotEmpty()) {
+            inviteeParasites.forEach { parasite ->
+                if (room.members.contains(parasite.id.value)) {
+                    connection.send(ServerMessage(AlertData.fade("Can't invite ${parasite.name} (${parasite.id}) to '${room.name}'. They're already in it!")))
+                    sendRoomList(sender.id, room)
+                } else {
+                    RoomInvitations.DAO.create(room.id, sender.id, parasite.id)?.let {
+                        val allInvites = RoomInvitations.DAO.list(parasite.id, room.id)
+                        broadcastToParasite(parasite.id, ServerMessage(room.id, allInvites))
+                        connection.send(ServerMessage(AlertData.fade("Invitation sent to ${parasite.name} (${parasite.id}) to join '${room.name}'.")))
+                    }
+                }
+            }
+        }
+        if (invalidParasites.isNotEmpty()) {
+            connection.send(
+                ServerMessage(
+                    AlertData.dismiss(
+                        "Failed to invite parasites to ${room.name}: ${invalidParasites.joinToString()}",
+                        "My bad"
+                    )
+                )
+            )
+        }
+    }
+
+    fun handleInvitationResponse(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        roomId: UUID,
+        accept: Boolean
+    ) {
+        val room = Rooms.DAO.find(roomId) ?: throw BadRequestException("Invalid invitation")
+        val existingInvitations = RoomInvitations.DAO.list(parasite.id, room.id)
+        if (existingInvitations.isEmpty()) {
+            throw BadRequestException("Invalid invitation")
+        }
+
+        if (accept) {
+            Rooms.DAO.addMember(room.id, parasite.id)?.let { updatedRoom ->
+                // broadcast updated room list & join notice to current members
+                val acceptedMessage = "${parasite.name} has accepted your invitation and joined '${updatedRoom.name}'."
+                val joinedMessage = "${parasite.name} has joined '${updatedRoom.name}'."
+                updatedRoom.members.forEach { m ->
+                    sendRoomList(m, updatedRoom)
+                    if (m == parasite.id.value) {
+                        broadcastToParasite(m, ServerMessage(AlertData.fade("You joined the room '${room.name}'.")))
+                    } else {
+                        val isInviter = existingInvitations.any { i -> i.sender.value == m }
+                        val alertData = AlertData.dismiss(if (isInviter) acceptedMessage else joinedMessage, "Nice")
+                        Alerts.DAO.create(m, alertData).also { a ->
+                            broadcastToParasite(m, ServerMessage(alertData, a?.id))
+                        }
+                    }
+                }
+            } ?: let {
+                // send fail to connection
+                connection.send(ServerMessage(AlertData.fade("Failed to join room '${room.name}'. Maybe somebody is playing a joke on you?")))
+            }
+        } else {
+            // we remove the parasite from the room, just in case they did something weird.
+            Rooms.DAO.removeMember(room.id, parasite.id)?.let { updatedRoom ->
+                // send decline notice to inviters
+                existingInvitations.forEach { i ->
+                    val alertData = AlertData.dismiss(
+                        "${parasite.name} has declined your invitation to join '${room.name}'.",
+                        "Sad"
+                    )
+                    Alerts.DAO.create(i.sender, alertData).also { a ->
+                        broadcastToParasite(i.sender, ServerMessage(alertData, a?.id))
+                    }
+                }
+                updatedRoom.members.forEach { m -> sendRoomList(m, updatedRoom) }
+                connection.send(ServerMessage(AlertData.fade("You declined to join the room '${room.name}'.")))
+            } ?: let {
+                // send fail to connection
+                connection.send(ServerMessage(AlertData.fade("There was a problem declining your invitation to '${room.name}'.")))
             }
         }
     }
@@ -400,45 +496,60 @@ object ChatManager {
 
     fun addConnection(connection: ChatSocketConnection) {
         val parasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
+        synchronized(currentSocketConnections) { currentSocketConnections.add(connection) }
+
+        Parasites.DAO.setLastActive(parasite.id)
+        ParasiteStatusMap.setStatus(parasite.id, ParasiteStatus.Active)
+        broadcastUserList()
 
         val roomList = Rooms.DAO.list(parasite.id)
-        connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList)))
+        connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList, "all" to true)))
         val privateMessagesList = Messages.DAO.list(parasite.id)
         connection.send(ServerMessage(ServerMessageTypes.PrivateMessageList, mapOf("threads" to privateMessagesList)))
+
         val outstandingAlerts = Alerts.DAO.list(parasite.id)
         outstandingAlerts.forEach { connection.send(ServerMessage(it.data, it.id)) }
         val outstandingInvitations = RoomInvitations.DAO.list(parasite.id)
-        outstandingInvitations.forEach {
-            connection.send(ServerMessage(ServerMessageTypes.Invitation, it.toMessageBody()))
-        }
+        outstandingInvitations.groupBy({ it.room }, { it })
+            .forEach { (roomId, invitations) -> connection.send(ServerMessage(roomId, invitations)) }
 
         val wasOffline = ParasiteStatusMap.getStatus(parasite.id) == ParasiteStatus.Offline
 
-        Parasites.DAO.setLastActive(parasite.id)
-        currentSocketConnections.add(connection)
-        updateParasiteStatus(parasite.id, ParasiteStatus.Active)
         connection.send(ServerMessage(AlertData.fade("Connection successful.")))
         if (wasOffline) {
-            broadcastToOthers(
-                connection.parasiteId,
-                ServerMessage(AlertData.fade("${parasite.name} is online."))
-            )
+            broadcastToOthers(parasite.id, ServerMessage(AlertData.fade("${parasite.name} is online.")))
         }
     }
 
     fun removeConnection(connection: ChatSocketConnection) {
-        currentSocketConnections.remove(connection)
+        synchronized(currentSocketConnections) { currentSocketConnections.remove(connection) }
         // if that was the last connection for a parasite, make their status "offline" and tell everyone
-        val hasMoreConnections = currentSocketConnections.any { it.parasiteId == connection.parasiteId }
-        if (!hasMoreConnections) {
+        if (!parasiteIsConnected(connection.parasiteId)) {
             Parasites.DAO.find(connection.parasiteId)?.let { parasite ->
-                updateParasiteStatus(parasite.id, ParasiteStatus.Offline)
-                broadcastToOthers(
-                    connection.parasiteId,
-                    ServerMessage(AlertData.fade("${parasite.name} is offline."))
-                )
-            } ?: updateParasiteStatus(connection.parasiteId, ParasiteStatus.Offline)
+                ParasiteStatusMap.setStatus(parasite.id, ParasiteStatus.Offline)
+                broadcastToOthers(parasite.id, ServerMessage(AlertData.fade("${parasite.name} is offline.")))
+            } ?: let {
+                ParasiteStatusMap.setStatus(connection.parasiteId, ParasiteStatus.Offline)
+            }
+            broadcastUserList()
         }
+        // TODO: handle idle status
+    }
+
+    private fun parasiteIsConnected(parasiteId: String) = synchronized(currentSocketConnections) {
+        currentSocketConnections.any { it.parasiteId == parasiteId }
+    }
+
+    private fun getConnectionsForRoom(room: Rooms.RoomObject) = synchronized(currentSocketConnections) {
+        currentSocketConnections.filter { room.members.contains(it.parasiteId) }
+    }
+
+    private fun getConnectionsForParasite(parasiteId: String) = synchronized(currentSocketConnections) {
+        currentSocketConnections.filter { it.parasiteId == parasiteId }
+    }
+
+    private fun getOtherConnections(excludeParasite: String) = synchronized(currentSocketConnections) {
+        currentSocketConnections.filterNot { it.parasiteId == excludeParasite }
     }
 
     fun broadcastToParasite(parasiteId: EntityID<String>, data: Any) {
@@ -446,15 +557,16 @@ object ChatManager {
     }
 
     fun broadcastToParasite(parasiteId: String, data: Any) {
-        synchronized(currentSocketConnections) {
-            broadcast(currentSocketConnections.filter { it.parasiteId == parasiteId }.toList(), data)
-        }
+        broadcast(getConnectionsForParasite(parasiteId).toList(), data)
     }
 
+    fun broadcastToOthers(excludeParasite: EntityID<String>, data: Any) = broadcastToOthers(excludeParasite.value, data)
     fun broadcastToOthers(excludeParasite: String, data: Any) {
-        synchronized(currentSocketConnections) {
-            broadcast(currentSocketConnections.filterNot { it.parasiteId == excludeParasite }.toList(), data)
-        }
+        broadcast(getOtherConnections(excludeParasite).toList(), data)
+    }
+
+    fun broadcastToRoom(room: Rooms.RoomObject, data: Any) {
+        broadcast(getConnectionsForRoom(room).toList(), data)
     }
 
     fun broadcast(data: Any) {
@@ -486,6 +598,7 @@ enum class ServerMessageTypes(val value: String) {
     AuthFail("auth fail"),
     UserList("user list"),
     RoomList("room data"),
+    Invitation("invitation"),
     PrivateMessageList("private message data"),
     ToolList("tool list"),
     ToolResponse("data response");
@@ -503,4 +616,19 @@ data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any
             putAll(data.toMap())
         }
     )
+
+    constructor(roomId: EntityID<UUID>, invitations: List<RoomInvitations.RoomInvitationObject>) : this(
+        ServerMessageTypes.Invitation,
+        buildMap {
+            invitations.filter { it.room == roomId }.let {
+                val roomName = it.first().roomName
+                val senderList = if (invitations.size == 1) {
+                    it.first().senderName
+                } else {
+                    it.chunked(invitations.size - 1) { it.joinToString { it.senderName } }.joinToString(" and ")
+                }
+                put("room id", roomId)
+                put("message", "You've been invited to '$roomName' by $senderList.")
+            }
+        })
 }

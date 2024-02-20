@@ -242,7 +242,7 @@ object SettingsMessageHandler : MessageHandler {
 
             // broadcast "update" to self connections
             if (updates.isNotEmpty()) {
-                ChatManager.broadcastToParasite(parasite.id.value, ServerMessage(ServerMessageTypes.Update, updates))
+                ChatManager.broadcastToParasite(parasite.id, ServerMessage(ServerMessageTypes.Update, updates))
             }
             alerts.forEach { connection.send(it) }
         }
@@ -401,6 +401,53 @@ object ImageUploadMessageHandler : MessageHandler {
     }
 }
 
+object RoomActionHandler : MessageHandler {
+    enum class RoomActionTypes {
+        Create, Delete, Join, Leave, Invite;
+
+        override fun toString() = super.toString().lowercase()
+    }
+
+    class RoomActionMessageBody(type: MessageTypes) : MessageBody(type) {
+        val action: RoomActionTypes? by otherEnum<RoomActionTypes, RoomActionMessageBody>("action")
+        val newRoomName: String? by other("room name")
+        val roomId: UUID? by other("room id")
+        val accept: Boolean? by other("accept")
+        val inviterId: String? by other("inviter id")
+        val inviteeIds: List<String>? by other("user ids")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<RoomActionMessageBody>(body) { messageBody ->
+            val action = messageBody.action ?: throw BadRequestException("Invalid room action")
+            when (action) {
+                RoomActionTypes.Create -> TODO()
+                RoomActionTypes.Delete -> TODO()
+                RoomActionTypes.Invite -> {
+                    val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")
+                    val invitees = messageBody.inviteeIds ?: throw BadRequestException("Invalid invitation")
+                    if (invitees.isNotEmpty()) {
+                        ChatManager.handleSendInvitations(connection, roomId, parasite, invitees)
+                    } else {
+                        throw BadRequestException("Nobody to invite")
+                    }
+                }
+                RoomActionTypes.Join -> {
+                    val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")
+                    val accept = messageBody.accept ?: throw BadRequestException("Missing value for 'accept'")
+                    ChatManager.handleInvitationResponse(connection, parasite, roomId, accept)
+                }
+                RoomActionTypes.Leave -> TODO()
+            }
+        }
+    }
+
+}
+
 object RemoveAlertHandler : MessageHandler {
     class RemoveAlertMessageBody(type: MessageTypes) : MessageBody(type) {
         val id: UUID? by other("id")
@@ -514,8 +561,9 @@ enum class MessageTypes(val value: String) {
     ImageUpload("image upload") {
         override val handler = ImageUploadMessageHandler
     },
-
-    //    RoomAction("room action"),
+    RoomAction("room action") {
+        override val handler = RoomActionHandler
+    },
     RemoveAlert("remove alert") {
         override val handler = RemoveAlertHandler
     },

@@ -138,6 +138,10 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             Parasites.selectAll().where { Parasites.id eq parasiteId }.singleOrNull()?.let { resultRowToObject(it) }
         }
 
+        fun find(vararg parasiteIds: String): List<ParasiteObject> = transaction {
+            Parasites.selectAll().where { Parasites.id inList parasiteIds.toList() }.map { resultRowToObject(it) }
+        }
+
         fun checkPassword(parasiteId: String, password: String): Boolean = transaction {
             val hashedPassword =
                 ParasitePasswords.select(ParasitePasswords.password).where { ParasitePasswords.parasite eq parasiteId }

@@ -1,6 +1,8 @@
 package com.applepeacock.database
 
 import com.applepeacock.database.Messages.DAO.withRoomMessageHistory
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
@@ -67,6 +69,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                     }
             }
 
+        fun list(forParasite: String) = list(EntityID(forParasite, Parasites))
         fun list(forParasite: EntityID<String>) = transaction {
             val query = Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(
@@ -90,12 +93,35 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 }
         }
 
-        fun find(roomId: UUID) = transaction {
+        fun find(roomId: UUID) = find(EntityID(roomId, Rooms))
+        fun find(roomId: EntityID<UUID>) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(Rooms.id, name, owner, roomAccessQuery[membersCol])
                 .where { Rooms.id eq roomId }
                 .groupBy(Rooms.id, name, owner, roomAccessQuery[membersCol])
                 .firstOrNull()?.let { resultRowToObject(it) }
+        }
+
+        fun addMember(roomId: EntityID<UUID>, parasiteId: EntityID<String>): RoomObject? = transaction {
+            RoomAccess.upsert {
+                it[room] = roomId
+                it[parasite] = parasiteId
+                it[inRoom] = true
+                it[updated] = Clock.System.now()
+            }
+            RoomInvitations.DAO.deleteAll(roomId, parasiteId)
+            find(roomId)
+        }
+
+        fun removeMember(roomId: EntityID<UUID>, parasiteId: EntityID<String>): RoomObject? = transaction {
+            RoomAccess.upsert {
+                it[room] = roomId
+                it[parasite] = parasiteId
+                it[inRoom] = false
+                it[updated] = Clock.System.now()
+            }
+            RoomInvitations.DAO.deleteAll(roomId, parasiteId)
+            find(roomId)
         }
     }
 }
@@ -114,4 +140,56 @@ object RoomInvitations : Table("room_invitations"), ChatTable {
     val invitee = reference("invitee_id", Parasites)
     val sender = reference("sender_id", Parasites)
     val created = systemTimestamp("created")
+
+    override val primaryKey = PrimaryKey(room, invitee, sender)
+
+    data class RoomInvitationObject(
+        val room: EntityID<UUID>,
+        val sender: EntityID<String>,
+        val invitee: EntityID<String>,
+        val created: Instant
+    ) : ChatTable.ObjectModel() {
+        val roomObject by lazy { Rooms.DAO.find(room.value) }
+        val senderObject by lazy { Parasites.DAO.find(sender.value) }
+
+        val senderName = senderObject?.name ?: sender.value
+        val roomName = roomObject?.name ?: room.value
+    }
+
+    object DAO : ChatTable.DAO() {
+        override fun resultRowToObject(row: ResultRow): RoomInvitationObject {
+            return RoomInvitationObject(
+                row[room],
+                row[sender],
+                row[invitee],
+                row[created]
+            )
+        }
+
+        fun list(parasiteId: EntityID<String>, roomId: EntityID<UUID>? = null): List<RoomInvitationObject> =
+            transaction {
+                RoomInvitations.innerJoin(Rooms).innerJoin(Parasites, { sender }, { id })
+                    .selectAll()
+                    .where { invitee eq parasiteId }
+                    .also { query -> roomId?.let { query.andWhere { room eq roomId } } }
+                    .map { resultRowToObject(it) }
+            }
+
+        fun create(
+            roomId: EntityID<UUID>,
+            senderId: EntityID<String>,
+            parasiteId: EntityID<String>
+        ): RoomInvitationObject? = transaction {
+            RoomInvitations.upsert {
+                it[room] = roomId
+                it[sender] = senderId
+                it[invitee] = parasiteId
+                it[created] = Clock.System.now()
+            }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }
+        }
+
+        fun deleteAll(roomId: EntityID<UUID>, parasiteId: EntityID<String>) = transaction {
+            RoomInvitations.deleteWhere { (room eq roomId) and (invitee eq parasiteId) }
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.applepeacock.database
 
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
@@ -9,6 +10,7 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
 
@@ -23,7 +25,11 @@ enum class AlertTypes {
     }
 }
 
-class AlertData internal constructor(val message: String, val type: AlertTypes = AlertTypes.Fade, val dismissText: String? = null) {
+class AlertData internal constructor(
+    val message: String,
+    val type: AlertTypes = AlertTypes.Fade,
+    val dismissText: String? = null
+) {
     companion object {
         fun AlertData.toMap(): Map<String, String> = defaultMapper.convertValue(this)
 
@@ -50,15 +56,24 @@ object Alerts : UUIDTable("alerts"), ChatTable {
             return AlertObject(row[Alerts.id], row[parasite], row[data], row[created])
         }
 
-        fun delete(alertId: UUID, parasiteId: EntityID<String>) = transaction {
-            Alerts.deleteWhere { (Alerts.id eq alertId) and (parasite eq parasiteId) }
-        }
-
         fun list(forParasite: EntityID<String>): List<AlertObject> = transaction {
             Alerts.select(Alerts.id, parasite, data, created)
                 .where { parasite eq forParasite }
                 .orderBy(created)
                 .map { resultRowToObject(it) }
+        }
+
+        fun create(parasiteId: String, alertData: AlertData) = create(EntityID(parasiteId, Parasites), alertData)
+        fun create(parasiteId: EntityID<String>, alertData: AlertData): AlertObject? = transaction {
+            Alerts.insert {
+                it[parasite] = parasiteId
+                it[data] = alertData
+                it[created] = Clock.System.now()
+            }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }
+        }
+
+        fun delete(alertId: UUID, parasiteId: EntityID<String>) = transaction {
+            Alerts.deleteWhere { (Alerts.id eq alertId) and (parasite eq parasiteId) }
         }
     }
 }
