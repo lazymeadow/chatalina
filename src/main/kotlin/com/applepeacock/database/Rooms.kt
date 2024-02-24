@@ -1,12 +1,12 @@
 package com.applepeacock.database
 
 import com.applepeacock.database.Messages.DAO.withRoomMessageHistory
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
 
@@ -20,27 +20,38 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         val id: EntityID<UUID>,
         val name: String,
         val owner: EntityID<String>,
+        val created: Instant,
+        val updated: Instant,
         val members: List<String>,
         var history: List<Map<String, Any?>> = emptyList()
     ) : ChatTable.ObjectModel()
 
     object DAO : ChatTable.DAO() {
+        private val maxUpdatedMembers = RoomAccess.updated.max().alias("members_updated")
         private val membersCol = RoomAccess.parasite.arrayAgg().alias("members")
-        private val roomAccessQuery = RoomAccess.select(RoomAccess.room, membersCol)
+        private val roomAccessQuery = RoomAccess.select(RoomAccess.room, membersCol, maxUpdatedMembers)
             .where { RoomAccess.inRoom eq true }
             .groupBy(RoomAccess.room)
             .alias("access")
+        // getting columns out of aliased queries in exposed is a CONSTANT ADVENTURE that they keep MAKING HARDER
+        // do i need to index this out of the aliased query, or just refer to the aliased function directly?
+        // nobody fuckin knows! it's probably dependent on gamma rays and the current sea level!!!
+        private val maxUpdated = updated.greatest(maxUpdatedMembers.aliasOnlyExpression()).alias("room_updated_max")
 
         override fun resultRowToObject(row: ResultRow): RoomObject {
             return RoomObject(
                 row[id],
                 row[name],
                 row[owner],
+                row[created],
+                row[maxUpdated] ?: row[updated],
                 row[roomAccessQuery[membersCol]].toList()
             )
         }
 
-
+        /**
+         * sparseList is only for tools, to build out the room select menus
+         */
         fun sparseList(forParasite: String? = null, withMembers: Boolean = false, onlyEmpty: Boolean = false) =
             transaction {
                 Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
@@ -72,12 +83,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         fun list(forParasite: String) = list(EntityID(forParasite, Parasites))
         fun list(forParasite: EntityID<String>) = transaction {
             val query = Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
-                .select(
-                    Rooms.id,
-                    name,
-                    owner,
-                    roomAccessQuery[membersCol]
-                )
+                .select(Rooms.id, name, owner, created, updated, roomAccessQuery[membersCol], maxUpdated)
                 .where { roomAccessQuery[membersCol] any stringParam(forParasite.value) }
             val historyQuery = query.withRoomMessageHistory()
 
@@ -96,9 +102,8 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         fun find(roomId: UUID) = find(EntityID(roomId, Rooms))
         fun find(roomId: EntityID<UUID>) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
-                .select(Rooms.id, name, owner, roomAccessQuery[membersCol])
+                .select(Rooms.id, name, owner, created, updated, roomAccessQuery[membersCol], maxUpdated)
                 .where { Rooms.id eq roomId }
-                .groupBy(Rooms.id, name, owner, roomAccessQuery[membersCol])
                 .firstOrNull()?.let { resultRowToObject(it) }
         }
 
@@ -107,7 +112,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 it[room] = roomId
                 it[parasite] = parasiteId
                 it[inRoom] = true
-                it[updated] = Clock.System.now()
+                it[updated] = CurrentTimestamp()
             }
             RoomInvitations.DAO.deleteAll(roomId, parasiteId)
             find(roomId)
@@ -118,7 +123,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 it[room] = roomId
                 it[parasite] = parasiteId
                 it[inRoom] = false
-                it[updated] = Clock.System.now()
+                it[updated] = CurrentTimestamp()
             }
             RoomInvitations.DAO.deleteAll(roomId, parasiteId)
             find(roomId)
@@ -184,7 +189,6 @@ object RoomInvitations : Table("room_invitations"), ChatTable {
                 it[room] = roomId
                 it[sender] = senderId
                 it[invitee] = parasiteId
-                it[created] = Clock.System.now()
             }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }
         }
 

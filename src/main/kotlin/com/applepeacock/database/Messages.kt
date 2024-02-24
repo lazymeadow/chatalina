@@ -1,9 +1,7 @@
 package com.applepeacock.database
 
 import com.applepeacock.historyLimit
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
@@ -39,7 +37,7 @@ object Messages : UUIDTable("messages"), ChatTable {
     ) : ChatTable.ObjectModel() {
         fun toMessageBody() = buildMap {
             put("id", id)
-            put("time", sent.toJavaInstant())
+            put("time", sent)
             when (this@MessageObject.destination.type) {
                 MessageDestinationTypes.Parasite -> {
                     put("sender id", sender)
@@ -81,7 +79,6 @@ object Messages : UUIDTable("messages"), ChatTable {
                 it[destination] = destinationInfo.id
                 it[destinationType] = destinationInfo.type
                 it[data] = messageData
-                it[sent] = Clock.System.now()
             }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }?.also(callback)
         }
 

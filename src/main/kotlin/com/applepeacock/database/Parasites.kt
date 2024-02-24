@@ -1,12 +1,12 @@
 package com.applepeacock.database
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
+import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty1
@@ -170,6 +170,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                 it[parasite] = parasiteId
                 it[password] = hashedPassword.decodeToString()
                 it[resetToken] = null
+                it[updated] = CurrentTimestamp()
             }.insertedCount > 0
         }
 
@@ -206,13 +207,15 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                     Parasites.update({ Parasites.id eq parasite.id }) {
                         newEmail?.let { e -> it[email] = e }
                         newSettings?.let { s -> it[settings] = s }
+                        it[updated] = CurrentTimestamp()
                     }
                 }
             }
 
         fun setLastActive(parasiteId: EntityID<String>) = transaction {
             Parasites.update({ Parasites.id eq parasiteId }) {
-                it[lastActive] = Clock.System.now()
+                it[lastActive] = CurrentTimestamp()
+                it[updated] = CurrentTimestamp()
             }
         }
     }
@@ -223,6 +226,7 @@ object ParasitePasswords : Table("parasite_passwords"), ChatTable {
     val parasite = reference("parasite_id", Parasites)
     val password = text("password")
     val resetToken = text("reset_token").nullable()
+    val updated = systemTimestamp("updated")
 
     override val primaryKey = PrimaryKey(parasite)
 }

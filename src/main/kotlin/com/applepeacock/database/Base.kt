@@ -1,9 +1,11 @@
 package com.applepeacock.database
 
 import com.applepeacock.plugins.defaultMapper
-import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
+import org.jetbrains.exposed.sql.kotlin.datetime.CustomTimeStampFunction
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.statements.api.PreparedStatementApi
 import org.jetbrains.exposed.sql.statements.jdbc.JdbcConnectionImpl
@@ -12,7 +14,7 @@ import org.jetbrains.exposed.sql.vendors.currentDialect
 import org.postgresql.util.PGobject
 
 
-fun Table.systemTimestamp(name: String) = timestamp(name).clientDefault { Clock.System.now() }
+fun Table.systemTimestamp(name: String) = timestamp(name).defaultExpression(CurrentTimestamp())
 
 sealed interface ChatTable {
     abstract class ObjectModel
@@ -262,3 +264,6 @@ infix fun <T> JsonArrowOp<T>.doubleArrow(string: String): JsonDoubleArrowOp<T> =
 
 infix fun <T> JsonArrowOp<T>.containsArrow(expr: ExpressionAlias<Array<String>>): JsonContainsArrowOp =
     JsonContainsArrowOp(this, expr.aliasOnlyExpression())
+
+// timestamp
+fun Column<Instant>.greatest(vararg timestamps: Expression<Instant?>) = CustomTimeStampFunction("GREATEST", this, *timestamps)

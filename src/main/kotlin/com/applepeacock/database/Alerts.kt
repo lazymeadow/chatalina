@@ -2,7 +2,6 @@ package com.applepeacock.database
 
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
-import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
@@ -68,7 +67,6 @@ object Alerts : UUIDTable("alerts"), ChatTable {
             Alerts.insert {
                 it[parasite] = parasiteId
                 it[data] = alertData
-                it[created] = Clock.System.now()
             }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }
         }
 
