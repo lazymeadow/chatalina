@@ -1,16 +1,16 @@
 val kotlinVersion: String = "1.9.22"
-val logbackVersion: String = "1.4.12"
-val exposedVersion: String = "0.46.0"
-val postgresVersion: String = "42.7.1"
+val logbackVersion: String = "1.5.0"
+val exposedVersion: String = "0.47.0"
+val postgresVersion: String = "42.7.2"
 val bcryptVersion: String = "0.10.2"
-val flywayVersion: String = "9.21.1"
+val flywayVersion: String = "10.8.1"
 val apacheCommonsEmailVersion: String = "1.6.0"
 val apacheCommonsValidatorVersion: String = "1.8.0"
 
 plugins {
     kotlin("jvm") version "1.9.22"
-    id("io.ktor.plugin") version "2.3.7"
-    id("org.flywaydb.flyway") version "10.6.0"
+    id("io.ktor.plugin") version "2.3.8"
+    id("org.flywaydb.flyway") version "10.8.1"
 }
 
 kotlin {
@@ -58,12 +58,11 @@ dependencies {
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
-    implementation("org.jetbrains.exposed:exposed-dao:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
-    implementation("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime:$exposedVersion")
     implementation("org.postgresql:postgresql:$postgresVersion")
     implementation("org.flywaydb:flyway-core:$flywayVersion")
+    implementation("org.flywaydb:flyway-database-postgresql:$flywayVersion")
 
     implementation("org.apache.commons:commons-email:$apacheCommonsEmailVersion")
     implementation("commons-validator:commons-validator:$apacheCommonsValidatorVersion")
