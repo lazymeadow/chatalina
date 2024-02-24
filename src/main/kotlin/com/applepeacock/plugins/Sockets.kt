@@ -33,10 +33,10 @@ fun Application.configureSockets() {
             webSocket("/chat") {
                 val parasiteSession = call.principal<ParasiteSession>() ?: throw AuthenticationException()
                 val theConnection = ChatSocketConnection(this, parasiteSession.id)
-                ChatManager.addConnection(theConnection)
-                theConnection.logger.debug("Client connected successfully.")
 
                 try {
+                    ChatManager.addConnection(theConnection)
+                    theConnection.logger.debug("Client connected successfully.")
                     incoming.consumeEach { frame ->
                         when (frame) {
                             is Frame.Text -> {
