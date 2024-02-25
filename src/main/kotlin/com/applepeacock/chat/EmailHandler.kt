@@ -165,7 +165,7 @@ object EmailHandler {
             email.isStartTLSRequired = smtpTls
             email.setFrom(smtpFromAddress, "The $siteName Server <3")
 
-            email.dataSourceResolver = DataSourceClassPathResolver("/static/images")//, true)
+            email.dataSourceResolver = DataSourceClassPathResolver("/web-client/files/images")//, true)
 
             email.subject = type.subject
             val emailArgs = args + ("site_name" to siteName)

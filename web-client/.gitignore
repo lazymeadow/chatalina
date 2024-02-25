@@ -1,0 +1,5 @@
+dist/*.css
+dist/*.js
+
+# idea
+.idea/

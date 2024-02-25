@@ -37,3 +37,6 @@ out/
 
 ## ignore my local output
 local.*.txt
+
+### ignore the output from the webpack build
+src/main/resources/static

@@ -1,0 +1,42 @@
+{
+  "name": "best-evar-chat",
+  "version": "4.0.0",
+  "description": "The Best Evar Chat!",
+  "private": true,
+  "scripts": {
+    "build": "webpack",
+    "buildDev": "webpack --mode development",
+    "watch": "webpack watch --mode development"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lazymeadow/best-ever-chat.git"
+  },
+  "author": "Audrey Wiltsie",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/lazymeadow/best-ever-chat/issues"
+  },
+  "homepage": "https://github.com/lazymeadow/best-ever-chat#readme",
+  "devDependencies": {
+    "@fortawesome/fontawesome-free": "^5.2.0",
+    "webpack": "^5.90.3",
+    "webpack-cli": "^5.1.4",
+    "babel-loader": "^9.1.3",
+    "@babel/core": "^7.23.9",
+    "@babel/preset-env": "^7.23.9",
+    "copy-webpack-plugin": "^12.0.2",
+    "css-loader": "^6.10.0",
+    "less-loader": "^12.2.0",
+    "less": "^4.2.0",
+    "style-loader": "^3.3.4",
+    "mini-css-extract-plugin": "^2.8.0"
+  },
+  "dependencies": {
+    "imagesloaded": "^5.0.0",
+    "jquery": "^3.7.1",
+    "js-cookie": "^3.0.5",
+    "moment": "^2.30.1",
+    "twemoji": "^14.0.2"
+  }
+}

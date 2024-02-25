@@ -1,0 +1,35 @@
+@import 'common';
+
+div.login, div.not-found, div.form {
+  .flex-spacer {
+    flex: 1 0 auto;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  body {
+    overflow-y: auto;
+  }
+
+  div.login, div.not-found, div.form {
+    width: 300px;
+    padding: 10px 5px;
+
+    h1 {
+      margin: 5px 0;
+    }
+
+    button, a.button {
+      text-align: center;
+      min-width: 80px;
+    }
+
+    input {
+      width: 150px;
+    }
+
+    .form-group, .form-element {
+      width: 250px;
+    }
+  }
+}

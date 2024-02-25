@@ -1,3 +1,5 @@
+import com.github.gradle.node.npm.task.NpmTask
+
 val kotlinVersion: String = "1.9.22"
 val logbackVersion: String = "1.5.0"
 val exposedVersion: String = "0.47.0"
@@ -12,6 +14,7 @@ plugins {
     kotlin("plugin.serialization") version "1.9.22"
     id("io.ktor.plugin") version "2.3.8"
     id("org.flywaydb.flyway") version "10.8.1"
+    id("com.github.node-gradle.node") version "7.0.2"
 }
 
 kotlin {
@@ -30,6 +33,28 @@ application {
     val isDevelopment: Boolean = project.ext.has("development")
     applicationDefaultJvmArgs = listOf("-Dio.ktor.development=$isDevelopment")
 }
+
+node {
+    nodeProjectDir.set(file("web-client"))
+}
+
+val buildNpmTask = tasks.register<NpmTask>("buildNpm") {
+    dependsOn(tasks.npmInstall)
+    npmCommand.set(listOf("run", "build"))
+    environment.set(mapOf("BEC_SERVER" to "localhost:6969"))
+    outputs.upToDateWhen {
+        false
+    }
+}
+
+tasks.register<Copy>("moveFrontend") {
+    dependsOn(buildNpmTask)
+    from(node.nodeProjectDir.dir("dist"))
+    into(layout.projectDirectory.dir("src/main/resources/static"))
+}
+
+tasks.processResources.get().dependsOn(tasks.named("moveFrontend").get())
+
 
 repositories {
     mavenCentral()

@@ -1,0 +1,245 @@
+@chatBarHeight: 45px;
+@popoutIndicatorSize: 10px;
+
+@import 'colorpicker';
+
+@import 'common';
+@import 'client-common';
+
+@import 'input-range';
+
+.content {
+  button, & :not(.chat-bar) > .button {
+    min-width: 80px;
+  }
+
+  & > div:not(#alerts) {
+    &.left {
+      flex: 1 0 auto;
+      color: white;
+      width: 200px;
+
+      & #current-user {
+        flex: 0 0 auto;
+        padding: 10px 3px;
+        background-color: darken(@backgroundColor, 10%);
+        display: flex;
+        align-items: center;
+
+        &.current {
+          background-color: lighten(@backgroundColor, 20%);
+        }
+
+        &:hover {
+          background-color: lighten(@backgroundColor, 30%);
+          color: @bodyColor;
+        }
+
+        & > span {
+          flex: 0 0 auto;
+
+          &:last-of-type {
+            float: right;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            width: 25px;
+            height: 25px;
+            align-items: center;
+            justify-content: center;
+
+            & > .popout-menu {
+              .popout-menu();
+
+              min-width: 200px;
+              margin-top: 5px;
+              top: 20px;
+              left: -10px;
+            }
+          }
+
+          &.list-content {
+            font-size: 1.1em;
+            font-weight: bold;
+            flex: 1 1 auto;
+            overflow-x: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+            white-space: nowrap;
+          }
+        }
+
+        &.active .online-status {
+          color: #34b93d;
+          padding-right: 3px;
+        }
+      }
+
+      .panel() {
+        overflow-y: scroll;
+        overflow-x: hidden;
+        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", @backgroundColor),
+        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", @backgroundColor),
+          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", darken(@backgroundColor, 5%)),
+        %(~"linear-gradient(%d, rgba(0, 0, 0, 0)) 0 100%", darken(@backgroundColor, 5%));
+        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", @backgroundColor),
+        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", @backgroundColor),
+          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", darken(@backgroundColor, 5%)),
+        %(~"linear-gradient(rgba(0, 0, 0, 0), %d) 0 100%", darken(@backgroundColor, 5%));
+        background-repeat: no-repeat;
+        background-size: 100% 50px, 100% 50px, 100% 25px, 100% 25px;
+
+        /* Opera doesn't support this in the shorthand */
+        background-attachment: local, local, scroll, scroll;
+
+        & > div {
+          z-index: 1;
+          width: 100%;
+          padding: 3px;
+
+          & > div:not(.inline-menu) {
+            display: flex;
+            height: 2em;
+            margin: -3px;
+            white-space: nowrap;
+            align-items: center;
+
+            & > span {
+              flex: 0 0 auto;
+
+              &:hover {
+                cursor: pointer;
+              }
+
+              &:last-of-type:not(.list-content) {
+                opacity: .5;
+                padding-right: 9px;
+              }
+
+              &.list-content {
+                flex: 1 1 auto;
+                overflow-x: hidden;
+                text-overflow: ellipsis;
+              }
+            }
+          }
+
+          & > .inline-menu {
+            display: none;
+            background-color: darken(@backgroundColor, 3%);
+            margin: 3px -3px -3px;
+
+            & .menu-item {
+              opacity: .85;
+              padding: 7px 3px 7px 23px;
+              display: block;
+              cursor: pointer;
+
+              &:hover {
+                background-color: lighten(@backgroundColor, 30%);
+                color: @bodyColor;
+              }
+
+              & > .fas, & > .far, & > .fab {
+                padding-right: 3px;
+              }
+            }
+          }
+
+        }
+      }
+
+      .selected-panel-item() {
+        background-color: lighten(@backgroundColor, 20%);
+
+        .list-content {
+          font-weight: bold;
+        }
+      }
+
+      & #user-list {
+        .panel();
+
+        & .users-header {
+          border-bottom: 2px solid darken(@backgroundColor, 3%);
+          padding: 15px 7px 7px 10px;
+          display: flex;
+          width: ~"calc(100% - 15px)";
+        }
+
+        #inactive-user-toggle {
+          padding: 7px 3px 7px 23px;
+          width: ~"calc(100% - 26px)";
+          font-size: .9em;
+          opacity: .75;
+          cursor: pointer;
+        }
+
+        & div div {
+          .user-element();
+
+          &:hover {
+            cursor: pointer;
+            background-color: lighten(@backgroundColor, 30%);
+            color: @bodyColor;
+          }
+        }
+
+        & .current {
+          .selected-panel-item();
+        }
+      }
+
+      & #room-list {
+        .panel();
+        border-bottom: 2px solid darken(@backgroundColor, 3%);
+        max-height: calc(50% - 24px);  // 24 for half
+        // the "current user" div
+
+        & .rooms-header {
+          border-bottom: 2px solid darken(@backgroundColor, 3%);
+          padding: 15px 7px 7px 10px;
+          display: flex;
+          width: ~"calc(100% - 15px)";
+
+          & span {
+            flex: 1 1 auto;
+
+            &#add-room {
+              flex: 0 0 auto;
+
+              &:hover {
+                cursor: pointer;
+              }
+            }
+          }
+        }
+
+        & > div {
+          .room-element();
+          & .message-indicator {
+            width: 2em;
+            height: 2em;
+            line-height: 2em;
+          }
+        }
+
+        & > div:not(.rooms-header) > div:first-child:hover {
+          background-color: lighten(@backgroundColor, 30%);
+          color: @bodyColor;
+        }
+
+        & .current {
+          .selected-panel-item();
+        }
+      }
+    }
+
+    &.right {
+      flex: 4 0 auto;
+      background-color: white;
+      z-index: 10;
+      width: ~"calc(100% - 200px)";
+    }
+  }
+}
