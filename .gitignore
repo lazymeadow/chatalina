@@ -40,3 +40,4 @@ local.*.txt
 
 ### ignore the output from the webpack build
 src/main/resources/static
+/web-client/dist/

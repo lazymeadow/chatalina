@@ -24,6 +24,7 @@ import io.ktor.server.sessions.*
 import io.ktor.util.*
 import javax.crypto.Cipher
 import javax.crypto.IllegalBlockSizeException
+import javax.crypto.SecretKey
 
 fun Route.authenticationRoutes() {
     route("/login") {
@@ -61,7 +62,8 @@ private fun Route.getLogin() {
             throw RedirectException("/")
         } ?: let {
             val message = call.request.queryParameters["message"] ?: ""
-            call.respond(application.getPebbleContent("login.html", "message" to message))
+            val parasite = call.request.queryParameters["parasite"] ?: ""
+            call.respond(application.getPebbleContent("login.html", "message" to message, "username" to parasite))
             call.respond(
                 PebbleContent(
                     "login.html",
@@ -169,11 +171,23 @@ private fun Route.postForgotPassword() {
     }
 }
 
+fun checkTokenForParasite(token: String, secretKey: SecretKey): Parasites.ParasiteObject {
+    val cipher = Cipher.getInstance("AES")
+    cipher.init(Cipher.DECRYPT_MODE, secretKey)
+    val parasiteId = cipher.doFinal(token.decodeBase64Bytes()).decodeToString()
+    return Parasites.DAO.find(parasiteId)?.also { parasite ->
+        if (!Parasites.DAO.checkToken(parasite.id, token)) {
+            throw BadRequestException("Invalid password reset link.")
+        }
+    } ?: throw BadRequestException("Invalid password reset link.")
+}
+
 private fun Route.getResetPassword() {
     get {
         val token = call.request.queryParameters["token"] ?: ""
+        val parasite = checkTokenForParasite(token, application.secretKey)
 
-        call.respond(application.getPebbleContent("reset-password.html", "token" to token))
+        call.respond(application.getPebbleContent("reset-password.html", "token" to token, "username" to parasite.id))
     }
 }
 
@@ -184,13 +198,7 @@ private fun Route.postResetPassword() {
         val body = call.receive<ResetPasswordRequest>()
 
         try {
-            val cipher = Cipher.getInstance("AES")
-            cipher.init(Cipher.DECRYPT_MODE, application.secretKey)
-            val parasiteId = cipher.doFinal(body.token.decodeBase64Bytes()).decodeToString()
-            val parasite = Parasites.DAO.find(parasiteId)
-            if (parasite == null || !Parasites.DAO.checkToken(parasiteId, body.token)) {
-                throw BadRequestException("Invalid password reset link.")
-            }
+            val parasite = checkTokenForParasite(body.token, application.secretKey)
             val error = if (body.password.isBlank()) {
                 "Password is required."
             } else if (body.password != body.password2) {
@@ -202,7 +210,7 @@ private fun Route.postResetPassword() {
                 throw BadRequestException(error)
             }
             val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
-            val success = Parasites.DAO.updatePassword(parasiteId, hashed)
+            val success = Parasites.DAO.updatePassword(parasite.id, hashed)
             if (success) {
                 call.respond(HttpStatusCode.Accepted)
                 application.sendEmail(EmailTypes.ChangedPassword, parasite)

@@ -163,7 +163,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             }
         }
 
-        fun checkToken(parasiteId: String, token: String): Boolean = transaction {
+        fun checkToken(parasiteId: EntityID<String>, token: String): Boolean = transaction {
             ParasitePasswords.select(ParasitePasswords.resetToken).where { ParasitePasswords.parasite eq parasiteId }
                 .singleOrNull()?.getOrNull(ParasitePasswords.resetToken) == token
         }
@@ -175,10 +175,6 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                 it[resetToken] = null
                 it[updated] = CurrentTimestamp()
             }.insertedCount > 0
-        }
-
-        fun updatePassword(parasiteId: String, hashedPassword: ByteArray): Boolean = transaction {
-            updatePassword(EntityID(parasiteId, Parasites), hashedPassword)
         }
 
         fun isValidUsername(newUserName: String): Boolean = transaction {
