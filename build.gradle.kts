@@ -9,6 +9,7 @@ val apacheCommonsValidatorVersion: String = "1.8.0"
 
 plugins {
     kotlin("jvm") version "1.9.22"
+    kotlin("plugin.serialization") version "1.9.22"
     id("io.ktor.plugin") version "2.3.8"
     id("org.flywaydb.flyway") version "10.8.1"
 }
@@ -54,11 +55,17 @@ dependencies {
     implementation("at.favre.lib:bcrypt:$bcryptVersion")
 
     implementation("io.ktor:ktor-server-content-negotiation")
+
+    implementation("io.ktor:ktor-client-core")
+    implementation("io.ktor:ktor-client-okhttp-jvm")
+    implementation("io.ktor:ktor-client-content-negotiation")
+
     implementation("io.ktor:ktor-serialization-jackson")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
+    implementation("org.jetbrains.exposed:exposed-json:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime:$exposedVersion")
     implementation("org.postgresql:postgresql:$postgresVersion")
     implementation("org.flywaydb:flyway-core:$flywayVersion")
@@ -68,9 +75,6 @@ dependencies {
     implementation("commons-validator:commons-validator:$apacheCommonsValidatorVersion")
 
     implementation("aws.sdk.kotlin:s3:1.0.40")
-    implementation("io.ktor:ktor-client-core")
-    implementation("io.ktor:ktor-client-okhttp-jvm")
-    implementation("io.ktor:ktor-client-content-negotiation")
 
     testImplementation("io.ktor:ktor-server-tests")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlinVersion")

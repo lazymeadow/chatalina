@@ -157,11 +157,7 @@ object ChatManager {
             Messages.DAO.create(
                 sender.id,
                 MessageDestination(destinationId, MessageDestinationTypes.Parasite),
-                mapOf(
-                    "username" to sender.name,
-                    "color" to sender.settings.color,
-                    "message" to processedMessage
-                )
+                MessageData.ChatMessageData(sender.name, sender.settings.color, processedMessage)
             ) {
                 val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to it.toMessageBody())
                 if (destinationId != sender.id.value) {
@@ -179,11 +175,7 @@ object ChatManager {
             Messages.DAO.create(
                 sender.id,
                 MessageDestination(destinationId.toString(), MessageDestinationTypes.Room),
-                mapOf(
-                    "username" to sender.name,
-                    "color" to sender.settings.color,
-                    "message" to processedMessage
-                )
+                MessageData.ChatMessageData(sender.name, sender.settings.color, processedMessage)
             ) {
                 broadcastToRoom(
                     destinationRoom,
@@ -223,12 +215,7 @@ object ChatManager {
             Messages.DAO.create(
                 sender.id,
                 destination,
-                mapOf(
-                    "username" to sender.name,
-                    "color" to sender.settings.color,
-                    "image url" to url,
-                    "nsfw flag" to nsfw
-                )
+                MessageData.ImageMessageData(sender.name, sender.settings.color, nsfw, url)
             ) { newMessage ->
                 val cachedUrl = runBlocking {
                     val imageResponse = ktorClient.request(url)
@@ -241,9 +228,9 @@ object ChatManager {
                         url
                     }
                 }
-                val newData = newMessage.data.plus("image src url" to cachedUrl)
+                val newData = newMessage.data.copy(src = cachedUrl)
                 Messages.DAO.update(newMessage.id, newData)
-                broadcastImage(newMessage.toMessageBody() + newData)
+                broadcastImage(newMessage.copy(data = newData).toMessageBody())
             }
         }
 
@@ -284,22 +271,14 @@ object ChatManager {
         fun createMessageAndUploadImage(
             broadcastResult: (Map<String, Any?>) -> Unit
         ) {
-            Messages.DAO.create(
-                sender.id,
-                destination,
-                mapOf(
-                    "username" to sender.name,
-                    "color" to sender.settings.color,
-                    "image url" to "",
-                    "nsfw flag" to nsfw
-                )
-            ) {
+            val newImageMessageData = MessageData.ImageMessageData(sender.name, sender.settings.color, nsfw)
+            Messages.DAO.create(sender.id, destination, newImageMessageData) { newMessage ->
                 runBlocking {
-                    uploadImageToS3(it.id, imageBytes, imageContentType)
+                    uploadImageToS3(newMessage.id, imageBytes, imageContentType)
                 }?.let { cachedUrl ->
-                    val newData = it.data.plus("image url" to cachedUrl).plus("image src url" to cachedUrl)
-                    Messages.DAO.update(it.id, newData)
-                    broadcastResult(it.toMessageBody() + newData)
+                    val newData = newImageMessageData.copy(url = cachedUrl, src = cachedUrl)
+                    Messages.DAO.update(newMessage.id, newData)
+                    broadcastResult(newMessage.copy(data = newImageMessageData).toMessageBody())
                 } ?: throw IllegalStateException("Image upload failed")
             }
         }
@@ -498,6 +477,8 @@ object ChatManager {
         val parasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
         synchronized(currentSocketConnections) { currentSocketConnections.add(connection) }
 
+        val wasOffline = ParasiteStatusMap.getStatus(parasite.id) == ParasiteStatus.Offline
+
         Parasites.DAO.setLastActive(parasite.id)
         ParasiteStatusMap.setStatus(parasite.id, ParasiteStatus.Active)
         broadcastUserList()
@@ -512,8 +493,6 @@ object ChatManager {
         val outstandingInvitations = RoomInvitations.DAO.list(parasite.id)
         outstandingInvitations.groupBy({ it.room }, { it })
             .forEach { (roomId, invitations) -> connection.send(ServerMessage(roomId, invitations)) }
-
-        val wasOffline = ParasiteStatusMap.getStatus(parasite.id) == ParasiteStatus.Offline
 
         connection.send(ServerMessage(AlertData.fade("Connection successful.")))
         if (wasOffline) {

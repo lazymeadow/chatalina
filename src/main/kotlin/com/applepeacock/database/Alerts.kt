@@ -3,6 +3,7 @@ package com.applepeacock.database
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
 import kotlinx.datetime.Instant
+import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.ResultRow
@@ -24,6 +25,7 @@ enum class AlertTypes {
     }
 }
 
+@Serializable
 class AlertData internal constructor(
     val message: String,
     val type: AlertTypes = AlertTypes.Fade,

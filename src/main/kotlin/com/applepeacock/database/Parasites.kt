@@ -2,10 +2,12 @@ package com.applepeacock.database
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import kotlinx.datetime.Instant
+import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.coalesce
+import org.jetbrains.exposed.sql.json.extract
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import kotlin.reflect.KMutableProperty1
@@ -31,6 +33,7 @@ enum class ParasitePermissions {
     }
 }
 
+@Serializable
 data class ParasiteSettings(
     var displayName: String? = null,
     var color: String = "#555555",
@@ -70,7 +73,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
 
     object DAO : ChatTable.DAO() {
         private val permissionCol =
-            coalesce(settings doubleArrow "permission", stringLiteral(ParasitePermissions.User.toString()))
+            coalesce(settings.extract("permission"), stringLiteral(ParasitePermissions.User.toString()))
 
         override fun resultRowToObject(row: ResultRow): ParasiteObject {
             return ParasiteObject(
@@ -180,7 +183,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
 
         fun isValidUsername(newUserName: String): Boolean = transaction {
             Parasites.selectAll().where { Parasites.id eq newUserName }
-                .orWhere { settings doubleArrow "username" eq newUserName }
+                .orWhere { settings.extract<String>("username") eq newUserName }
                 .count() == 0L
         }
 
