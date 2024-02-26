@@ -66,7 +66,8 @@ fun Application.module() {
         environment.config.property("bec.image_cache.host").getString(),
         environment.config.property("bec.github.user").getString(),
         environment.config.property("bec.github.token").getString(),
-        environment.config.property("bec.github.repo").getString()
+        environment.config.property("bec.github.repo").getString(),
+        environment.config.property("bec.gorillagroove.host").getString()
     )
     EmailHandler.configure(
         environment.config.property("bec.email.from_address").getString(),

@@ -4,6 +4,7 @@ import com.applepeacock.historyLimit
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fasterxml.jackson.annotation.JsonValue
 import com.fasterxml.jackson.module.kotlin.convertValue
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
@@ -34,7 +35,8 @@ data class MessageData(
     val message: String? = null,
     @JsonProperty("image url") val url: String? = null,
     @JsonProperty("image src url") val src: String? = null,
-    @JsonProperty("nsfw flag") val nsfw: Boolean? = null
+    @JsonProperty("nsfw flag") val nsfw: Boolean? = null,
+    @JsonProperty("track link") val trackLink: String? = null
 ) {
     fun toMap(): Map<String, Any?> = defaultMapper.convertValue(this)
 
@@ -42,8 +44,11 @@ data class MessageData(
         fun ChatMessageData(username: String, color: String, message: String) =
             MessageData(username, color, message = message)
 
-        fun ImageMessageData(username: String, color: String, nsfw: Boolean, url: String? = null) =
-            MessageData(username, color, nsfw = nsfw, url = url)
+        fun ImageMessageData(username: String, color: String, nsfw: Boolean, url: String?, src: String? = null) =
+            MessageData(username, color, nsfw = nsfw, url = url, src = src ?: url)
+
+        fun GorillaGrooveMessageData(username: String, color: String, trackLink: String) =
+            MessageData(username, color, trackLink = trackLink)
     }
 }
 
@@ -61,6 +66,7 @@ object Messages : UUIDTable("messages"), ChatTable {
         val data: MessageData,
         val sent: Instant
     ) : ChatTable.ObjectModel() {
+        @JsonValue
         fun toMessageBody() = buildMap {
             put("id", id)
             put("time", sent)
@@ -108,12 +114,6 @@ object Messages : UUIDTable("messages"), ChatTable {
             }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }?.also(callback)
         }
 
-        fun update(messageId: EntityID<UUID>, newData: MessageData) = transaction {
-            Messages.update({ Messages.id eq messageId }) {
-                it[data] = newData
-            }
-        }
-
         fun list(parasiteId: EntityID<String>): List<Map<String, Any>> = transaction {
             val recipientCol =
                 Case().When((destination eq parasiteId.value), sender.asString()).Else(destination).alias("r")
@@ -125,8 +125,8 @@ object Messages : UUIDTable("messages"), ChatTable {
                 .toList()
                 .groupBy(
                     { it[recipientCol.aliasOnlyExpression()] },
-                    { resultRowToObject(it, subQuery).toMessageBody() })
-                .map { (r, m) -> mapOf("recipient id" to r, "messages" to m) }
+                    { resultRowToObject(it, subQuery) })
+                .map { (r, m) -> mapOf("recipient id" to r, "messages" to m.sortedBy { it.sent }) }
         }
 
         /** FOR MESSAGE HISTORY **/
@@ -182,7 +182,6 @@ object Messages : UUIDTable("messages"), ChatTable {
             init {
                 adjustSelect { select(it.fields + numCol) }
                 where?.let { andWhere { where } }
-                orderBy(sent, SortOrder.ASC)
             }
         }
 

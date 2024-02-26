@@ -36,8 +36,8 @@ out/
 .vscode/
 
 ## ignore my local output
-local.*.txt
+**/local*
 
 ### ignore the output from the webpack build
-src/main/resources/static
+/src/main/resources/static/
 /web-client/dist/

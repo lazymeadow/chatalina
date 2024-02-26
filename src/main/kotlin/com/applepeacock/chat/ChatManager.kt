@@ -1,9 +1,13 @@
 package com.applepeacock.chat
 
 import aws.sdk.kotlin.services.s3.S3Client
+import aws.sdk.kotlin.services.s3.headObject
 import aws.sdk.kotlin.services.s3.model.ObjectCannedAcl
+import aws.sdk.kotlin.services.s3.model.S3Exception
 import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
+import aws.smithy.kotlin.runtime.http.HttpStatusCode
+import aws.smithy.kotlin.runtime.http.response.statusCode
 import com.applepeacock.database.*
 import com.applepeacock.database.AlertData.Companion.toMap
 import com.applepeacock.emoji.EmojiManager
@@ -23,9 +27,18 @@ import io.ktor.server.plugins.*
 import io.ktor.server.websocket.*
 import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jetbrains.exposed.dao.id.EntityID
+import org.nibor.autolink.LinkExtractor
+import org.nibor.autolink.LinkSpan
+import org.nibor.autolink.LinkType
 import org.slf4j.LoggerFactory
+import java.math.BigInteger
+import java.net.URI
+import java.net.URISyntaxException
+import java.security.MessageDigest
 import java.util.*
+
 
 enum class ParasiteStatus(val value: String) {
     Active("active"),
@@ -68,6 +81,7 @@ object ChatManager {
     private lateinit var githubUser: String
     private lateinit var githubToken: String
     private lateinit var githubRepo: String
+    private var gorillaGrooveHost: URI? = null
 
     val currentSocketConnections: MutableSet<ChatSocketConnection> = Collections.synchronizedSet(LinkedHashSet())
 
@@ -76,7 +90,8 @@ object ChatManager {
         imageCacheHost: String,
         githubUser: String,
         githubToken: String,
-        githubRepo: String
+        githubRepo: String,
+        gorillaGrooveHost: String?
     ) {
         logger.debug("Initializing Chat Manager...")
 
@@ -86,6 +101,8 @@ object ChatManager {
         this.githubUser = githubUser
         this.githubToken = githubToken
         this.githubRepo = githubRepo
+        this.gorillaGrooveHost = gorillaGrooveHost?.let { URI(it) }
+
         logger.debug("Initializing OkHttp...")
         ktorClient = HttpClient(OkHttp) {
             install(ContentNegotiation) {
@@ -147,57 +164,165 @@ object ChatManager {
         broadcastUserList()
     }
 
-    private fun processMessage(message: String): String {
-        return EmojiManager.convertEmojis(message)
+    private fun textToNormalizedUri(text: String) = try {
+        URI(text).normalize()
+    } catch (e: URISyntaxException) {
+        null  // Do nothing - this is fine
     }
 
-    fun handlePrivateMessage(destinationId: String, sender: Parasites.ParasiteObject, message: String) {
-        if (Parasites.DAO.exists(destinationId)) {
-            val processedMessage = processMessage(message)
-            Messages.DAO.create(
-                sender.id,
-                MessageDestination(destinationId, MessageDestinationTypes.Parasite),
-                MessageData.ChatMessageData(sender.name, sender.settings.color, processedMessage)
-            ) {
-                val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to it.toMessageBody())
-                if (destinationId != sender.id.value) {
-                    broadcastToParasite(destinationId, broadcastContent)
+    private fun isSneakyImageLink(uri: URI): Boolean = uri.scheme == "data" || (!uri.path.isNullOrBlank() &&
+            ContentType.fromFilePath(uri.path).any { it.contentType == ContentType.Image.Any.contentType })
+
+    private fun isGorillaGrooveLink(uri: URI) =
+        uri.scheme == gorillaGrooveHost?.scheme && uri.authority == gorillaGrooveHost?.authority
+
+    private val linkExtractor = LinkExtractor.builder().build()
+    val disallowedTags = setOf(
+        "form", "audio", "video", "iframe", "img", "canvas", "input", "datalist", "button", "dialog", "embed",
+        "fieldset", "html", "link", "object", "select", "picture", "search", "template", "textarea"
+    )
+
+    private fun processMessageText(message: String): String {
+        if ("""<\s?(?:script|${disallowedTags.joinToString("|")})""".toRegex()
+                .containsMatchIn(message.lowercase())
+        ) {
+            return "<pre>${EmojiManager.convertEmojis(message).escapeHTML()}</pre>"
+        } else {
+            val anchorTagRegex = """<\s?[a|A]\s?(?=>)""".toRegex()  // match stuff like <a href=..., < A ... or just <a>
+            return if (anchorTagRegex.containsMatchIn(message)) {
+                // skip linkification, since it's already done. just add target="_blank" and rel="noreferrer"
+                anchorTagRegex.replace(message) { "<a target=\"_blank\" rel=\"noreferrer\"" }.let {
+                    EmojiManager.convertEmojis(it)
+                }
+            } else {
+                // linkify BEFORE emojis, because emoji parser will avoid links.
+                val spans = linkExtractor.extractSpans(message)
+
+                buildString {
+                    spans.forEach { span ->
+                        message.substring(span.beginIndex, span.endIndex).let { text ->
+                            if (span is LinkSpan) {
+                                val urlToUse = when (span.type) {
+                                    LinkType.WWW -> "https://$text"
+                                    LinkType.EMAIL -> "mailto:$text"
+                                    else -> text
+                                }.let { textToNormalizedUri(it)?.toASCIIString() ?: it.encodeURLPath() }
+                                append("<a href=\"${urlToUse}\" target=\"_blank\" rel=\"noreferrer\">${text.escapeHTML()}</a>")
+                            } else {
+                                append(text)
+                            }
+                        }
+                    }
+                }.let { EmojiManager.convertEmojis(it) }
+            }
+        }
+    }
+
+    private fun createAndSendChatMessage(
+        destination: MessageDestination,
+        sender: Parasites.ParasiteObject,
+        messageData: MessageData,
+        destinationRoom: Rooms.RoomObject? = null
+    ) {
+        Messages.DAO.create(sender.id, destination, messageData) {
+            if (destination.type == MessageDestinationTypes.Room && destinationRoom != null) {
+                broadcastToRoom(
+                    destinationRoom,
+                    mapOf("type" to MessageTypes.ChatMessage, "data" to it)
+                )
+            } else if (destination.type == MessageDestinationTypes.Parasite) {
+                val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to it)
+                if (destination.id != sender.id.value) {
+                    broadcastToParasite(destination.id, broadcastContent)
                 }
                 broadcastToParasite(sender.id.value, broadcastContent)
             }
         }
     }
 
-    fun handleChatMessage(destinationId: UUID, sender: Parasites.ParasiteObject, message: String) {
-        val destinationRoom = Rooms.DAO.find(destinationId)
-        destinationRoom?.let {
-            val processedMessage = processMessage(message)
-            Messages.DAO.create(
-                sender.id,
-                MessageDestination(destinationId.toString(), MessageDestinationTypes.Room),
-                MessageData.ChatMessageData(sender.name, sender.settings.color, processedMessage)
-            ) {
-                broadcastToRoom(
-                    destinationRoom,
-                    mapOf("type" to MessageTypes.ChatMessage, "data" to it.toMessageBody())
+    private fun createAndSendGorillaGrooveMessage(
+        destination: MessageDestination,
+        sender: Parasites.ParasiteObject,
+        link: URI,
+        destinationRoom: Rooms.RoomObject? = null
+    ) {
+        createAndSendChatMessage(
+            destination,
+            sender,
+            MessageData.GorillaGrooveMessageData(sender.name, sender.settings.color, link.toASCIIString()),
+            destinationRoom
+        )
+    }
+
+    fun handlePrivateMessage(destinationId: String, sender: Parasites.ParasiteObject, message: String) {
+        val messageUri = textToNormalizedUri(message)?.also {
+            if (isSneakyImageLink(it)) {
+                return handleImageMessage(destinationId, sender, message, false)
+            }
+        }
+        if (Parasites.DAO.exists(destinationId)) {
+            val destination = MessageDestination(destinationId, MessageDestinationTypes.Parasite)
+            if (messageUri != null && isGorillaGrooveLink(messageUri)) {
+                createAndSendGorillaGrooveMessage(destination, sender, messageUri)
+            } else {
+                createAndSendChatMessage(
+                    destination,
+                    sender,
+                    MessageData.ChatMessageData(sender.name, sender.settings.color, processMessageText(message))
                 )
             }
         }
     }
 
-    private suspend fun uploadImageToS3(
-        messageId: EntityID<UUID>,
-        imageContent: ByteArray,
-        imageContentType: ContentType?
-    ): String? {
+    fun handleRoomMessage(destinationId: UUID, sender: Parasites.ParasiteObject, message: String) {
+        val messageUri = textToNormalizedUri(message)?.also {
+            if (isSneakyImageLink(it)) {
+                return handleImageMessage(destinationId.toString(), sender, message, false)
+            }
+        }
+        Rooms.DAO.find(destinationId)?.let { destinationRoom ->
+            val destination = MessageDestination(destinationId.toString(), MessageDestinationTypes.Room)
+            if (messageUri != null && isGorillaGrooveLink(messageUri)) {
+                createAndSendGorillaGrooveMessage(destination, sender, messageUri)
+            } else {
+                createAndSendChatMessage(
+                    destination,
+                    sender,
+                    MessageData.ChatMessageData(sender.name, sender.settings.color, processMessageText(message)),
+                    destinationRoom
+                )
+            }
+        }
+    }
+
+    private suspend fun uploadImageToS3(imageContent: ByteArray, imageContentType: ContentType?): String? {
+        val digest = MessageDigest.getInstance("SHA256").digest(imageContent)
+        val hash = BigInteger(1, digest).toString(16).uppercase()
+        println(hash)
         return if (imageContent.size > 0) {
-            val objectKey = "images/${messageId}"
-            s3Client.putObject {
-                this.bucket = imageCacheBucket
-                this.key = objectKey
-                this.acl = ObjectCannedAcl.PublicRead
-                this.body = ByteStream.fromBytes(imageContent)
-                this.contentType = imageContentType.toString()
+            val objectKey = "images/${hash}"
+            println(objectKey)
+            val exists = try {
+                s3Client.headObject {
+                    bucket = imageCacheBucket
+                    key = objectKey
+                }
+                true
+            } catch (e: S3Exception) {
+                if (e.sdkErrorMetadata.protocolResponse.statusCode() == HttpStatusCode.NotFound) {
+                    false
+                } else {
+                    throw e
+                }
+            }
+            if (!exists) {
+                s3Client.putObject {
+                    this.bucket = imageCacheBucket
+                    this.key = objectKey
+                    this.acl = ObjectCannedAcl.PublicRead
+                    this.body = ByteStream.fromBytes(imageContent)
+                    this.contentType = imageContentType?.toString()
+                }
             }
             "${imageCacheHost}/$objectKey"
         } else {
@@ -205,46 +330,82 @@ object ChatManager {
         }
     }
 
-    fun handleImageMessage(
-        destination: MessageDestination,
-        sender: Parasites.ParasiteObject,
-        url: String,
-        nsfw: Boolean
-    ) {
-        fun createMessageAndCacheImage(broadcastImage: (Map<String, Any?>) -> Unit) {
-            Messages.DAO.create(
-                sender.id,
-                destination,
-                MessageData.ImageMessageData(sender.name, sender.settings.color, nsfw, url)
-            ) { newMessage ->
-                val cachedUrl = runBlocking {
-                    val imageResponse = ktorClient.request(url)
+    fun handleImageMessage(destinationId: String, sender: Parasites.ParasiteObject, urlString: String, nsfw: Boolean) {
+        fun createMessageAndCacheImage(
+            uri: URI,
+            destination: MessageDestination,
+            broadcastImage: (Messages.MessageObject) -> Unit
+        ) {
+            val srcUrl = uri.toHttpUrlOrNull()?.let {
+                runBlocking {
+                    val imageResponse = ktorClient.request(uri.toASCIIString())
                     if (imageResponse.status.isSuccess()) {
-                        val imageContentType =
-                            imageResponse.contentType() ?: ContentType.fromFilePath(url).firstOrNull()
+                        val imageContentType = imageResponse.contentType()
+                                ?: ContentType.fromFilePath(urlString).firstOrNull()
                         val imageContent = imageResponse.readBytes()
-                        uploadImageToS3(newMessage.id, imageContent, imageContentType) ?: url
+                        uploadImageToS3(imageContent, imageContentType) ?: urlString
                     } else {
-                        url
+                        urlString
                     }
                 }
-                val newData = newMessage.data.copy(src = cachedUrl)
-                Messages.DAO.update(newMessage.id, newData)
-                broadcastImage(newMessage.copy(data = newData).toMessageBody())
-            }
+            } ?: urlString
+            val data = MessageData.ImageMessageData(sender.name, sender.settings.color, nsfw, urlString, srcUrl)
+            Messages.DAO.create(sender.id, destination, data) { newMessage -> broadcastImage(newMessage) }
         }
 
-        when (destination.type) {
-            MessageDestinationTypes.Room -> {
-                Rooms.DAO.find(UUID.fromString(destination.id))?.let { destinationRoom ->
-                    createMessageAndCacheImage { data ->
-                        broadcastToRoom(destinationRoom, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
+        val messageUri = textToNormalizedUri(urlString)
+        if (messageUri == null && nsfw) {
+            return handleImageUploadMessage(
+                destinationId,
+                sender,
+                "<html><body><pre>${urlString.escapeHTML()}</pre></body></html>".encodeBase64(),
+                ContentType.Text.Html.toString(),
+                nsfw
+            )
+        } else if (messageUri != null && messageUri.scheme == "data") {
+            return handleImageUploadMessage(
+                destinationId,
+                sender,
+                messageUri.schemeSpecificPart.substringAfter(";"),
+                messageUri.schemeSpecificPart.substringBefore(";"),
+                nsfw
+            )
+        }
+
+        try {
+            UUID.fromString(destinationId)
+        } catch (e: IllegalArgumentException) {
+            null
+        }?.let { destinationUUID ->
+            if (messageUri == null || messageUri.toHttpUrlOrNull() == null) {
+                return handleRoomMessage(destinationUUID, sender, urlString)
+            }
+
+            val destination = MessageDestination(destinationId, MessageDestinationTypes.Room)
+            Rooms.DAO.find(destinationUUID)?.let { destinationRoom ->
+                if (isGorillaGrooveLink(messageUri)) {
+                    createAndSendGorillaGrooveMessage(destination, sender, messageUri, destinationRoom)
+                } else {
+                    createMessageAndCacheImage(messageUri, destination) { data ->
+                        broadcastToRoom(
+                            destinationRoom,
+                            mapOf("type" to MessageTypes.ChatMessage, "data" to data)
+                        )
                     }
                 }
             }
-            MessageDestinationTypes.Parasite -> {
-                if (Parasites.DAO.exists(destination.id)) {
-                    createMessageAndCacheImage { data ->
+        } ?: let {
+            // ok, it must be a parasite id.
+            if (messageUri == null || messageUri.toHttpUrlOrNull() == null) {
+                return handlePrivateMessage(destinationId, sender, urlString)
+            }
+
+            val destination = MessageDestination(destinationId, MessageDestinationTypes.Parasite)
+            if (Parasites.DAO.exists(destination.id)) {
+                if (isGorillaGrooveLink(messageUri)) {
+                    createAndSendGorillaGrooveMessage(destination, sender, messageUri)
+                } else {
+                    createMessageAndCacheImage(messageUri, destination) { data ->
                         val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to data)
                         if (destination.id != sender.id.value) {
                             broadcastToParasite(destination.id, broadcastContent)
@@ -257,7 +418,7 @@ object ChatManager {
     }
 
     fun handleImageUploadMessage(
-        destination: MessageDestination,
+        destinationId: String,
         sender: Parasites.ParasiteObject,
         imageData: String,
         imageType: String,
@@ -269,31 +430,30 @@ object ChatManager {
         }
 
         fun createMessageAndUploadImage(
-            broadcastResult: (Map<String, Any?>) -> Unit
+            destination: MessageDestination,
+            broadcastResult: (Messages.MessageObject) -> Unit
         ) {
-            val newImageMessageData = MessageData.ImageMessageData(sender.name, sender.settings.color, nsfw)
-            Messages.DAO.create(sender.id, destination, newImageMessageData) { newMessage ->
-                runBlocking {
-                    uploadImageToS3(newMessage.id, imageBytes, imageContentType)
-                }?.let { cachedUrl ->
-                    val newData = newImageMessageData.copy(url = cachedUrl, src = cachedUrl)
-                    Messages.DAO.update(newMessage.id, newData)
-                    broadcastResult(newMessage.copy(data = newImageMessageData).toMessageBody())
-                } ?: throw IllegalStateException("Image upload failed")
-            }
+            val imgUrl = runBlocking {
+                uploadImageToS3(imageBytes, imageContentType)
+            } ?: throw IllegalStateException("Image upload failed")
+            val newImageMessageData = MessageData.ImageMessageData(sender.name, sender.settings.color, nsfw, imgUrl)
+            Messages.DAO.create(sender.id, destination, newImageMessageData) { broadcastResult(it) }
         }
 
-        when (destination.type) {
-            MessageDestinationTypes.Room -> {
-                Rooms.DAO.find(UUID.fromString(destination.id))?.let { destinationRoom ->
-                    createMessageAndUploadImage { data ->
-                        broadcastToRoom(destinationRoom, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
-                    }
+        try {
+            val destinationUUID = UUID.fromString(destinationId)
+            val destination = MessageDestination(destinationId, MessageDestinationTypes.Room)
+            Rooms.DAO.find(destinationUUID)?.let { destinationRoom ->
+                createMessageAndUploadImage(destination) { data ->
+                    broadcastToRoom(destinationRoom, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
                 }
             }
-            MessageDestinationTypes.Parasite -> {
+        } catch (e: IllegalArgumentException) {
+            // ok, it must be a parasite id.
+            val destination = MessageDestination(destinationId, MessageDestinationTypes.Parasite)
+            if (Parasites.DAO.exists(destination.id)) {
                 if (Parasites.DAO.exists(destination.id)) {
-                    createMessageAndUploadImage { data ->
+                    createMessageAndUploadImage(destination) { data ->
                         val broadcastContent = mapOf("type" to MessageTypes.PrivateMessage, "data" to data)
                         if (destination.id != sender.id.value) {
                             broadcastToParasite(destination.id, broadcastContent)

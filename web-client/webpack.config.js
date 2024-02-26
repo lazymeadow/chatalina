@@ -7,6 +7,7 @@ const devMode = process.env.NODE_ENV !== 'production'
 
 const config = [
 	{
+		devtool: 'eval-source-map',
 		entry: {
 			main: ['./js/main.js', './less/chat.less'],
 			mobile: ['./js/mobile.js', './less/mobile.less'],

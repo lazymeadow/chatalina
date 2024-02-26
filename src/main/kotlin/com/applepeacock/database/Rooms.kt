@@ -23,7 +23,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
         val created: Instant,
         val updated: Instant,
         val members: List<String>,
-        var history: List<Map<String, Any?>> = emptyList()
+        var history: List<Messages.MessageObject> = emptyList()
     ) : ChatTable.ObjectModel()
 
     object DAO : ChatTable.DAO() {
@@ -92,9 +92,9 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 .map { (_, rows) ->
                     val msgs = rows.mapNotNull { m ->
                         m.getOrNull(historyQuery.alias[Messages.id])?.let {
-                            Messages.DAO.resultRowToObject(m, historyQuery).toMessageBody()
+                            Messages.DAO.resultRowToObject(m, historyQuery)
                         }
-                    }
+                    }.sortedBy { it.sent }
                     resultRowToObject(rows.first()).apply { history = msgs }
                 }
         }

@@ -267,7 +267,7 @@ object ChatMessageHandler : MessageHandler {
             if (messageBody.message.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleChatMessage(messageBody.roomId!!, parasite, messageBody.message!!)
+                ChatManager.handleRoomMessage(messageBody.roomId!!, parasite, messageBody.message!!)
             }
         }
     }
@@ -310,35 +310,24 @@ object ImageMessageHandler : MessageHandler {
             if (messageBody.destination.isNullOrBlank() || messageBody.url.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                messageBody.destination?.let {
-                    try {
-                        UUID.fromString(it)
-                        MessageDestination(it, MessageDestinationTypes.Room)
-                    } catch (e: IllegalArgumentException) {
-                        MessageDestination(it, MessageDestinationTypes.Parasite)
-                    }
-                }?.let {
-                    try {
-                        ChatManager.handleImageMessage(
-                            it,
-                            parasite,
-                            messageBody.url.toString(),
-                            messageBody.nsfw.toString().toBoolean()
-                        )
-                    } catch (e: Throwable) {
-                        e.printStackTrace()
-                        connection.send(
-                            ServerMessage(
-                                AlertData.dismiss(
-                                    "Failed to send image. Admins have been notified of this incident.",
-                                    "Sorry"
-                                )
+                try {
+                    ChatManager.handleImageMessage(
+                        messageBody.destination.toString(),
+                        parasite,
+                        messageBody.url.toString(),
+                        messageBody.nsfw.toString().toBoolean()
+                    )
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                    connection.send(
+                        ServerMessage(
+                            AlertData.dismiss(
+                                "Failed to send image. Admins have been notified of this incident.",
+                                "Sorry"
                             )
                         )
-                        connection.session.application.sendErrorEmail(e)
-                    }
-                } ?: let {
-                    connection.logger.error("Bad message content")
+                    )
+                    connection.session.application.sendErrorEmail(e)
                 }
             }
         }
@@ -365,36 +354,25 @@ object ImageUploadMessageHandler : MessageHandler {
             ) {
                 connection.logger.error("Bad message content")
             } else {
-                messageBody.destination?.let {
-                    try {
-                        UUID.fromString(it)
-                        MessageDestination(it, MessageDestinationTypes.Room)
-                    } catch (e: IllegalArgumentException) {
-                        MessageDestination(it, MessageDestinationTypes.Parasite)
-                    }
-                }?.let {
-                    try {
-                        ChatManager.handleImageUploadMessage(
-                            it,
-                            parasite,
-                            messageBody.imageData.toString(),
-                            messageBody.imageType.toString(),
-                            messageBody.nsfw.toString().toBoolean()
-                        )
-                    } catch (e: Throwable) {
-                        e.printStackTrace()
-                        connection.send(
-                            ServerMessage(
-                                AlertData.dismiss(
-                                    "Failed to upload image. Admins have been notified of this incident.",
-                                    "Sorry"
-                                )
+                try {
+                    ChatManager.handleImageUploadMessage(
+                        messageBody.destination.toString(),
+                        parasite,
+                        messageBody.imageData.toString(),
+                        messageBody.imageType.toString(),
+                        messageBody.nsfw.toString().toBoolean()
+                    )
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                    connection.send(
+                        ServerMessage(
+                            AlertData.dismiss(
+                                "Failed to upload image. Admins have been notified of this incident.",
+                                "Sorry"
                             )
                         )
-                        connection.session.application.sendErrorEmail(e)
-                    }
-                } ?: let {
-                    connection.logger.error("Bad message content")
+                    )
+                    connection.session.application.sendErrorEmail(e)
                 }
             }
         }

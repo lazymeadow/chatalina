@@ -8,6 +8,8 @@ val bcryptVersion: String = "0.10.2"
 val flywayVersion: String = "10.8.1"
 val apacheCommonsEmailVersion: String = "1.6.0"
 val apacheCommonsValidatorVersion: String = "1.8.0"
+val autolinkVersion = "0.11.0"
+val awsVersion: String = "1.0.40"
 
 plugins {
     kotlin("jvm") version "1.9.22"
@@ -99,7 +101,9 @@ dependencies {
     implementation("org.apache.commons:commons-email:$apacheCommonsEmailVersion")
     implementation("commons-validator:commons-validator:$apacheCommonsValidatorVersion")
 
-    implementation("aws.sdk.kotlin:s3:1.0.40")
+    implementation("org.nibor.autolink:autolink:$autolinkVersion")
+
+    implementation("aws.sdk.kotlin:s3:$awsVersion")
 
     testImplementation("io.ktor:ktor-server-tests")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlinVersion")
