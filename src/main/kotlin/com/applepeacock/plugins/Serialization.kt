@@ -91,7 +91,7 @@ class ErrorHandlingJacksonConverter(mapper: JsonMapper) : ContentConverter {
 
 class EntityIdSerializer : JsonSerializer<EntityID<*>>() {
     override fun serialize(value: EntityID<*>?, gen: JsonGenerator, serializers: SerializerProvider?) =
-        value?.let { serializers?.defaultSerializeValue(value.value, gen) } ?: gen.writeNull()
+        value?.let { serializers?.defaultSerializeValue(value.value.toString(), gen) } ?: gen.writeNull()
 }
 
 class KotlinInstantSerializer : JsonSerializer<Instant>() {

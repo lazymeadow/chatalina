@@ -17,7 +17,6 @@ import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
 
 interface MessageHandler {
-
     suspend fun handleMessage(connection: ChatSocketConnection, parasite: Parasites.ParasiteObject, body: MessageBody)
 }
 
@@ -251,7 +250,7 @@ object SettingsMessageHandler : MessageHandler {
 
 object ChatMessageHandler : MessageHandler {
     class ChatMessageBody(type: MessageTypes) : MessageBody(type) {
-        val roomId: UUID? by other("room id")
+        val roomId: Int? by other("room id")
         val message: String? by other("message")
     }
 
@@ -389,7 +388,7 @@ object RoomActionHandler : MessageHandler {
     class RoomActionMessageBody(type: MessageTypes) : MessageBody(type) {
         val action: RoomActionTypes? by otherEnum<RoomActionTypes, RoomActionMessageBody>("action")
         val newRoomName: String? by other("room name")
-        val roomId: UUID? by other("room id")
+        val roomId: Int? by other("room id")
         val accept: Boolean? by other("accept")
         val inviterId: String? by other("inviter id")
         val inviteeIds: List<String>? by other("user ids")

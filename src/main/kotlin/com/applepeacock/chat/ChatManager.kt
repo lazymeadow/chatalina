@@ -274,7 +274,7 @@ object ChatManager {
         }
     }
 
-    fun handleRoomMessage(destinationId: UUID, sender: Parasites.ParasiteObject, message: String) {
+    fun handleRoomMessage(destinationId: Int, sender: Parasites.ParasiteObject, message: String) {
         val messageUri = textToNormalizedUri(message)?.also {
             if (isSneakyImageLink(it)) {
                 return handleImageMessage(destinationId.toString(), sender, message, false)
@@ -372,17 +372,13 @@ object ChatManager {
             )
         }
 
-        try {
-            UUID.fromString(destinationId)
-        } catch (e: IllegalArgumentException) {
-            null
-        }?.let { destinationUUID ->
+        destinationId.toIntOrNull()?.let { destinationInt ->
             if (messageUri == null || messageUri.toHttpUrlOrNull() == null) {
-                return handleRoomMessage(destinationUUID, sender, urlString)
+                return handleRoomMessage(destinationInt, sender, urlString)
             }
 
             val destination = MessageDestination(destinationId, MessageDestinationTypes.Room)
-            Rooms.DAO.find(destinationUUID)?.let { destinationRoom ->
+            Rooms.DAO.find(destinationInt)?.let { destinationRoom ->
                 if (isGorillaGrooveLink(messageUri)) {
                     createAndSendGorillaGrooveMessage(destination, sender, messageUri, destinationRoom)
                 } else {
@@ -440,15 +436,14 @@ object ChatManager {
             Messages.DAO.create(sender.id, destination, newImageMessageData) { broadcastResult(it) }
         }
 
-        try {
-            val destinationUUID = UUID.fromString(destinationId)
+        destinationId.toIntOrNull()?.let {
             val destination = MessageDestination(destinationId, MessageDestinationTypes.Room)
-            Rooms.DAO.find(destinationUUID)?.let { destinationRoom ->
+            Rooms.DAO.find(it)?.let { destinationRoom ->
                 createMessageAndUploadImage(destination) { data ->
                     broadcastToRoom(destinationRoom, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
                 }
             }
-        } catch (e: IllegalArgumentException) {
+        } ?: {
             // ok, it must be a parasite id.
             val destination = MessageDestination(destinationId, MessageDestinationTypes.Parasite)
             if (Parasites.DAO.exists(destination.id)) {
@@ -467,7 +462,7 @@ object ChatManager {
 
     fun handleSendInvitations(
         connection: ChatSocketConnection,
-        roomId: UUID,
+        roomId: Int,
         sender: Parasites.ParasiteObject,
         invitees: List<String>
     ) {
@@ -506,7 +501,7 @@ object ChatManager {
     fun handleInvitationResponse(
         connection: ChatSocketConnection,
         parasite: Parasites.ParasiteObject,
-        roomId: UUID,
+        roomId: Int,
         accept: Boolean
     ) {
         val room = Rooms.DAO.find(roomId) ?: throw BadRequestException("Invalid invitation")
@@ -516,7 +511,7 @@ object ChatManager {
         }
 
         if (accept) {
-            Rooms.DAO.addMember(room.id, parasite.id)?.let { updatedRoom ->
+            Rooms.DAO.addMember(parasite.id, room.id)?.let { updatedRoom ->
                 // broadcast updated room list & join notice to current members
                 val acceptedMessage = "${parasite.name} has accepted your invitation and joined '${updatedRoom.name}'."
                 val joinedMessage = "${parasite.name} has joined '${updatedRoom.name}'."
@@ -756,7 +751,7 @@ data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any
         }
     )
 
-    constructor(roomId: EntityID<UUID>, invitations: List<RoomInvitations.RoomInvitationObject>) : this(
+    constructor(roomId: EntityID<Int>, invitations: List<RoomInvitations.RoomInvitationObject>) : this(
         ServerMessageTypes.Invitation,
         buildMap {
             invitations.filter { it.room == roomId }.let {

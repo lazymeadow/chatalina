@@ -133,7 +133,7 @@ export class BestEvarChatClient {
             this._send({
                 'type': 'chat message',
                 'message': messageText,
-                'room id': Settings.activeLogId
+                'room id': parseInt(Settings.activeLogId, 10)
             });
         }
         else {

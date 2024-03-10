@@ -4,6 +4,7 @@ import at.favre.lib.crypto.bcrypt.BCrypt
 import com.applepeacock.chat.EmailTypes
 import com.applepeacock.chat.sendEmail
 import com.applepeacock.database.Parasites
+import com.applepeacock.database.Rooms
 import com.applepeacock.hostUrl
 import com.applepeacock.http.AuthenticationException
 import com.applepeacock.http.RedirectException
@@ -139,6 +140,7 @@ private fun Route.postRegister() {
         val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
         val newParasite = Parasites.DAO.create(body.parasite, body.email, hashed)
                 ?: throw BadRequestException("Failed to create user")
+        Rooms.DAO.addMember(newParasite.id)  // add new parasite to "general" room
         call.respond(HttpStatusCode.Created, newParasite)
     }
 }

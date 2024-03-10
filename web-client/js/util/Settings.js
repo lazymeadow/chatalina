@@ -18,17 +18,16 @@ export class Settings {
     }
 
     static init() {
-        // localStorage.clear()
         // set server values
         Settings.username = Cookies.get('username');
         Settings.faction = Cookies.get('faction');
         Settings.color = Cookies.get('color');
-        Settings.soundSet = Cookies.get('soundSet') || 'AIM';
+        Settings.soundSet = Cookies.get('soundSet');
         Settings.email = Cookies.get('email');
         Settings.permission = Cookies.get('permission');
 
         // set value overrides
-        Settings.volume = Settings.volume || Cookies.get('volume') || '100';
+        Settings.volume = Settings.volume || Cookies.get('volume');
         Settings.activeLogType = Settings.activeLogType || 'room';
         $('body')[0].style.fontSize = `${Settings.fontSize}px`;
     }
@@ -46,7 +45,7 @@ export class Settings {
     }
 
     static get activeLogId() {
-        return localStorage.getItem(`${Settings.userId}.activeLogId`);
+        return localStorage.getItem(`${Settings.userId}.activeLogId`) || '0';
     }
 
     static set activeLogId(roomOrThreadId) {
@@ -95,8 +94,7 @@ export class Settings {
     }
 
     static get volume() {
-        const volumeValue = localStorage.getItem(`${Settings.userId}.volume`);
-        return parseInt(volumeValue) || '100';
+        return localStorage.getItem(`${Settings.userId}.volume`);
     }
 
     static set volume(volume) {
@@ -113,9 +111,7 @@ export class Settings {
     }
 
     static get soundSet() {
-        const soundSetValue = localStorage.getItem(`${Settings.userId}.soundSet`);
-
-        return soundSetValue || 'AIM';
+        return localStorage.getItem(`${Settings.userId}.soundSet`);
     }
 
     static set soundSet(soundSet) {

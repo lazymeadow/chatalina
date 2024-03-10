@@ -3,21 +3,20 @@ package com.applepeacock.database
 import com.applepeacock.database.Messages.DAO.withRoomMessageHistory
 import kotlinx.datetime.Instant
 import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.dao.id.UUIDTable
+import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.util.*
 
-object Rooms : UUIDTable("rooms"), ChatTable {
+object Rooms : IntIdTable("rooms"), ChatTable {
     val owner = reference("owner_id", Parasites)
     val name = text("name")
     val created = systemTimestamp("created")
     val updated = systemTimestamp("updated")
 
     data class RoomObject(
-        val id: EntityID<UUID>,
+        val id: EntityID<Int>,
         val name: String,
         val owner: EntityID<String>,
         val created: Instant,
@@ -99,15 +98,15 @@ object Rooms : UUIDTable("rooms"), ChatTable {
                 }
         }
 
-        fun find(roomId: UUID) = find(EntityID(roomId, Rooms))
-        fun find(roomId: EntityID<UUID>) = transaction {
+        fun find(roomId: Int) = find(EntityID(roomId, Rooms))
+        fun find(roomId: EntityID<Int>) = transaction {
             Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(Rooms.id, name, owner, created, updated, roomAccessQuery[membersCol], maxUpdated)
                 .where { Rooms.id eq roomId }
                 .firstOrNull()?.let { resultRowToObject(it) }
         }
 
-        fun addMember(roomId: EntityID<UUID>, parasiteId: EntityID<String>): RoomObject? = transaction {
+        fun addMember(parasiteId: EntityID<String>, roomId: EntityID<Int> = EntityID(0, Rooms)): RoomObject? = transaction {
             RoomAccess.upsert {
                 it[room] = roomId
                 it[parasite] = parasiteId
@@ -118,7 +117,7 @@ object Rooms : UUIDTable("rooms"), ChatTable {
             find(roomId)
         }
 
-        fun removeMember(roomId: EntityID<UUID>, parasiteId: EntityID<String>): RoomObject? = transaction {
+        fun removeMember(roomId: EntityID<Int>, parasiteId: EntityID<String>): RoomObject? = transaction {
             RoomAccess.upsert {
                 it[room] = roomId
                 it[parasite] = parasiteId
@@ -149,7 +148,7 @@ object RoomInvitations : Table("room_invitations"), ChatTable {
     override val primaryKey = PrimaryKey(room, invitee, sender)
 
     data class RoomInvitationObject(
-        val room: EntityID<UUID>,
+        val room: EntityID<Int>,
         val sender: EntityID<String>,
         val invitee: EntityID<String>,
         val created: Instant
@@ -171,7 +170,7 @@ object RoomInvitations : Table("room_invitations"), ChatTable {
             )
         }
 
-        fun list(parasiteId: EntityID<String>, roomId: EntityID<UUID>? = null): List<RoomInvitationObject> =
+        fun list(parasiteId: EntityID<String>, roomId: EntityID<Int>? = null): List<RoomInvitationObject> =
             transaction {
                 RoomInvitations.innerJoin(Rooms).innerJoin(Parasites, { sender }, { id })
                     .selectAll()
@@ -181,7 +180,7 @@ object RoomInvitations : Table("room_invitations"), ChatTable {
             }
 
         fun create(
-            roomId: EntityID<UUID>,
+            roomId: EntityID<Int>,
             senderId: EntityID<String>,
             parasiteId: EntityID<String>
         ): RoomInvitationObject? = transaction {
@@ -192,7 +191,7 @@ object RoomInvitations : Table("room_invitations"), ChatTable {
             }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }
         }
 
-        fun deleteAll(roomId: EntityID<UUID>, parasiteId: EntityID<String>) = transaction {
+        fun deleteAll(roomId: EntityID<Int>, parasiteId: EntityID<String>) = transaction {
             RoomInvitations.deleteWhere { (room eq roomId) and (invitee eq parasiteId) }
         }
     }
