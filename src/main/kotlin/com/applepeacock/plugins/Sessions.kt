@@ -83,9 +83,7 @@ fun Application.configureSessions() {
                     session
                 }
             }
-            challenge {
-                call.respond(HttpStatusCode.Unauthorized)
-            }
+            challenge { /* skip handling, let the socket deal with it */ }
         }
     }
 }

@@ -31,7 +31,10 @@ fun Application.configureSockets() {
     routing {
         authenticate("auth-parasite-socket") {
             webSocket("/chat") {
-                val parasiteSession = call.principal<ParasiteSession>() ?: throw AuthenticationException()
+                val parasiteSession = call.principal<ParasiteSession>() ?: let {
+                    close(reason = CloseReason(3000, "401"))
+                    throw AuthenticationException()
+                }
                 val theConnection = ChatSocketConnection(this, parasiteSession.id)
 
                 try {

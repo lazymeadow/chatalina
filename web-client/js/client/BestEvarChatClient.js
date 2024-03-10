@@ -52,7 +52,7 @@ export class BestEvarChatClient {
             if (!event.wasClean) {
                 console.error(event);
             }
-            this.disconnect(false);
+            this.disconnect(event.code === 3000);
         }
         this._sock.onerror = (event) => console.error(event);
 
