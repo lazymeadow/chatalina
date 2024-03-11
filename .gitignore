@@ -37,6 +37,8 @@ out/
 
 ## ignore my local output
 **/local*
+## ignore generated keys
+/keys/**
 
 ### ignore the output from the webpack build
 /src/main/resources/static/

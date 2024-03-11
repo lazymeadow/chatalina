@@ -1,13 +1,16 @@
 package com.applepeacock.database
 
+import com.applepeacock.chat.EncryptedData
+import com.applepeacock.chat.dbDecrypt
+import com.applepeacock.chat.dbEncrypt
 import com.applepeacock.historyLimit
 import com.applepeacock.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonValue
 import com.fasterxml.jackson.module.kotlin.convertValue
+import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.datetime.Instant
-import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
@@ -17,6 +20,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.rowNumber
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
+import javax.crypto.BadPaddingException
 
 enum class MessageDestinationTypes {
     Room,
@@ -27,7 +31,15 @@ data class MessageDestination(
     val id: String, val type: MessageDestinationTypes
 )
 
-@Serializable
+
+private fun messageDecrypt(message: EncryptedData): MessageData {
+    return defaultMapper.readValue(dbDecrypt(message))
+}
+
+private fun messageEncrypt(content: MessageData): EncryptedData {
+    return dbEncrypt(defaultMapper.writeValueAsString(content))
+}
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class MessageData(
     val username: String,
@@ -56,7 +68,7 @@ object Messages : UUIDTable("messages"), ChatTable {
     val sender = reference("sender_id", Parasites)
     val destination = text("destination_id")
     val destinationType = enumerationByName<MessageDestinationTypes>("destination_type", 48)
-    val data = jsonb<MessageData>("data")
+    val data = jsonb<EncryptedData>("data")
     val sent = systemTimestamp("sent")
 
     data class MessageObject(
@@ -91,11 +103,16 @@ object Messages : UUIDTable("messages"), ChatTable {
 
         internal fun resultRowToObject(row: ResultRow, subQuery: MessageHistorySubQuery? = null): MessageObject {
             fun <T : Any?> getVal(col: Column<T>) = subQuery?.let { row[it.alias[col]] } ?: row[col]
+            val messageData = try {
+                messageDecrypt(getVal(data))
+            } catch (e: BadPaddingException) {
+                MessageData(getVal(sender).value, "", "Message could not be decrypted.")
+            }
             return MessageObject(
                 getVal(id),
                 getVal(sender),
                 MessageDestination(getVal(destination), getVal(destinationType)),
-                getVal(data),
+                messageData,
                 getVal(sent)
             )
         }
@@ -110,8 +127,14 @@ object Messages : UUIDTable("messages"), ChatTable {
                 it[sender] = senderId
                 it[destination] = destinationInfo.id
                 it[destinationType] = destinationInfo.type
-                it[data] = messageData
-            }.resultedValues?.singleOrNull()?.let { resultRowToObject(it) }?.also(callback)
+                it[data] = messageEncrypt(messageData)
+            }.resultedValues?.singleOrNull()?.let {
+                try {
+                    resultRowToObject(it)
+                } catch (e: BadPaddingException) {
+                    null
+                }
+            }?.also(callback)
         }
 
         fun list(parasiteId: EntityID<String>): List<Map<String, Any>> = transaction {

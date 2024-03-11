@@ -2,6 +2,7 @@ package com.applepeacock
 
 import com.applepeacock.chat.ChatManager
 import com.applepeacock.chat.EmailHandler
+import com.applepeacock.chat.configureEncryption
 import com.applepeacock.database.configureDatabases
 import com.applepeacock.emoji.EmojiManager
 import com.applepeacock.http.configureHTTP
@@ -10,8 +11,6 @@ import com.applepeacock.plugins.configureSerialization
 import com.applepeacock.plugins.configureSessions
 import com.applepeacock.plugins.configureSockets
 import io.ktor.server.application.*
-import io.ktor.util.*
-import javax.crypto.spec.SecretKeySpec
 
 fun main(args: Array<String>): Unit =
     io.ktor.server.netty.EngineMain.main(args)
@@ -35,26 +34,18 @@ val Application.isProduction
 val Application.siteName
     get() = environment.config.property("bec.site_name").getString()
 
-lateinit var secretKeyField: SecretKeySpec
-
-@Suppress("UnusedReceiverParameter")  // shut up, i like it this way
-val Application.secretKey
-    get() = secretKeyField
-
 private const val HISTORY_LIMIT_DEFAULT = 200L
 lateinit var historyLimit: Number
 
 @Suppress("unused") // application.conf references the main function. This annotation prevents the IDE from marking it as unused.
 fun Application.module() {
-    val secretKeyString = environment.config.property("bec.secret_key").getString()
-    secretKeyField = SecretKeySpec(secretKeyString.decodeBase64Bytes(), "AES")
-
     historyLimit = environment.config.propertyOrNull("bec.history_limit_override")?.getString()?.toLong()
             ?: HISTORY_LIMIT_DEFAULT
 
     EmojiManager.configure()
 
 //    configureSecurity()
+    configureEncryption()
     configureSessions()
     configureHTTP()
     configureMonitoring()

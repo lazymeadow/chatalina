@@ -2,6 +2,8 @@ package com.applepeacock.http.routes
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.applepeacock.chat.EmailTypes
+import com.applepeacock.chat.tokenDecrypt
+import com.applepeacock.chat.tokenEncrypt
 import com.applepeacock.chat.sendEmail
 import com.applepeacock.database.Parasites
 import com.applepeacock.database.Rooms
@@ -12,7 +14,6 @@ import com.applepeacock.http.getPebbleContent
 import com.applepeacock.isProduction
 import com.applepeacock.plugins.CLIENT_VERSION
 import com.applepeacock.plugins.ParasiteSession
-import com.applepeacock.secretKey
 import com.applepeacock.siteName
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -22,10 +23,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
-import io.ktor.util.*
-import javax.crypto.Cipher
 import javax.crypto.IllegalBlockSizeException
-import javax.crypto.SecretKey
 
 fun Route.authenticationRoutes() {
     route("/login") {
@@ -158,10 +156,7 @@ private fun Route.postForgotPassword() {
         val body = call.receive<ForgotPasswordRequest>()
         val foundParasite = Parasites.DAO.find(body.parasite)
         if (foundParasite != null) {
-            val cipher = Cipher.getInstance("AES")
-            cipher.init(Cipher.ENCRYPT_MODE, application.secretKey)
-            val newResetToken = cipher.doFinal(body.parasite.toByteArray()).encodeBase64()
-
+            val newResetToken = tokenEncrypt(body.parasite)
             Parasites.DAO.newPasswordResetToken(body.parasite, newResetToken)
 
             val resetLink = "${application.hostUrl}/reset-password?token=${newResetToken}"
@@ -173,10 +168,8 @@ private fun Route.postForgotPassword() {
     }
 }
 
-fun checkTokenForParasite(token: String, secretKey: SecretKey): Parasites.ParasiteObject {
-    val cipher = Cipher.getInstance("AES")
-    cipher.init(Cipher.DECRYPT_MODE, secretKey)
-    val parasiteId = cipher.doFinal(token.decodeBase64Bytes()).decodeToString()
+fun checkTokenForParasite(token: String): Parasites.ParasiteObject {
+    val parasiteId = tokenDecrypt(token)
     return Parasites.DAO.find(parasiteId)?.also { parasite ->
         if (!Parasites.DAO.checkToken(parasite.id, token)) {
             throw BadRequestException("Invalid password reset link.")
@@ -187,7 +180,7 @@ fun checkTokenForParasite(token: String, secretKey: SecretKey): Parasites.Parasi
 private fun Route.getResetPassword() {
     get {
         val token = call.request.queryParameters["token"] ?: ""
-        val parasite = checkTokenForParasite(token, application.secretKey)
+        val parasite = checkTokenForParasite(token)
 
         call.respond(application.getPebbleContent("reset-password.html", "token" to token, "username" to parasite.id))
     }
@@ -200,7 +193,7 @@ private fun Route.postResetPassword() {
         val body = call.receive<ResetPasswordRequest>()
 
         try {
-            val parasite = checkTokenForParasite(body.token, application.secretKey)
+            val parasite = checkTokenForParasite(body.token)
             val error = if (body.password.isBlank()) {
                 "Password is required."
             } else if (body.password != body.password2) {
