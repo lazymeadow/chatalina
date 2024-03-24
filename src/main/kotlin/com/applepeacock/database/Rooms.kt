@@ -68,7 +68,9 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                                 ) eq intLiteral(0)
                             }
                         }
-                    }.map {
+                    }
+                    .orderBy(Rooms.id)
+                    .map {
                         buildMap {
                             put("id", it[Rooms.id])
                             put("name", it[name])
@@ -84,6 +86,7 @@ object Rooms : IntIdTable("rooms"), ChatTable {
             val query = Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(Rooms.id, name, owner, created, updated, roomAccessQuery[membersCol], maxUpdated)
                 .where { roomAccessQuery[membersCol] any stringParam(forParasite.value) }
+                .orderBy(Rooms.id)
             val historyQuery = query.withRoomMessageHistory()
 
             query.toList()

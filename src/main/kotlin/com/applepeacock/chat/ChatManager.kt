@@ -8,6 +8,7 @@ import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
 import aws.smithy.kotlin.runtime.http.HttpStatusCode
 import aws.smithy.kotlin.runtime.http.response.statusCode
+import com.applepeacock.chat.ParasiteListObject.Companion.toListObject
 import com.applepeacock.database.*
 import com.applepeacock.database.AlertData.Companion.toMap
 import com.applepeacock.emoji.EmojiManager
@@ -27,6 +28,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.websocket.*
 import io.ktor.util.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.Instant
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jetbrains.exposed.dao.id.EntityID
 import org.nibor.autolink.LinkExtractor
@@ -39,6 +41,36 @@ import java.net.URISyntaxException
 import java.security.MessageDigest
 import java.util.*
 
+
+data class ParasiteListObject(
+    val id: EntityID<String>,
+    val email: String,
+    val lastActive: Instant?,
+    val status: ParasiteStatus,
+    val typing: String?,
+    val username: String,
+    val faction: String,
+    val color: String,
+    val permission: ParasitePermissions,
+    val soundSet: String,
+    val volume: String
+) {
+    companion object {
+        fun Parasites.ParasiteObject.toListObject(status: ParasiteStatus, typing: String?) = ParasiteListObject(
+            id,
+            email,
+            lastActive,
+            status,
+            typing,
+            name,
+            settings.faction,
+            settings.color,
+            settings.permission,
+            settings.soundSet,
+            settings.volume
+        )
+    }
+}
 
 enum class ParasiteStatus(val value: String) {
     Active("active"),
@@ -120,21 +152,9 @@ object ChatManager {
         logger.debug("Chat Manager initialized.")
     }
 
-    fun buildParasiteList(): List<Map<String, Any?>> = Parasites.DAO.list(active = true).map {
-        buildMap {
-            put("id", it.id.value)
-            put("email", it.email)
-            put("lastActive", it.lastActive?.toString())
-            put("status", ParasiteStatusMap.getStatus(it.id))
-            put("typing", ParasiteStatusMap.getTyping(it.id))
-            put("username", it.name)
-            put("faction", it.settings.faction)
-            put("color", it.settings.color)
-            put("permission", it.settings.permission)
-            put("soundSet", it.settings.soundSet)
-            put("volume", it.settings.volume)
-        }
-    }
+    fun buildParasiteList(): List<ParasiteListObject> = Parasites.DAO.list(active = true)
+        .map { it.toListObject(ParasiteStatusMap.getStatus(it.id), ParasiteStatusMap.getTyping(it.id)) }
+        .sortedBy { it.status }
 
 
     private fun sendRoomList(parasiteId: EntityID<String>, room: Rooms.RoomObject?) =

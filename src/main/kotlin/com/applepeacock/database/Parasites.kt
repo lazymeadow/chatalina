@@ -91,7 +91,8 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             transaction {
                 val query = Parasites.selectAll().where { Parasites.active eq active }
                 permissionFilter?.also { query.andWhere { permissionCol eq stringParam(permissionFilter.toString()) } }
-                query.map { resultRowToObject(it) }
+                query.orderBy(coalesce(settings.extract("displayName"), Parasites.id))
+                    .map { resultRowToObject(it) }
             }
 
         fun listWithoutPermissions(
