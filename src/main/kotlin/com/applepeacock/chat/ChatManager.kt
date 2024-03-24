@@ -143,7 +143,7 @@ object ChatManager {
     private fun sendRoomList(parasiteId: String, room: Rooms.RoomObject?) {
         val data = room?.let {
             mapOf("rooms" to listOf(it), "all" to false)
-        } ?: mapOf("rooms" to Rooms.DAO.list(parasiteId))
+        } ?: mapOf("rooms" to Rooms.DAO.list(parasiteId), "all" to true)
         broadcastToParasite(parasiteId, ServerMessage(ServerMessageTypes.RoomList, data))
     }
 
@@ -649,8 +649,7 @@ object ChatManager {
         ParasiteStatusMap.setStatus(parasite.id, ParasiteStatus.Active)
         broadcastUserList()
 
-        val roomList = Rooms.DAO.list(parasite.id)
-        connection.send(ServerMessage(ServerMessageTypes.RoomList, mapOf("rooms" to roomList, "all" to true)))
+        sendRoomList(parasite.id, null)
         val privateMessagesList = Messages.DAO.list(parasite.id)
         connection.send(ServerMessage(ServerMessageTypes.PrivateMessageList, mapOf("threads" to privateMessagesList)))
 
