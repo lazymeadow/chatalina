@@ -1,7 +1,7 @@
 import moment from 'moment';
 import {LoggingClass, Settings} from "../util";
 import {User} from "./User";
-import {_focusChatBar, _parseEmojis, setTitle} from "../lib";
+import {_focusChatBar, _parseEmojis} from "../lib";
 
 export class UserManager extends LoggingClass {
     constructor(chatClient, messageLog, soundManager) {
@@ -41,8 +41,7 @@ export class UserManager extends LoggingClass {
             this._userDataMap.forEach(user => {
                 user.updateTypingStatus();
             })
-        }
-        else {
+        } else {
             this._activeUserListElement.empty();
             this._inactiveUserListElement.empty();
             newUsers.forEach((userData) => {
@@ -60,8 +59,7 @@ export class UserManager extends LoggingClass {
         if (Settings.activeLogType === 'thread') {
             if (this._userDataMap.has(Settings.activeLogId)) {
                 this.setActiveThread(Settings.activeLogId);
-            }
-            else {
+            } else {
                 this._chatClient.selectGeneralRoom();
             }
         }
@@ -69,8 +67,14 @@ export class UserManager extends LoggingClass {
 
     addMessage({'sender id': senderId, 'recipient id': recipientId, ...messageData}) {
         const otherUserId = recipientId === Settings.userId ? senderId : recipientId;
-        const isCurrentLog = (Settings.activeLogType === 'thread' && Settings.activeLogId === otherUserId);
-        const totalMessages = this._userDataMap.get(otherUserId).addMessage(messageData, !isCurrentLog);
+        const isSelfMessage = recipientId === senderId && recipientId === Settings.userId
+        const isCurrentLog = (Settings.activeLogType === 'thread')
+            && ((isSelfMessage && recipientId === Settings.activeLogId) || (otherUserId === Settings.activeLogId));
+
+        const totalMessages = this._userDataMap.get(otherUserId).addMessage(
+            messageData,
+            (senderId !== Settings.userId && !isCurrentLog)
+        );
         if (isCurrentLog) {
             if (totalMessages <= 1) {
                 this._messageLog.clear();
@@ -79,8 +83,7 @@ export class UserManager extends LoggingClass {
         }
         if (senderId === Settings.username) {
             this._soundManager.playSent();
-        }
-        else {
+        } else {
             this._soundManager.playReceived();
         }
     }
@@ -112,8 +115,7 @@ export class UserManager extends LoggingClass {
             // if it's already in the map, update it
             user = this._userDataMap.get(userData['id']);
             user.updateUser(userData);
-        }
-        else {
+        } else {
             // otherwise, add a new user
             user = new User(userData, this);
             this._userDataMap.set(userData['id'], user);
@@ -122,8 +124,7 @@ export class UserManager extends LoggingClass {
         // if a user isn't online, they can be in the active list if they've been active in the last week
         if (user.status !== 'offline' || (user.lastActive && moment.unix(user.lastActive).isSameOrAfter(moment().subtract(7, 'days')))) {
             this._activeUserListElement.append(user.template);
-        }
-        else {
+        } else {
             this._inactiveUserListElement.append(user.template);
         }
     }

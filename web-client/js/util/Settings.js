@@ -1,6 +1,9 @@
 import Cookies from 'js-cookie';
 
 export class Settings {
+    static #currentLogId = null;
+    static #currentLogType = null
+
     static get allowedFactions() {
         return {
             'First Order': 'first-order',
@@ -28,7 +31,6 @@ export class Settings {
 
         // set value overrides
         Settings.volume = Settings.volume || Cookies.get('volume');
-        Settings.activeLogType = Settings.activeLogType || 'room';
         $('body')[0].style.fontSize = `${Settings.fontSize}px`;
     }
 
@@ -45,19 +47,21 @@ export class Settings {
     }
 
     static get activeLogId() {
-        return localStorage.getItem(`${Settings.userId}.activeLogId`) || '0';
+        return this.#currentLogId || localStorage.getItem(`${Settings.userId}.activeLogId`) || '0';
     }
 
     static set activeLogId(roomOrThreadId) {
+        this.#currentLogId = roomOrThreadId;
         localStorage.setItem(`${Settings.userId}.activeLogId`, roomOrThreadId);
     }
     
     static get activeLogType() {
-        return localStorage.getItem(`${Settings.userId}.activeLogType`) || 'room';
+        return this.#currentLogType || localStorage.getItem(`${Settings.userId}.activeLogType`) || 'room';
     }
 
     static set activeLogType(type) {
         if ($.inArray(type, ['room', 'thread']) >= 0) {
+            this.#currentLogType = type;
             localStorage.setItem(`${Settings.userId}.activeLogType`, type);
         }
     }
