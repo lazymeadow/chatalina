@@ -402,7 +402,10 @@ object RoomActionHandler : MessageHandler {
         onMessage<RoomActionMessageBody>(body) { messageBody ->
             val action = messageBody.action ?: throw BadRequestException("Invalid room action")
             when (action) {
-                RoomActionTypes.Create -> TODO()
+                RoomActionTypes.Create -> {
+                    val newRoomName = messageBody.newRoomName
+                    ChatManager.handleCreateRoom(connection, parasite, newRoomName)
+                }
                 RoomActionTypes.Delete -> TODO()
                 RoomActionTypes.Invite -> {
                     val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")

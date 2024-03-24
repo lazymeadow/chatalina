@@ -460,6 +460,11 @@ object ChatManager {
         }
     }
 
+    fun handleCreateRoom(connection: ChatSocketConnection, parasite: Parasites.ParasiteObject, name: String?) {
+        val newRoom = Rooms.DAO.create(parasite.id, name ?: "${parasite.name}'s Room")
+        sendRoomList(connection.parasiteId, newRoom)
+    }
+
     fun handleSendInvitations(
         connection: ChatSocketConnection,
         roomId: Int,

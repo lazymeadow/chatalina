@@ -106,6 +106,19 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                 .firstOrNull()?.let { resultRowToObject(it) }
         }
 
+        fun create(parasiteId: EntityID<String>, newRoomName: String): RoomObject? = transaction {
+            val newRoomId = Rooms.insertAndGetId {
+                it[owner] = parasiteId
+                it[name] = newRoomName
+            }
+            RoomAccess.insert {
+                it[parasite] = parasiteId
+                it[room] = newRoomId
+                it[inRoom] = true
+            }
+            find(newRoomId)
+        }
+
         fun addMember(parasiteId: EntityID<String>, roomId: EntityID<Int> = EntityID(0, Rooms)): RoomObject? = transaction {
             RoomAccess.upsert {
                 it[room] = roomId
