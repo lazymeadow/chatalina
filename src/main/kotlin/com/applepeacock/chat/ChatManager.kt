@@ -271,6 +271,8 @@ object ChatManager {
                     MessageData.ChatMessageData(sender.name, sender.settings.color, processMessageText(message))
                 )
             }
+        } else {
+            throw BadRequestException("Invalid destination")
         }
     }
 
@@ -292,7 +294,7 @@ object ChatManager {
                     destinationRoom
                 )
             }
-        }
+        } ?: throw BadRequestException("Invalid destination")
     }
 
     private suspend fun uploadImageToS3(imageContent: ByteArray, imageContentType: ContentType?): String? {
@@ -409,6 +411,8 @@ object ChatManager {
                         broadcastToParasite(sender.id, broadcastContent)
                     }
                 }
+            } else {
+                throw BadRequestException("Invalid destination")
             }
         }
     }
@@ -456,6 +460,8 @@ object ChatManager {
                         broadcastToParasite(sender.id, broadcastContent)
                     }
                 }
+            } else {
+                throw BadRequestException("Invalid destination")
             }
         }
     }
