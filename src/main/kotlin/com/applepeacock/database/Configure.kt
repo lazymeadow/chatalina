@@ -1,13 +1,12 @@
 package com.applepeacock.database
 
 import io.ktor.server.application.*
-import kotlinx.datetime.Clock
 import org.flywaydb.core.Flyway
 import org.flywaydb.core.api.Location
-import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.DatabaseConfig
+import org.jetbrains.exposed.sql.Schema
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.vendors.currentDialect
-import java.io.File
 
 fun Application.configureDatabases() {
     val url = environment.config.property("db.url").getString()
