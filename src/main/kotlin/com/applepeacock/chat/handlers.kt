@@ -423,7 +423,10 @@ object RoomActionHandler : MessageHandler {
                     val accept = messageBody.accept ?: throw BadRequestException("Missing value for 'accept'")
                     ChatManager.handleInvitationResponse(connection, parasite, roomId, accept)
                 }
-                RoomActionTypes.Leave -> TODO()
+                RoomActionTypes.Leave -> {
+                    val roomId = messageBody.roomId ?: throw BadRequestException("Invalid room id")
+                    ChatManager.handleLeaveRoom(connection, parasite, roomId)
+                }
             }
         }
     }

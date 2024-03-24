@@ -483,7 +483,10 @@ object ChatManager {
         room.members.forEach {
             // send updated room list & alert to all former member connections
             sendRoomList(it, null)
-            broadcastToParasite(it, ServerMessage(AlertData.dismiss("Room '${room.name}' has been deleted.", "Oh, darn")))
+            broadcastToParasite(
+                it,
+                ServerMessage(AlertData.dismiss("Room '${room.name}' has been deleted.", "Oh, darn"))
+            )
         }
     }
 
@@ -582,6 +585,26 @@ object ChatManager {
                 connection.send(ServerMessage(AlertData.fade("There was a problem declining your invitation to '${room.name}'.")))
             }
         }
+    }
+
+
+    fun handleLeaveRoom(connection: ChatSocketConnection, parasite: Parasites.ParasiteObject, roomId: Int) {
+        val room = Rooms.DAO.find(roomId) ?: throw BadRequestException("You can't leave that room!")
+        if (!room.members.contains(connection.parasiteId)) {
+            throw BadRequestException("You can't leave that room!")
+        }
+        val updatedRoom = Rooms.DAO.removeMember(room.id, parasite.id)
+                ?: throw BadRequestException("Something went wrong when you tried to leave room '${room.name}'.")
+
+        updatedRoom.members.forEach {
+            sendRoomList(it, updatedRoom)
+            val alertData = AlertData.dismiss("${parasite.name} has left '${updatedRoom.name}'.", "Byeee")
+            Alerts.DAO.create(it, alertData).also { a ->
+                broadcastToParasite(it, ServerMessage(alertData, a?.id))
+            }
+        }
+        sendRoomList(parasite.id, null)
+        broadcastToParasite(parasite.id, ServerMessage(AlertData.fade("You left the room '${updatedRoom.name}'.")))
     }
 
     fun handleGithubIssueMessage(
