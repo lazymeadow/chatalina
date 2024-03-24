@@ -390,7 +390,6 @@ object RoomActionHandler : MessageHandler {
         val newRoomName: String? by other("room name")
         val roomId: Int? by other("room id")
         val accept: Boolean? by other("accept")
-        val inviterId: String? by other("inviter id")
         val inviteeIds: List<String>? by other("user ids")
     }
 
@@ -406,7 +405,10 @@ object RoomActionHandler : MessageHandler {
                     val newRoomName = messageBody.newRoomName
                     ChatManager.handleCreateRoom(connection, parasite, newRoomName)
                 }
-                RoomActionTypes.Delete -> TODO()
+                RoomActionTypes.Delete -> {
+                    val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")
+                    ChatManager.handleDeleteRoom(connection, parasite, roomId)
+                }
                 RoomActionTypes.Invite -> {
                     val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")
                     val invitees = messageBody.inviteeIds ?: throw BadRequestException("Invalid invitation")

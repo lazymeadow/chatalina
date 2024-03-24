@@ -471,6 +471,22 @@ object ChatManager {
         sendRoomList(connection.parasiteId, newRoom)
     }
 
+    fun handleDeleteRoom(connection: ChatSocketConnection, parasite: Parasites.ParasiteObject, roomId: Int) {
+        val room = Rooms.DAO.find(roomId) ?: throw BadRequestException("Invalid room id")
+        if (!room.members.contains(connection.parasiteId)) {
+            throw BadRequestException("Invalid room id")
+        }
+        if (room.owner != parasite.id) {
+            throw BadRequestException("Nice try, but you are not the room owner.")
+        }
+        Rooms.DAO.delete(room.id)
+        room.members.forEach {
+            // send updated room list & alert to all former member connections
+            sendRoomList(it, null)
+            broadcastToParasite(it, ServerMessage(AlertData.dismiss("Room '${room.name}' has been deleted.", "Oh, darn")))
+        }
+    }
+
     fun handleSendInvitations(
         connection: ChatSocketConnection,
         roomId: Int,

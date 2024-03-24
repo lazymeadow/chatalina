@@ -119,6 +119,13 @@ object Rooms : IntIdTable("rooms"), ChatTable {
             find(newRoomId)
         }
 
+        fun delete(roomId: EntityID<Int>) = transaction {
+            RoomInvitations.deleteWhere { room eq roomId }
+            RoomAccess.deleteWhere { room eq roomId }
+            Messages.deleteWhere { (destinationType eq MessageDestinationTypes.Room) and (destination eq roomId.value.toString()) }
+            Rooms.deleteWhere { id eq roomId }
+        }
+
         fun addMember(parasiteId: EntityID<String>, roomId: EntityID<Int> = EntityID(0, Rooms)): RoomObject? = transaction {
             RoomAccess.upsert {
                 it[room] = roomId
