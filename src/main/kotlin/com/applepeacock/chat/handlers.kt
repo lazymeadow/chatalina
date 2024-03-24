@@ -406,7 +406,7 @@ object RoomActionHandler : MessageHandler {
                     ChatManager.handleCreateRoom(connection, parasite, newRoomName)
                 }
                 RoomActionTypes.Delete -> {
-                    val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")
+                    val roomId = messageBody.roomId ?: throw BadRequestException("Invalid room id")
                     ChatManager.handleDeleteRoom(connection, parasite, roomId)
                 }
                 RoomActionTypes.Invite -> {
