@@ -11,9 +11,8 @@ export class BestEvarChatClient {
     _mainMenu;
     _ready = false
 
-    constructor(hostname = process.env.BEC_SERVER, routingPath = 'chat') {
-        this._hostname = hostname;
-        this._routingPath = routingPath;
+    constructor(hostname = process.env.BEC_SERVER, secure= (process.env.NODE_ENV === 'production'), routingPath = 'chat') {
+        this._hostname = `${secure ? 'wss' : 'ws'}://${hostname}/${routingPath}`;
 
         Settings.init();
 
@@ -32,7 +31,7 @@ export class BestEvarChatClient {
     // Public functions
 
     connect() {
-        this._sock = new WebSocket(`ws://${this._hostname}/${this._routingPath}`);
+        this._sock = new WebSocket(this._hostname);
 
         this._sock.onopen = () => {
             this._reconnectEnabled = true;

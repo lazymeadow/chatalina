@@ -1,5 +1,6 @@
 package com.applepeacock.http
 
+import com.applepeacock.hostname
 import com.applepeacock.http.routes.authenticationRoutes
 import com.applepeacock.http.routes.mainRoutes
 import com.applepeacock.isProduction
@@ -21,14 +22,22 @@ fun Application.getPebbleContent(name: String, vararg vars: Pair<String, Any>) =
     PebbleContent(name, mapOf("prod" to this.isProduction, "siteTitle" to "${this.siteName} $CLIENT_VERSION") + vars)
 
 fun Application.configureHTTP() {
+    val enableCors = this.isProduction
+    val hostname = this.hostname
+
     install(CORS) {
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Delete)
         allowMethod(HttpMethod.Patch)
         allowHeader(HttpHeaders.Authorization)
-        allowHeader("MyCustomHeader")
-        anyHost() // @TODO: Don't do this in production if possible. Try to limit it.
+        allowNonSimpleContentTypes = true
+
+        if (enableCors && !hostname.isNullOrBlank()) {
+            allowHost(hostname)
+        } else {
+            anyHost()
+        }
     }
     install(Pebble) {
         loader(ClasspathLoader().apply {
