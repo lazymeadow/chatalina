@@ -53,7 +53,9 @@ export class UserManager extends LoggingClass {
 
     addPrivateMessageThreads(threads) {
         threads.forEach((thread) => {
-            this._userDataMap.get(thread['recipient id']).addPrivateMessageThread(thread);
+            if (this._userDataMap.has(thread['recipient id'])) {
+                this._userDataMap.get(thread['recipient id']).addPrivateMessageThread(thread);
+            }
         });
         // select the active thread. if the active thread is not present, reset to general room
         if (Settings.activeLogType === 'thread') {
