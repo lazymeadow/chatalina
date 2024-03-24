@@ -531,13 +531,12 @@ object ChatManager {
         roomId: Int,
         accept: Boolean
     ) {
-        val room = Rooms.DAO.find(roomId) ?: throw BadRequestException("Invalid invitation")
-        val existingInvitations = RoomInvitations.DAO.list(parasite.id, room.id)
-        if (existingInvitations.isEmpty()) {
-            throw BadRequestException("Invalid invitation")
-        }
-
         if (accept) {
+            val room = Rooms.DAO.find(roomId) ?: throw BadRequestException("Invalid invitation")
+            val existingInvitations = RoomInvitations.DAO.list(parasite.id, room.id)
+            if (existingInvitations.isEmpty()) {
+                throw BadRequestException("Invalid invitation")
+            }
             Rooms.DAO.addMember(parasite.id, room.id)?.let { updatedRoom ->
                 // broadcast updated room list & join notice to current members
                 val acceptedMessage = "${parasite.name} has accepted your invitation and joined '${updatedRoom.name}'."
@@ -559,6 +558,11 @@ object ChatManager {
                 connection.send(ServerMessage(AlertData.fade("Failed to join room '${room.name}'. Maybe somebody is playing a joke on you?")))
             }
         } else {
+            val room = Rooms.DAO.find(roomId) ?: return
+            val existingInvitations = RoomInvitations.DAO.list(parasite.id, room.id)
+            if (existingInvitations.isEmpty()) {
+                return
+            }
             // we remove the parasite from the room, just in case they did something weird.
             Rooms.DAO.removeMember(room.id, parasite.id)?.let { updatedRoom ->
                 // send decline notice to inviters
