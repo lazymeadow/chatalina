@@ -13,6 +13,7 @@ import io.ktor.server.http.content.*
 import io.ktor.server.pebble.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.cors.routing.*
+import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -24,6 +25,7 @@ fun Application.getPebbleContent(name: String, vararg vars: Pair<String, Any>) =
 fun Application.configureHTTP() {
     val enableCors = this.isProduction
     val hostname = this.hostname
+    install(XForwardedHeaders)
 
     install(CORS) {
         allowMethod(HttpMethod.Options)

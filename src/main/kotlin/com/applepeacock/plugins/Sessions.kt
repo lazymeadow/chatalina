@@ -18,6 +18,7 @@ fun Application.configureSessions() {
     install(Sessions) {
         cookie<ParasiteSession>("parasite") {
             cookie.extensions["SameSite"] = "None"
+            cookie.secure = true
             cookie.path = "/"
             cookie.maxAge = 90.days
             cookieDomain.let { cookie.domain = it }
