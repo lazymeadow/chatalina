@@ -190,9 +190,7 @@ export function postClientInit(chatClient) {
                 if (!item) {
                     row.append($('<td>'));
                 } else {
-                    // twemoji + joypixels = bad encoding
-                    // convert from unicode to twemoji shortcode, then back, and the images are just great
-                    row.append($('<td>', {html: twemoji.convert.fromCodePoint(twemoji.convert.toCodePoint(item))}));
+                    row.append($('<td>', {html: item}));
                 }
                 completeRow = (index + 1) % 12 === 0;
                 if (completeRow) {
@@ -208,12 +206,13 @@ export function postClientInit(chatClient) {
         _emojiLibraryClickSetup();
     }
 
-    const _emojiSearchCallback = (query) => {
+    const _emojiSearchCallback = (input) => {
         if (!emojiSearchTimeout) {
             window.clearTimeout(emojiSearchTimeout);
             emojiSearchTimeout = window.setTimeout(() => {
+                const searchQuery = input.val();
                 $.get('/emoji_search', {
-                    search: query
+                    search: searchQuery
                 })
                     .then(rsp => {
                         const {result} = rsp;
@@ -226,13 +225,13 @@ export function postClientInit(chatClient) {
 
     $('#emoji_search').keyup(event => {
         let searchInput = $(event.target);
-        const searchQuery = searchInput.val();
-        _emojiSearchCallback(searchQuery);
+        _emojiSearchCallback(searchInput);
     });
 
     $('#clear_emoji_search').click(() => {
-        $('#emoji_search').val('');
-        _emojiSearchCallback('');
+        let searchInput = $('#emoji_search')
+        searchInput.val('');
+        _emojiSearchCallback(searchInput);
     })
 
     // set idle listeners
