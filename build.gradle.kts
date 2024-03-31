@@ -2,8 +2,8 @@ import com.github.gradle.node.npm.task.NpmTask
 
 val kotlinVersion: String = "1.9.22"
 val logbackVersion: String = "1.5.0"
-val exposedVersion: String = "0.47.0"
-val postgresVersion: String = "42.7.2"
+val exposedVersion: String = "0.49.0"
+val postgresVersion: String = "42.7.3"
 val bcryptVersion: String = "0.10.2"
 val flywayVersion: String = "10.8.1"
 val apacheCommonsEmailVersion: String = "1.6.0"

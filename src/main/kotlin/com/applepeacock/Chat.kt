@@ -42,8 +42,6 @@ fun Application.module() {
     historyLimit = environment.config.propertyOrNull("bec.history_limit_override")?.getString()?.toLong()
             ?: HISTORY_LIMIT_DEFAULT
 
-    EmojiManager.configure()
-
 //    configureSecurity()
     configureEncryption()
     configureSessions()
@@ -52,6 +50,9 @@ fun Application.module() {
     configureSerialization()
     configureDatabases()
     configureSockets()
+
+    EmojiManager.configure()  // requires database
+
     ChatManager.configure(
         environment.config.property("bec.image_cache.bucket").getString(),
         environment.config.property("bec.image_cache.host").getString(),

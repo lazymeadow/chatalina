@@ -66,7 +66,7 @@ private fun Route.emojiSearch() {
         val result = if (search.isBlank()) {
             EmojiManager.curatedEmojis
         } else {
-            EmojiManager.search(search)
+            EmojiManager.search(search.trim())
         }
         call.respond(mapOf("search" to search, "result" to result))
     }

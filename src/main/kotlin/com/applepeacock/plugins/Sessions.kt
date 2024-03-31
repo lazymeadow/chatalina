@@ -3,6 +3,7 @@ package com.applepeacock.plugins
 import com.applepeacock.chat.encryptSecret
 import com.applepeacock.chat.signSecret
 import com.applepeacock.hostname
+import com.applepeacock.isProduction
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
@@ -18,7 +19,9 @@ fun Application.configureSessions() {
     install(Sessions) {
         cookie<ParasiteSession>("parasite") {
             cookie.extensions["SameSite"] = "None"
-            cookie.secure = true
+            if (this@configureSessions.isProduction) {
+                cookie.secure = true
+            }
             cookie.path = "/"
             cookie.maxAge = 90.days
             cookieDomain.let { cookie.domain = it }

@@ -6,7 +6,11 @@ import org.flywaydb.core.api.Location
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.DatabaseConfig
 import org.jetbrains.exposed.sql.Schema
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
+
+
+lateinit var emojiDbConnection: Database
 
 fun Application.configureDatabases() {
     val url = environment.config.property("db.url").getString()
@@ -15,13 +19,25 @@ fun Application.configureDatabases() {
 
     val coreSchema = Schema("core")
 
-    Database.connect(
+    val chatDbConnection = Database.connect(
         url = url,
         user = user,
         driver = "org.postgresql.Driver",
         password = password,
         databaseConfig = DatabaseConfig.invoke {
             defaultSchema = coreSchema
+        }
+    )
+
+    TransactionManager.defaultDatabase = chatDbConnection
+
+    emojiDbConnection = Database.connect(
+        url = url,
+        user = user,
+        driver = "org.postgresql.Driver",
+        password = password,
+        databaseConfig = DatabaseConfig.invoke {
+            defaultSchema = Schema("emoji")
         }
     )
 

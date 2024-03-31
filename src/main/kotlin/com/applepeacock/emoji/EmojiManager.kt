@@ -1,34 +1,106 @@
 package com.applepeacock.emoji
 
-import com.applepeacock.plugins.defaultMapper
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.module.kotlin.readValue
-import io.ktor.server.config.*
+import com.applepeacock.database.emojiDbConnection
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.VarCharColumnType
+import org.jetbrains.exposed.sql.statements.StatementType
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
 import org.unbescape.html.HtmlEscape
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-internal data class EmojiDefinition(
-    val emoji: String,
-    val hexcode: String,
-    val group: String,
-    val subgroups: String,
-    val annotation: String,
-    val tags: String,
-    val skintone: String,
-    @JsonProperty("skintone_combination") val skintoneCombination: String,
-    @JsonProperty("skintone_base_emoji") val skintoneBaseEmoji: String,
-    @JsonProperty("skintone_base_hexcode") val skintoneBaseHexcode: String,
-    val unicode: Any,
-    val order: Int
-)
+private object EmojiDefinitions : Table("definitions") {
+    val emoji = text("emoji")
+    val hex = text("hex")
+    val annotation = text("annotation")
+    val tags = array<String>("tags")
+    val baseEmoji = text("base_emoji").nullable()
+    val skintones = array<Int>("skintones")
+
+    override val primaryKey = PrimaryKey(emoji)
+
+    object DAO {
+        fun search(query: String) = transaction(emojiDbConnection) {
+            this.exec(
+                """
+                        with d as (select e.emoji,
+                                          e.hex,
+                                          unnest(coalesce(be.tags, e.tags)) tag,
+                                          coalesce(s.code, '')              shortcode,
+                                          coalesce(a.ascii, '')             emoticon
+                                   from emoji.definitions e
+                                            left join emoji.definitions be on e.emoji <> be.emoji and e.base_emoji = be.emoji
+                                            left join emoji.shortcodes s on e.emoji = s.emoji
+                                            left join emoji.emoticons a on e.emoji = a.emoji),
+                             q as (select ? t),
+                             r as (select d.*,
+                                          d.emoji = q.t                                                          e_match,
+                                          d.shortcode = q.t                                                      s_match,
+                                          d.emoticon = q.t                                                       a_match,
+                                          d.tag = q.t                                                            t_match,
+                                          d.shortcode <> '' and d.shortcode like concat('%', q.t, '%')           s_partial,
+                                          d.shortcode <> '' and d.shortcode like concat(q.t, '%')                s_prefix,
+                                          d.shortcode <> '' and plainto_tsquery(q.t) @@ to_tsvector(d.shortcode) s_ts_match,
+                                          d.emoticon <> '' and d.emoticon like concat(q.t, '%')                  a_prefix,
+                                          d.emoticon <> '' and d.emoticon like concat('%', q.t, '%')             a_partial
+                                   from d,
+                                        q)
+                        select emoji,
+                               min(case
+                                       when e_match then 1
+                                       when a_match then 2
+                                       when s_match then 3
+                                       when a_partial then 4
+                                       when s_prefix then 5
+                                       when (s_ts_match and t_match) then 6
+                                       when s_ts_match then 7
+                                       when t_match then 8
+                                       when s_partial then 9
+                                       else 0 end) rank
+                        from r
+                        where e_match or s_match    or a_match or t_match or s_partial or s_prefix or a_partial or s_ts_match
+                        group by r.emoji
+                        order by rank
+                        limit 108
+                    """.trimIndent(), listOf(Pair(VarCharColumnType(), query)), StatementType.SELECT
+            ) {
+                val results = mutableSetOf<String>()
+                while (it.next()) {
+                    results.add(it.getString("emoji"))
+                }
+                results.toList()
+            } ?: emptyList()
+        }
+
+        fun getEmojiFromShortcode(shortcode: String) =
+            transaction(emojiDbConnection) { EmojiShortcodes.getEmoji(shortcode) }
+
+        fun getEmojiFromEmoticon(emoticon: String) =
+            transaction(emojiDbConnection) { EmojiEmoticons.getEmoji(emoticon) }
+    }
+}
+
+private object EmojiShortcodes : Table("shortcodes") {
+    val code = text("code")
+    val emoji = text("emoji")
+
+    override val primaryKey = PrimaryKey(code)
+
+    fun getEmoji(shortcode: String) =
+        EmojiShortcodes.select(emoji).where { code eq shortcode }.firstOrNull()?.getOrNull(emoji)
+}
+
+private object EmojiEmoticons : Table("emoticons") {
+    val ascii = text("ascii")
+    val emoji = text("emoji")
+
+    override val primaryKey = PrimaryKey(ascii)
+
+    fun getEmoji(emoticon: String) =
+        EmojiEmoticons.select(emoji).where { ascii eq emoticon }.firstOrNull()?.getOrNull(emoji)
+}
 
 object EmojiManager {
     private val logger = LoggerFactory.getLogger("Emoji")
-    internal lateinit var emojiData: List<EmojiDefinition>
-    internal lateinit var shortcodeMap: Map<String, List<String>>
-    internal lateinit var asciiMap: Map<String, String>
 
     val curatedEmojis: ArrayList<String> = arrayListOf(
         "😀", "😁", "😂", "😃", "😄", "😅", "😆", "😉", "😊", "😋", "🤤", "😌", "😍", "😎", "😏", "😐", "😑", "😒",
@@ -49,16 +121,6 @@ object EmojiManager {
 
     fun configure() {
         logger.debug("Initializing Emoji Manager...")
-        val emojiDataFile = this::class.java.getResource("/emoji/openmoji-15.0.json")
-        emojiData = emojiDataFile?.let { defaultMapper.readValue(it) }
-                ?: throw ApplicationConfigurationException("No emoji data files available")
-        val shortcodeDataFile = this::class.java.getResource("/emoji/emojibase-15.0-shortcodes.json")
-        shortcodeMap = shortcodeDataFile?.let { defaultMapper.readValue(it) }
-                ?: throw ApplicationConfigurationException("No shortcode files available")
-        val asciiDataFile = this::class.java.getResource("/emoji/ascii-emoji-map.json")
-        asciiMap = asciiDataFile?.let { defaultMapper.readValue(it) }
-                ?: throw ApplicationConfigurationException("No ascii mapping available")
-
         logger.debug("Emoji Manager initialized.")
     }
 
@@ -74,40 +136,17 @@ object EmojiManager {
 
     internal fun shortcodeToUnicode(text: String): String {
         return shortcodeRegex.replace(HtmlEscape.unescapeHtml(text)) { match ->
-            shortcodeMap.entries.find { it.value.contains(match.value.trim(':')) }
-                ?.let { convertHexToUnicode(it.key) }
-                    ?: match.value
+            EmojiDefinitions.DAO.getEmojiFromShortcode(match.value.trim(':')) ?: match.value
         }
     }
 
     internal fun asciiToUnicode(text: String): String {
         return asciiRegex.replace(HtmlEscape.unescapeHtml(text)) { match ->
-            asciiMap[match.value]?.let { convertHexToUnicode(it) } ?: match.value
+            EmojiDefinitions.DAO.getEmojiFromEmoticon(match.value) ?: match.value
         }
     }
 
     fun search(query: String): List<String> {
-        val results = mutableSetOf<String>()
-        // exact matches first
-        // find any shortcode matches
-        shortcodeMap.entries.filter { it.value.any{sc -> sc.lowercase() == query.lowercase() } }.mapTo(results) { convertHexToUnicode(it.key) }
-        if (results.size >= 108) return results.take(108)
-        // find any ascii matches
-        asciiMap.entries.filter { it.key.lowercase() == query.lowercase() }.mapTo(results) { convertHexToUnicode(it.value) }
-        if (results.size >= 108) return results.take(108)
-        // emojis that have the exact tag
-        emojiData.filter { it.tags.split(",").any { it.lowercase() == query.lowercase() } }.mapTo(results) { it.emoji }
-        if (results.size >= 108) return results.take(108)
-
-        // then partial matches
-        // find any shortcode matches
-        shortcodeMap.entries.filter { it.value.any{sc -> sc.contains(query, ignoreCase = true) } }.mapTo(results) { convertHexToUnicode(it.key) }
-        if (results.size >= 108) return results.take(108)
-        // find any ascii matches
-        asciiMap.entries.filter { it.key.contains(query, ignoreCase = true) }.mapTo(results) { convertHexToUnicode(it.value) }
-        if (results.size >= 108) return results.take(108)
-        // find matches in tags
-        emojiData.filter { it.tags.contains(query, ignoreCase = true) }.mapTo(results) { it.emoji }
-        return results.take(108)
+        return EmojiDefinitions.DAO.search(query)
     }
 }
