@@ -1,20 +1,19 @@
 import com.github.gradle.node.npm.task.NpmTask
 
 val kotlinVersion: String = "1.9.22"
-val logbackVersion: String = "1.5.0"
-val exposedVersion: String = "0.49.0"
+val logbackVersion: String = "1.5.6"
+val exposedVersion: String = "0.52.0"
 val postgresVersion: String = "42.7.3"
 val bcryptVersion: String = "0.10.2"
-val flywayVersion: String = "10.8.1"
+val flywayVersion: String = "10.16.0"
 val apacheCommonsEmailVersion: String = "1.6.0"
-val apacheCommonsValidatorVersion: String = "1.8.0"
+val apacheCommonsValidatorVersion: String = "1.9.0"
 val autolinkVersion = "0.11.0"
-val awsVersion: String = "1.0.40"
+val awsVersion: String = "1.2.52"
 
 plugins {
     kotlin("jvm") version "1.9.22"
-    kotlin("plugin.serialization") version "1.9.22"
-    id("io.ktor.plugin") version "2.3.8"
+    id("io.ktor.plugin") version "2.3.12"
     id("org.flywaydb.flyway") version "10.8.1"
     id("com.github.node-gradle.node") version "7.0.2"
 }
@@ -27,7 +26,7 @@ flyway {
     locations = arrayOf("classpath:db/migrations")
 }
 
-group = "com.applepeacock"
+group = "net.chatalina"
 version = "0.0.1"
 application {
     mainClass.set("io.ktor.server.netty.EngineMain")

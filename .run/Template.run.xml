@@ -21,7 +21,7 @@
       <env name="SMTP_TLS" value="" />
       <env name="SMTP_USER" value="" />
     </envs>
-    <option name="MAIN_CLASS_NAME" value="com.applepeacock.ChatKt" />
+    <option name="MAIN_CLASS_NAME" value="net.chatalina.ChatKt" />
     <module name="chatalina-again.main" />
     <shortenClasspath name="NONE" />
     <method v="2">
