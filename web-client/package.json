@@ -27,6 +27,7 @@
     "@babel/preset-env": "^7.23.9",
     "copy-webpack-plugin": "^12.0.2",
     "css-loader": "^6.10.0",
+    "dotenv-webpack": "^8.1.0",
     "less-loader": "^12.2.0",
     "less": "^4.2.0",
     "style-loader": "^3.3.4",

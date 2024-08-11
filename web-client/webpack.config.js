@@ -2,6 +2,7 @@ const webpack = require('webpack')
 const path = require('path')
 const CopyPlugin = require('copy-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const Dotenv = require('dotenv-webpack')
 
 const devMode = process.env.NODE_ENV !== 'production'
 
@@ -54,7 +55,7 @@ const config = [
 		},
 		plugins: [
 			new webpack.ProvidePlugin({$: 'jquery', jQuery: 'jquery'}),
-			new webpack.EnvironmentPlugin({'BEC_SERVER': 'localhost:6969'}),
+			new Dotenv(),
 			new MiniCssExtractPlugin(),
 			new CopyPlugin({patterns: [{context: 'files/', from: '**', to: '[path][name][ext]'}]})
 		]
