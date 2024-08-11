@@ -1,5 +1,6 @@
 package net.chatalina
 
+import io.ktor.server.application.*
 import net.chatalina.chat.ChatManager
 import net.chatalina.chat.EmailHandler
 import net.chatalina.chat.configureEncryption
@@ -10,7 +11,6 @@ import net.chatalina.plugins.configureMonitoring
 import net.chatalina.plugins.configureSerialization
 import net.chatalina.plugins.configureSessions
 import net.chatalina.plugins.configureSockets
-import io.ktor.server.application.*
 
 fun main(args: Array<String>): Unit =
     io.ktor.server.netty.EngineMain.main(args)
@@ -54,8 +54,14 @@ fun Application.module() {
     EmojiManager.configure()  // requires database
 
     ChatManager.configure(
-        environment.config.property("bec.image_cache.bucket").getString(),
-        environment.config.property("bec.image_cache.host").getString(),
+        ChatManager.ImageCacheSettings(
+            environment.config.property("bec.image_cache.bucket").getString(),
+            environment.config.property("bec.image_cache.host").getString(),
+            environment.config.propertyOrNull("bec.image_cache.endpoint")?.getString(),
+            environment.config.property("bec.image_cache.access_key").getString(),
+            environment.config.property("bec.image_cache.secret").getString(),
+            environment.config.property("bec.image_cache.region").getString()
+        ),
         environment.config.property("bec.github.user").getString(),
         environment.config.property("bec.github.token").getString(),
         environment.config.property("bec.github.repo").getString(),

@@ -9,7 +9,7 @@ val flywayVersion: String = "10.16.0"
 val apacheCommonsEmailVersion: String = "1.6.0"
 val apacheCommonsValidatorVersion: String = "1.9.0"
 val autolinkVersion = "0.11.0"
-val awsVersion: String = "1.2.52"
+val awsVersion: String = "1.3.8"
 
 plugins {
     kotlin("jvm") version "1.9.22"

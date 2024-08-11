@@ -1,5 +1,6 @@
 package net.chatalina.chat
 
+import aws.sdk.kotlin.runtime.auth.credentials.StaticCredentialsProvider
 import aws.sdk.kotlin.services.s3.S3Client
 import aws.sdk.kotlin.services.s3.headObject
 import aws.sdk.kotlin.services.s3.model.ObjectCannedAcl
@@ -8,6 +9,7 @@ import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
 import aws.smithy.kotlin.runtime.http.HttpStatusCode
 import aws.smithy.kotlin.runtime.http.response.statusCode
+import aws.smithy.kotlin.runtime.net.url.Url as AwsUrl
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -108,8 +110,7 @@ object ChatManager {
     val logger = LoggerFactory.getLogger("CHAT")
     private lateinit var s3Client: S3Client
     private lateinit var ktorClient: HttpClient
-    private lateinit var imageCacheBucket: String
-    private lateinit var imageCacheHost: String
+    private lateinit var imageCacheSettings: ImageCacheSettings
     private lateinit var githubUser: String
     private lateinit var githubToken: String
     private lateinit var githubRepo: String
@@ -117,9 +118,10 @@ object ChatManager {
 
     val currentSocketConnections: MutableSet<ChatSocketConnection> = Collections.synchronizedSet(LinkedHashSet())
 
+    class ImageCacheSettings(val bucket: String, val host: String, val endpoint: String?, val accessKey: String, val secret: String, val region: String)
+
     fun configure(
-        imageCacheBucket: String,
-        imageCacheHost: String,
+        imageCacheSettings: ImageCacheSettings,
         githubUser: String,
         githubToken: String,
         githubRepo: String,
@@ -128,8 +130,7 @@ object ChatManager {
         logger.debug("Initializing Chat Manager...")
 
         logger.debug("Initializing variables...")
-        this.imageCacheBucket = imageCacheBucket
-        this.imageCacheHost = imageCacheHost
+        this.imageCacheSettings = imageCacheSettings
         this.githubUser = githubUser
         this.githubToken = githubToken
         this.githubRepo = githubRepo
@@ -144,8 +145,14 @@ object ChatManager {
 
         logger.debug("Initializing S3 client...")
         runBlocking {
-            s3Client = S3Client.fromEnvironment {
-                this.region = "us-west-2"
+            s3Client = S3Client {
+                forcePathStyle = false
+                imageCacheSettings.endpoint?.let { endpointUrl = AwsUrl.parse(it) }
+                region = imageCacheSettings.region
+                credentialsProvider = StaticCredentialsProvider.invoke {
+                    this.accessKeyId = imageCacheSettings.accessKey
+                    this.secretAccessKey = imageCacheSettings.secret
+                }
             }
         }
 
@@ -326,7 +333,7 @@ object ChatManager {
             println(objectKey)
             val exists = try {
                 s3Client.headObject {
-                    bucket = imageCacheBucket
+                    bucket = imageCacheSettings.bucket
                     key = objectKey
                 }
                 true
@@ -339,14 +346,14 @@ object ChatManager {
             }
             if (!exists) {
                 s3Client.putObject {
-                    this.bucket = imageCacheBucket
+                    this.bucket = imageCacheSettings.bucket
                     this.key = objectKey
                     this.acl = ObjectCannedAcl.PublicRead
                     this.body = ByteStream.fromBytes(imageContent)
                     this.contentType = imageContentType?.toString()
                 }
             }
-            "${imageCacheHost}/$objectKey"
+            "${imageCacheSettings.host}/$objectKey"
         } else {
             null
         }
