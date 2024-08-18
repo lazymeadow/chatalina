@@ -1,7 +1,9 @@
 package net.chatalina.database
 
 import at.favre.lib.crypto.bcrypt.BCrypt
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import net.chatalina.chat.tokenEncrypt
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
@@ -73,14 +75,16 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             coalesce(settings.extract<String>("permission"), stringLiteral(ParasitePermissions.User.toString()))
 
         override fun resultRowToObject(row: ResultRow): ParasiteObject {
+            val time = Clock.System.now()
             return ParasiteObject(
                 row[id],
                 row[email],
                 row[active],
-                row[lastActive],
+                row.getOrNull(lastActive),
                 row.getOrNull(settings) ?: ParasiteSettings(),
-                row[created],
-                row[updated]
+                // on initial insert, exposed doesn't give us these values back. just use now.
+                row.getOrNull(created) ?: time,
+                row.getOrNull(updated) ?: time
             )
         }
 
@@ -155,9 +159,11 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             } ?: false
         }
 
-        fun newPasswordResetToken(parasiteId: String, token: String) = transaction {
-            ParasitePasswords.update({ ParasitePasswords.parasite eq parasiteId }) {
-                it[resetToken] = token
+        fun newPasswordResetToken(parasiteId: String) = transaction {
+            tokenEncrypt(parasiteId).also { token ->
+                ParasitePasswords.update({ ParasitePasswords.parasite eq parasiteId }) {
+                    it[resetToken] = token
+                }
             }
         }
 

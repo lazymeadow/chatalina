@@ -1,28 +1,26 @@
 package net.chatalina.http.routes
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import net.chatalina.chat.EmailTypes
-import net.chatalina.chat.tokenDecrypt
-import net.chatalina.chat.tokenEncrypt
-import net.chatalina.chat.sendEmail
-import net.chatalina.database.Parasites
-import net.chatalina.database.Rooms
-import net.chatalina.hostUrl
-import net.chatalina.http.AuthenticationException
-import net.chatalina.http.RedirectException
-import net.chatalina.http.getPebbleContent
-import net.chatalina.isProduction
-import net.chatalina.plugins.CLIENT_VERSION
-import net.chatalina.plugins.ParasiteSession
-import net.chatalina.siteName
 import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.server.pebble.*
 import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
+import net.chatalina.chat.EmailTypes
+import net.chatalina.chat.sendEmail
+import net.chatalina.chat.tokenDecrypt
+import net.chatalina.database.Parasites
+import net.chatalina.database.Rooms
+import net.chatalina.hostUrl
+import net.chatalina.http.AuthenticationException
+import net.chatalina.http.AuthorizationException
+import net.chatalina.http.RedirectException
+import net.chatalina.http.getPebbleContent
+import net.chatalina.plugins.ParasiteSession
+import net.chatalina.plugins.PreAuthSession
+import javax.crypto.BadPaddingException
 import javax.crypto.IllegalBlockSizeException
 
 fun Route.authenticationRoutes() {
@@ -54,23 +52,47 @@ fun Route.authenticationRoutes() {
     // post("/validate_username") {}
 }
 
+private open class PreAuthRequestBody(open val t: String? = null) {
+    fun getVal() = t?.let {
+        try {
+            tokenDecrypt(it)
+        } catch (e: BadPaddingException) {
+            null
+        } catch (e: IllegalBlockSizeException) {
+            null
+        }
+    }
+}
+
+private suspend fun ApplicationCall.withPreAuthSession(block: suspend (PreAuthSession) -> Unit) {
+    val session = sessions.get<PreAuthSession>() ?: PreAuthSession().also { sessions.set<PreAuthSession>(it) }
+    block(session)
+}
+
+private suspend fun ApplicationCall.requirePreAuthSession(block: suspend (PreAuthSession) -> Unit) {
+    val session = sessions.get<PreAuthSession>() ?: throw IllegalStateException("no session")
+    if (session.t.isBlank()) throw IllegalStateException("bad session")
+    block(session)
+}
+
+private fun ApplicationCall.redirectIfLoggedIn() {
+    sessions.get<ParasiteSession>()?.let {
+        throw RedirectException("/")
+    }
+}
 
 private fun Route.getLogin() {
     get {
-        call.sessions.get<ParasiteSession>()?.let {
-            throw RedirectException("/")
-        } ?: let {
+        call.redirectIfLoggedIn()
+        call.withPreAuthSession { session ->
             val message = call.request.queryParameters["message"] ?: ""
             val parasite = call.request.queryParameters["parasite"] ?: ""
-            call.respond(application.getPebbleContent("login.html", "message" to message, "username" to parasite))
             call.respond(
-                PebbleContent(
+                application.getPebbleContent(
                     "login.html",
-                    mapOf(
-                        "prod" to application.isProduction,
-                        "siteTitle" to "${application.siteName} $CLIENT_VERSION",
-                        "message" to message
-                    )
+                    "message" to message,
+                    "username" to parasite,
+                    "t" to session.t
                 )
             )
         }
@@ -79,14 +101,18 @@ private fun Route.getLogin() {
 
 private fun Route.postLogin() {
     post {
-        data class LoginRequest(val parasite: String, val password: String)
+        call.requirePreAuthSession { session ->
+            data class LoginRequest(val parasite: String, val password: String, override val t: String? = null) :
+                PreAuthRequestBody(t)
 
-        val body = call.receive<LoginRequest>()
-        if (Parasites.DAO.checkPassword(body.parasite, body.password)) {
-            call.sessions.set(ParasiteSession(body.parasite))
-            call.respond(HttpStatusCode.OK)
-        } else {
-            throw AuthenticationException()
+            val body = call.receive<LoginRequest>()
+
+            if (body.getVal() == session.getVal() && Parasites.DAO.checkPassword(body.parasite, body.password)) {
+                call.sessions.set(ParasiteSession(body.parasite))
+                call.respond(HttpStatusCode.OK)
+            } else {
+                throw AuthenticationException()
+            }
         }
     }
 }
@@ -94,6 +120,7 @@ private fun Route.postLogin() {
 private fun Route.getLogout() {
     get {
         call.sessions.clear<ParasiteSession>()
+        call.sessions.clear<PreAuthSession>()
         throw RedirectException("/login")
     }
 }
@@ -101,74 +128,100 @@ private fun Route.getLogout() {
 private fun Route.postLogout() {
     post {
         call.sessions.clear<ParasiteSession>()
+        call.sessions.clear<PreAuthSession>()
         throw RedirectException("/login")
     }
 }
 
 private fun Route.getRegister() {
     get {
-        call.respond(application.getPebbleContent("register.html"))
+        call.redirectIfLoggedIn()
+        call.withPreAuthSession { session ->
+            call.respond(application.getPebbleContent("register.html", "t" to session.t))
+        }
     }
 }
 
 private fun Route.postRegister() {
     post {
-        data class RegisterRequest(
-            val parasite: String,
-            val password: String,
-            val password2: String,
-            val email: String
-        )
+        call.requirePreAuthSession { session ->
+            data class RegisterRequest(
+                val parasite: String,
+                val password: String,
+                val password2: String,
+                val email: String,
+                override val t: String? = null
+            ) : PreAuthRequestBody(t)
 
-        val body = call.receive<RegisterRequest>()
-        val error = if (body.parasite.isBlank() || Parasites.DAO.exists(body.parasite)) {
-            "Invalid username."
-        } else if (body.password.isBlank()) {
-            "Password is required."
-        } else if (body.password != body.password2) {
-            "Password entries must match."
-        } else if (body.email.isBlank()) {
-            "Email is required."
-        } else {
-            null
+            val body = call.receive<RegisterRequest>()
+            if (body.getVal() != session.getVal()) {
+                throw BadRequestException("Invalid state")
+            }
+
+            val error = if (body.parasite.isBlank() || Parasites.DAO.exists(body.parasite)) {
+                "Invalid username."
+            } else if (body.password.isBlank()) {
+                "Password is required."
+            } else if (body.password != body.password2) {
+                "Password entries must match."
+            } else if (body.email.isBlank()) {
+                "Email is required."
+            } else {
+                null
+            }
+            error?.let {
+                throw BadRequestException(error)
+            }
+            val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
+            val newParasite = Parasites.DAO.create(body.parasite, body.email, hashed)
+                    ?: throw BadRequestException("Failed to create user")
+            Rooms.DAO.addMember(newParasite.id)  // add new parasite to "general" room
+            call.respond(HttpStatusCode.Created, newParasite)
         }
-        error?.let {
-            throw BadRequestException(error)
-        }
-        val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
-        val newParasite = Parasites.DAO.create(body.parasite, body.email, hashed)
-                ?: throw BadRequestException("Failed to create user")
-        Rooms.DAO.addMember(newParasite.id)  // add new parasite to "general" room
-        call.respond(HttpStatusCode.Created, newParasite)
     }
 }
 
 private fun Route.getForgotPassword() {
     get {
-        call.respond(application.getPebbleContent("forgot-password.html"))
+        call.redirectIfLoggedIn()
+        call.withPreAuthSession { session ->
+            call.respond(application.getPebbleContent("forgot-password.html", "t" to session.t))
+        }
     }
 }
 
 private fun Route.postForgotPassword() {
     post {
-        data class ForgotPasswordRequest(val parasite: String)
+        call.requirePreAuthSession { session ->
+            data class ForgotPasswordRequest(val parasite: String, override val t: String? = null) :
+                PreAuthRequestBody(t)
 
-        val body = call.receive<ForgotPasswordRequest>()
-        val foundParasite = Parasites.DAO.find(body.parasite)
-        if (foundParasite != null) {
-            val newResetToken = tokenEncrypt(body.parasite)
-            Parasites.DAO.newPasswordResetToken(body.parasite, newResetToken)
+            val body = call.receive<ForgotPasswordRequest>()
+            if (body.getVal() != session.getVal()) {
+                application.log.debug("Password reset request failed due to mismatched token for parasite id: ${body.parasite}")
+            } else {
+                call.sessions.get<ParasiteSession>()?.let {
+                    if (body.parasite != it.id) {
+                        throw AuthorizationException()
+                    }
+                }
 
-            val resetLink = "${application.hostUrl}/reset-password?token=${newResetToken}"
-            application.sendEmail(EmailTypes.ForgotPassword, foundParasite, mapOf("reset_link" to resetLink))
-        } else {
-            application.log.debug("Password reset request failed for parasite id: ${body.parasite}")
+                val foundParasite = Parasites.DAO.find(body.parasite)
+                if (foundParasite != null) {
+                    val newResetToken = Parasites.DAO.newPasswordResetToken(body.parasite)
+                    val resetLink =
+                        "${application.hostUrl}/reset-password?token=${newResetToken.encodeURLQueryComponent(encodeFull = true)}"
+                    application.sendEmail(EmailTypes.ForgotPassword, foundParasite, mapOf("reset_link" to resetLink))
+                } else {
+                    application.log.debug("Password reset request failed for parasite id: ${body.parasite}")
+                }
+            }
+            call.respond(HttpStatusCode.Accepted)
         }
-        call.respond(HttpStatusCode.Accepted)
     }
 }
 
-fun checkTokenForParasite(token: String): Parasites.ParasiteObject {
+private fun checkResetTokenForParasite(token: String): Parasites.ParasiteObject {
     val parasiteId = tokenDecrypt(token)
     return Parasites.DAO.find(parasiteId)?.also { parasite ->
         if (!Parasites.DAO.checkToken(parasite.id, token)) {
@@ -179,41 +232,67 @@ fun checkTokenForParasite(token: String): Parasites.ParasiteObject {
 
 private fun Route.getResetPassword() {
     get {
-        val token = call.request.queryParameters["token"] ?: ""
-        val parasite = checkTokenForParasite(token)
+        call.redirectIfLoggedIn()
+        call.withPreAuthSession { session ->
+            val token = call.request.queryParameters["token"] ?: ""
+            val parasite = checkResetTokenForParasite(token)
 
-        call.respond(application.getPebbleContent("reset-password.html", "token" to token, "username" to parasite.id))
+            call.respond(
+                application.getPebbleContent(
+                    "reset-password.html",
+                    "token" to token,
+                    "username" to parasite.id,
+                    "t" to session.t
+                )
+            )
+        }
     }
 }
 
 private fun Route.postResetPassword() {
     post {
-        data class ResetPasswordRequest(val token: String, val password: String, val password2: String)
+        call.requirePreAuthSession { session ->
+            data class ResetPasswordRequest(
+                val token: String,
+                val password: String,
+                val password2: String,
+                override val t: String? = null
+            ) : PreAuthRequestBody(t)
 
-        val body = call.receive<ResetPasswordRequest>()
+            val body = call.receive<ResetPasswordRequest>()
 
-        try {
-            val parasite = checkTokenForParasite(body.token)
-            val error = if (body.password.isBlank()) {
-                "Password is required."
-            } else if (body.password != body.password2) {
-                "Password entries must match."
-            } else {
-                null
+            if (body.getVal() != session.getVal()) {
+                throw BadRequestException("Invalid state")
             }
-            error?.let {
-                throw BadRequestException(error)
+
+            try {
+                val parasite = checkResetTokenForParasite(body.token)
+                call.sessions.get<ParasiteSession>()?.let {
+                    if (parasite.id.value != it.id) {
+                        throw AuthorizationException()
+                    }
+                }
+                val error = if (body.password.isBlank()) {
+                    "Password is required."
+                } else if (body.password != body.password2) {
+                    "Password entries must match."
+                } else {
+                    null
+                }
+                error?.let {
+                    throw BadRequestException(error)
+                }
+                val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
+                val success = Parasites.DAO.updatePassword(parasite.id, hashed)
+                if (success) {
+                    call.respond(HttpStatusCode.Accepted)
+                    application.sendEmail(EmailTypes.ChangedPassword, parasite)
+                } else {
+                    throw BadRequestException("Password update failed.")
+                }
+            } catch (e: IllegalBlockSizeException) {
+                throw BadRequestException("Invalid password reset link.")
             }
-            val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(12, body.password.toByteArray())
-            val success = Parasites.DAO.updatePassword(parasite.id, hashed)
-            if (success) {
-                call.respond(HttpStatusCode.Accepted)
-                application.sendEmail(EmailTypes.ChangedPassword, parasite)
-            } else {
-                throw BadRequestException("Password update failed.")
-            }
-        } catch (e: IllegalBlockSizeException) {
-            throw BadRequestException("Invalid password reset link.")
         }
     }
 }
