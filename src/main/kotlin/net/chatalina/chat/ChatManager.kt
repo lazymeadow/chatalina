@@ -746,7 +746,13 @@ object ChatManager {
                     ToolTypes.Room -> TODO()
                     ToolTypes.RoomOwner -> TODO()
                     ToolTypes.Parasite -> TODO()
-                    ToolTypes.Data -> TODO()
+                    ToolTypes.Data -> {
+                        data class DataToolData(val id: String)
+                        val requestData = data?.let { defaultMapper.convertValue<DataToolData>(data) }
+                                ?: throw BadRequestException("No data")
+                        val resultData = definition.runTool(requestData.id)
+                        connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))
+                    }
                 }
             } else {
                 connection.send(

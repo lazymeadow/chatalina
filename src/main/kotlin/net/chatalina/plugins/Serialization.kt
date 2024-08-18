@@ -41,6 +41,10 @@ val defaultMapper: JsonMapper = jacksonMapperBuilder()
     .addModule(SimpleModule().addSerializer(Instant::class.java, KotlinInstantSerializer()))
     .build()
 
+val dataMapper: JsonMapper = defaultMapper.copy().also {
+    it.registerModule(SimpleModule().addSerializer(Instant::class.java, KotlinInstantStringSerializer()))
+}
+
 fun Application.configureSerialization() {
     install(ContentNegotiation) {
         register(ContentType.Application.Json, ErrorHandlingJacksonConverter(defaultMapper))
@@ -97,4 +101,9 @@ class EntityIdSerializer : JsonSerializer<EntityID<*>>() {
 class KotlinInstantSerializer : JsonSerializer<Instant>() {
     override fun serialize(value: Instant?, gen: JsonGenerator, serializers: SerializerProvider?) =
         value?.let { serializers?.defaultSerializeValue(value.toJavaInstant(), gen) } ?: gen.writeNull()
+}
+
+class KotlinInstantStringSerializer : JsonSerializer<Instant>() {
+    override fun serialize(value: Instant?, gen: JsonGenerator, serializers: SerializerProvider?) =
+        value?.let { serializers?.defaultSerializeValue(value.toString(), gen) } ?: gen.writeNull()
 }

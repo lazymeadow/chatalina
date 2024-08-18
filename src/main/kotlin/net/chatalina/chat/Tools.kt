@@ -7,6 +7,7 @@ import net.chatalina.database.AlertData
 import net.chatalina.database.ParasitePermissions
 import net.chatalina.database.Parasites
 import net.chatalina.database.Rooms
+import net.chatalina.plugins.dataMapper
 import org.jetbrains.exposed.dao.id.EntityID
 
 enum class ToolTypes(val value: String? = null) {
@@ -225,7 +226,7 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
 //            "You've resurrected ${parasite.id}. Now you must live with that choice."
         }
     ),
-    ToolDefinition<List<Map<*, *>>, Parasites.ParasiteObject>(
+    ToolDefinition<List<Map<*, *>>, String>(
         "view parasite data",
         ParasitePermissions.Admin,
         ToolTypes.Data,
@@ -235,12 +236,12 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         { _ -> Parasites.DAO.list(true).map { mapOf("username" to it.name, "id" to it.id) } },
         "There is nobody to view. Where did you go?",
         dataType = "parasite",
-        runFunction = { parasite ->
-            TODO("")
-//            defaultMapper.writeValueAsString(parasite)
+        runFunction = { parasiteId ->
+            val parasite = Parasites.DAO.find(parasiteId)
+            mapOf("message" to dataMapper.writeValueAsString(parasite))
         }
     ),
-    ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
+    ToolDefinition<List<Map<*, *>>, String>(
         "view room data",
         ParasitePermissions.Admin,
         ToolTypes.Data,
@@ -250,9 +251,9 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         { _ -> Rooms.DAO.sparseList() },
         "There are no rooms to view. Sad.",
         dataType = "room",
-        runFunction = { room ->
-            TODO("")
-//            defaultMapper.writeValueAsString(room)
+        runFunction = { roomId ->
+            val room = roomId.toIntOrNull()?.let { Rooms.DAO.find(it) }
+            mapOf("message" to dataMapper.writeValueAsString(room))
         }
     )
 )
