@@ -747,7 +747,6 @@ object ChatManager {
             }
             broadcastUserList()
         }
-        // TODO: handle idle status
     }
 
     private fun parasiteIsConnected(parasiteId: String) = synchronized(currentSocketConnections) {
