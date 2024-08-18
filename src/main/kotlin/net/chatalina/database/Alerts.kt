@@ -1,6 +1,7 @@
 package net.chatalina.database
 
 import com.fasterxml.jackson.module.kotlin.convertValue
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import net.chatalina.plugins.defaultMapper
 import org.jetbrains.exposed.dao.id.EntityID
@@ -52,7 +53,7 @@ object Alerts : UUIDTable("alerts"), ChatTable {
 
     object DAO : ChatTable.DAO() {
         override fun resultRowToObject(row: ResultRow): AlertObject {
-            return AlertObject(row[Alerts.id], row[parasite], row[data], row[created])
+            return AlertObject(row[Alerts.id], row[parasite], row[data], row.getOrNull(created) ?: Clock.System.now())
         }
 
         fun list(forParasite: EntityID<String>): List<AlertObject> = transaction {

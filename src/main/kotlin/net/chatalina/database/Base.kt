@@ -6,6 +6,7 @@ import net.chatalina.plugins.defaultMapper
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.json.Extract
+import org.jetbrains.exposed.sql.json.JsonBColumnType
 import org.jetbrains.exposed.sql.json.JsonColumnType
 import org.jetbrains.exposed.sql.json.jsonb
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
@@ -31,6 +32,31 @@ inline fun <reified T : Any> ExpressionWithColumnType<*>.extract(
     )
     return Extract(this, path = path, toScalar, this.columnType, columnType)
 }
+
+@OptIn(InternalApi::class)
+inline fun <reified T : Any, reified V : Any> ExpressionWithColumnType<*>.setJsonbValue(
+    vararg path: String,
+    newValue: V,
+    createIfMissing: Boolean = true
+): CustomFunction<T> {
+    val columnType = resolveColumnType(
+        T::class,
+        defaultType = JsonColumnType(
+            { defaultMapper.writeValueAsString(it) },
+            { defaultMapper.readValue<T>(it) }
+        )
+    )
+    return CustomFunction(
+        "jsonb_set",
+        columnType,
+        this,
+        arrayParam(path.toList()),
+        jsonbParam(newValue),
+        booleanParam(createIfMissing)
+    )
+}
+
+inline fun <reified T: Any> jsonbParam(value: T) = QueryParameter(value, JsonBColumnType({ defaultMapper.writeValueAsString(it) }, { defaultMapper.readValue<T>(it) }))
 
 sealed interface ChatTable {
     abstract class ObjectModel

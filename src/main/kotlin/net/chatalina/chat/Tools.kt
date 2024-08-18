@@ -1,13 +1,12 @@
 package net.chatalina.chat
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonProperty
 import net.chatalina.database.AlertData
 import net.chatalina.database.ParasitePermissions
 import net.chatalina.database.Parasites
 import net.chatalina.database.Rooms
-import net.chatalina.plugins.defaultMapper
-import com.fasterxml.jackson.annotation.JsonIgnore
-import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.annotation.JsonProperty
 import org.jetbrains.exposed.dao.id.EntityID
 
 enum class ToolTypes(val value: String? = null) {
@@ -32,13 +31,26 @@ data class ToolDefinition<R, E : Any>(
     @JsonProperty("tool description") val description: String,
     @JsonIgnore val dataFunction: (Parasites.ParasiteObject) -> R,
     @JsonProperty("no data") val noDataMessage: String,
-    @JsonIgnore val resultMessage: (E) -> String,
     @JsonIgnore val affectedAlert: AlertData? = null,
     @JsonProperty("data type") val dataType: String? = null,
     val grant: ParasitePermissions? = null,
     @JsonProperty("tool action") val action: String? = null,
-    @JsonProperty("tool text 2") val text2: String? = null
-)
+    @JsonProperty("tool text 2") val text2: String? = null,
+    @JsonIgnore private val runFunction: ToolDefinition<R, E>.(E) -> Map<String, Any>
+) {
+    @Suppress("UNCHECKED_CAST") fun runTool(param: Any) = runFunction(param as E) + mapOf("perm level" to this.accessLevel)
+}
+
+private fun runGrantTool(
+    parasite: Parasites.ParasiteObject,
+    permission: ParasitePermissions?,
+    messageTemplate: String
+): Map<String, String> {
+    return permission?.let {
+        Parasites.DAO.updatePermission(parasite.id, it)
+        mapOf("message" to messageTemplate.format(parasite.name))
+    } ?: throw IllegalStateException("Invalid tool definition")
+}
 
 val toolDefinitions = listOf<ToolDefinition<*, *>>(
     ToolDefinition<List<Map<*, *>>, Parasites.ParasiteObject>(
@@ -56,12 +68,14 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
             )
         },
         "Everyone's already a moderator.",
-        { parasite -> "${parasite.name} is now a moderator." },
         affectedAlert = AlertData.dismiss(
             "You are now a moderator. You have access to the moderator tools. For great justice.",
             "What you say !!"
         ),
-        grant = ParasitePermissions.Mod
+        grant = ParasitePermissions.Mod,
+        runFunction = { parasite ->
+            runGrantTool(parasite, this.grant, "%s is now a moderator.")
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Parasites.ParasiteObject>(
         "revoke mod",
@@ -78,9 +92,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
             )
         },
         "Nobody is a moderator.",
-        { parasite -> "${parasite.name} is no longer a moderator." },
         affectedAlert = AlertData.dismiss("You are no longer a moderator.", "Oh no."),
-        grant = ParasitePermissions.User
+        grant = ParasitePermissions.User,
+        runFunction = { parasite ->
+            runGrantTool(parasite, this.grant, "%s is no longer a moderator.")
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Parasites.ParasiteObject>(
         "grant admin",
@@ -91,12 +107,14 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Gives chosen user administrator permissions.",
         { parasite -> Parasites.DAO.listWithoutPermissions(parasite.id.value, ParasitePermissions.Admin) },
         "Everyone's already an admin.",
-        { parasite -> "${parasite.name} is now an admin." },
         affectedAlert = AlertData.dismiss(
             "You are now an admin. You have access to the admin and moderator tools.",
             "I accept."
         ),
-        grant = ParasitePermissions.Admin
+        grant = ParasitePermissions.Admin,
+        runFunction = { parasite ->
+            runGrantTool(parasite, this.grant, "%s is now an admin.")
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Parasites.ParasiteObject>(
         "revoke admin",
@@ -107,9 +125,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Removes chosen user's administrator permissions, making them a normal parasite again.",
         { parasite -> Parasites.DAO.listWithPermissions(parasite.id.value, ParasitePermissions.Admin) },
         "Nobody is an admin.",
-        { parasite -> "${parasite.name} is no longer an admin." },
         affectedAlert = AlertData.dismiss("You are no longer an admin.", "Oh, fiddlesticks."),
-        grant = ParasitePermissions.User
+        grant = ParasitePermissions.User,
+        runFunction = { parasite ->
+            runGrantTool(parasite, this.grant, "%s is no longer an admin.")
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
         "empty room log",
@@ -120,8 +140,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Clears the log for a given room. All connected clients are immediately updated. Mods can only use this tool for rooms they are in.",
         { parasite -> Rooms.DAO.sparseList(parasite.id.value) },
         "That's weird.",
-        { room -> "${room.name} log is empty now." },
-        action = "empty"
+        action = "empty",
+        runFunction = { room ->
+            TODO("")
+//            "${room.name} log is empty now."
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
         "delete empty room",
@@ -132,8 +155,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Removes a room that no longer has any members (except the owner). ¡ATTN: This is a hard delete!",
         { _ -> Rooms.DAO.sparseList(onlyEmpty = true) },
         "Wow, there aren't any empty rooms!",
-        { room -> "${room.name} is gone forever!" },
-        action = "delete"
+        action = "delete",
+        runFunction = { room ->
+            TODO("")
+//            "${room.name} is gone forever!"
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Pair<Rooms.RoomObject, Parasites.ParasiteObject>>(
         "set new room owner (mod)",
@@ -144,8 +170,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Set the owner of a room to a different member of the room (they must be in the room).",
         { parasite -> Rooms.DAO.sparseList(parasite.id.value, withMembers = true) },
         "There aren't any rooms you walnut.",
-        { (room, parasite) -> "The new owner of ${room.name} is ${parasite.id}." },
-        text2 = "Select new owner"
+        text2 = "Select new owner",
+        runFunction = { (room, parasite) ->
+            TODO("")
+//            "The new owner of ${room.name} is ${parasite.id}."
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Pair<Rooms.RoomObject, Parasites.ParasiteObject>>(
         "set new room owner (admin)",
@@ -156,8 +185,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Set the owner of a room to a different member of the room (they must be in the room).",
         { _: Any -> Rooms.DAO.sparseList(withMembers = true) },
         "This tool does nothing if there are no rooms to edit.",
-        { (room, parasite) -> "The new owner of ${room.name} is ${parasite.id}." },
-        text2 = "Select new owner"
+        text2 = "Select new owner",
+        runFunction = { (room, parasite) ->
+            TODO("")
+//            "The new owner of ${room.name} is ${parasite.id}."
+        }
     ),
     ToolDefinition<List<Map<String, EntityID<String>>>, Parasites.ParasiteObject>(
         "deactivate parasite",
@@ -168,8 +200,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Set the chosen parasite to inactive. Removes all alerts and invitations, removes them from all rooms, resets their display name to their id, and empties their reset token.  Inactive parasites are blocked from logging in, and must re-request access from an admin.",
         { _ -> Parasites.DAO.list(active = true).map { mapOf("id" to it.id) } },
         "I guess you\\'re the only one here.",
-        { parasite -> "Deactivated parasite: ${parasite.id}." },
-        action = "deactivate"
+        action = "deactivate",
+        runFunction = { parasite ->
+            TODO("")
+//            "Deactivated parasite: ${parasite.id}."
+        }
     ),
     ToolDefinition<List<Map<String, EntityID<String>>>, Parasites.ParasiteObject>(
         "reactivate parasite",
@@ -180,12 +215,15 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Sets a parasite back to active. Restores nothing. They can do that when they log in.",
         { _ -> Parasites.DAO.list(active = false).map { mapOf("id" to it.id) } },
         "No candidates for zombification.",
-        { parasite -> "You've resurrected ${parasite.id}. Now you must live with that choice." },
         action = "reactivate",
         affectedAlert = AlertData.dismiss(
             "Your account was reactivated. All settings are back to default, and if you were in any rooms...  well, you aren't anymore. Welcome back!",
             "Sick"
-        )
+        ),
+        runFunction = { parasite ->
+            TODO("")
+//            "You've resurrected ${parasite.id}. Now you must live with that choice."
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Parasites.ParasiteObject>(
         "view parasite data",
@@ -196,8 +234,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "View whatever a parasite's current data looks like.",
         { _ -> Parasites.DAO.list(true).map { mapOf("username" to it.name, "id" to it.id) } },
         "There is nobody to view. Where did you go?",
-        { parasite -> defaultMapper.writeValueAsString(parasite) },
-        dataType = "parasite"
+        dataType = "parasite",
+        runFunction = { parasite ->
+            TODO("")
+//            defaultMapper.writeValueAsString(parasite)
+        }
     ),
     ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
         "view room data",
@@ -208,8 +249,11 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "View whatever a room's current data looks like.",
         { _ -> Rooms.DAO.sparseList() },
         "There are no rooms to view. Sad.",
-        { room -> defaultMapper.writeValueAsString(room) },
-        dataType = "room"
+        dataType = "room",
+        runFunction = { room ->
+            TODO("")
+//            defaultMapper.writeValueAsString(room)
+        }
     )
 )
 

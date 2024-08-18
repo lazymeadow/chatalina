@@ -44,6 +44,7 @@ export default class ToolsBase extends LoggingClass {
             const selected = this._toolsSelect.val();
             if (selected) {
                 this.debug(`Requesting tool data (${selected})`);
+                this._toolsData.empty();
                 this._toolContent.html(this._getToolData(selected));
             }
         });
@@ -131,7 +132,6 @@ export default class ToolsBase extends LoggingClass {
 
     populateTool(response) {
         this._toolContent.empty();
-        this._toolsData.empty();
         this._toolsSelect.prop('disabled', false);
         if (response.error || response.request !== this._toolsSelect.val()) {
             this._toolContent.html("Request failed: " + response.error);
@@ -139,7 +139,7 @@ export default class ToolsBase extends LoggingClass {
             const {'tool info': toolInfo, data} = response;
             this._toolContent.html($('<p>').text(toolInfo['tool description']));
             if (data.length === 0) {
-                this._toolsData.text(toolInfo['no data']);
+                this._toolContent.append($('<p>').html($('<em>').text(toolInfo['no data'])));
             } else {
                 const toolDataSelect = $('<select>', {id: 'tool_select'});
 
@@ -173,7 +173,6 @@ export default class ToolsBase extends LoggingClass {
     }
 
     _getToolData(tool) {
-        this._toolsData.empty();
         this._chatClient.requestData(tool);
         this._toolsSelect.prop('disabled', true);
         return 'Loading...';

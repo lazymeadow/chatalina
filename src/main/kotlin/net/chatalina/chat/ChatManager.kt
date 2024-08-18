@@ -9,7 +9,7 @@ import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
 import aws.smithy.kotlin.runtime.http.HttpStatusCode
 import aws.smithy.kotlin.runtime.http.response.statusCode
-import aws.smithy.kotlin.runtime.net.url.Url as AwsUrl
+import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -42,6 +42,7 @@ import java.net.URI
 import java.net.URISyntaxException
 import java.security.MessageDigest
 import java.util.*
+import aws.smithy.kotlin.runtime.net.url.Url as AwsUrl
 
 
 data class ParasiteListObject(
@@ -118,7 +119,14 @@ object ChatManager {
 
     val currentSocketConnections: MutableSet<ChatSocketConnection> = Collections.synchronizedSet(LinkedHashSet())
 
-    class ImageCacheSettings(val bucket: String, val host: String, val endpoint: String?, val accessKey: String, val secret: String, val region: String)
+    class ImageCacheSettings(
+        val bucket: String,
+        val host: String,
+        val endpoint: String?,
+        val accessKey: String,
+        val secret: String,
+        val region: String
+    )
 
     fun configure(
         imageCacheSettings: ImageCacheSettings,
@@ -691,21 +699,64 @@ object ChatManager {
 
     fun handleToolDataRequest(connection: ChatSocketConnection, sender: Parasites.ParasiteObject, toolId: String) {
         toolDefinitions.find { it.id == toolId }?.let { definition ->
-            var data: Any? = null
-            var info: ToolDefinition<*, *>? = null
-            var error: String? = null
             if (ParasitePermissions.permissionLevelAccess(definition.accessLevel, sender.settings.permission)) {
-                info = definition
-                data = definition.dataFunction(sender)
+                ServerMessage(definition, definition.dataFunction(sender))
             } else {
-                error = "Insufficient permissions"
+                ServerMessage(definition, null, error = "Insufficient permissions")
+            }.also { msg ->
+                connection.send(msg)
             }
-            connection.send(
-                ServerMessage(
-                    ServerMessageTypes.ToolResponse,
-                    mapOf("tool info" to info, "data" to data, "request" to toolId, "error" to error)
+        }
+    }
+
+    fun handleToolRunRequest(
+        connection: ChatSocketConnection,
+        sender: Parasites.ParasiteObject,
+        toolId: String,
+        data: Any?
+    ) {
+        toolDefinitions.find { it.id == toolId }?.let { definition ->
+            if (ParasitePermissions.permissionLevelAccess(definition.accessLevel, sender.settings.permission)) {
+                logger.debug("Executing tool {} for parasite {}", toolId, sender.id)
+
+                when (definition.type) {
+                    ToolTypes.Grant -> {
+                        val newPermission = definition.grant
+
+                        data class GrantToolData(val parasite: String)
+
+                        val requestData = data?.let { defaultMapper.convertValue<GrantToolData>(data) }
+                                ?: throw BadRequestException("No data")
+                        val parasite = Parasites.DAO.find(requestData.parasite)
+                                ?: throw BadRequestException("Missing parasite for grant tool")
+                        val resultData = definition.runTool(parasite)
+                        val newToolData = definition.dataFunction(sender)
+                        connection.send(ServerMessage(definition, newToolData))
+                        connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))
+                        broadcastToParasite(
+                            parasite.id,
+                            mapOf("type" to ServerMessageTypes.Update, "data" to mapOf("permission" to newPermission))
+                        )
+                        definition.affectedAlert?.let { alertData ->
+                            Alerts.DAO.create(parasite.id, alertData).also { a ->
+                                broadcastToParasite(parasite.id, ServerMessage(alertData, a?.id))
+                            }
+                        }
+                    }
+                    ToolTypes.Room -> TODO()
+                    ToolTypes.RoomOwner -> TODO()
+                    ToolTypes.Parasite -> TODO()
+                    ToolTypes.Data -> TODO()
+                }
+            } else {
+                connection.send(
+                    ServerMessage(
+                        ServerMessageTypes.ToolResponse,
+                        mapOf("request" to toolId, "error" to "Insufficient permissions")
+                    )
                 )
-            )
+                connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+            }
         }
     }
 
@@ -814,7 +865,8 @@ enum class ServerMessageTypes(val value: String) {
     Invitation("invitation"),
     PrivateMessageList("private message data"),
     ToolList("tool list"),
-    ToolResponse("data response");
+    ToolResponse("data response"),
+    ToolConfirm("tool confirm");
 
     override fun toString(): String {
         return this.value
@@ -844,4 +896,22 @@ data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any
                 put("message", "You've been invited to '$roomName' by $senderList.")
             }
         })
+
+    constructor(
+        toolDefinition: ToolDefinition<*, *>,
+        toolData: Any?,
+        message: String? = null,
+        error: String? = null
+    ) : this(ServerMessageTypes.ToolResponse, buildMap {
+        put("request", toolDefinition.id)
+        error?.let {
+            put("tool info", null)
+            put("data", null)
+            put("error", error)
+        } ?: let {
+            put("tool info", toolDefinition)
+            put("data", toolData)
+            put("message", message)
+        }
+    })
 }

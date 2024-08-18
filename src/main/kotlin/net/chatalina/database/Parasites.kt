@@ -221,6 +221,12 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                 it[updated] = CurrentTimestamp
             }
         }
+
+        fun updatePermission(parasiteId: EntityID<String>, newPermission: ParasitePermissions) = transaction {
+            Parasites.update({ Parasites.id eq parasiteId }) {
+                it[settings] = settings.setJsonbValue(ParasiteSettings::permission.name, newValue = newPermission.toString(), createIfMissing = true)
+            }
+        }
     }
 }
 

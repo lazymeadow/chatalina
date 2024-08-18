@@ -332,13 +332,6 @@ export class BestEvarChatClient {
             if (key === 'permission') {
                 if (Settings.permission !== value) {
                     Settings.permission = value;
-                    if (value === 'user') {
-                        new Alert({
-                            content: 'Your special permissions have been removed.',
-                            type: 'dismiss',
-                            dismissText: 'Fine'
-                        });
-                    }
                     if (this._mainMenu) {
                         this._mainMenu.redraw();
                     }

@@ -517,6 +517,27 @@ object ToolDataMessageHandler : MessageHandler {
     }
 }
 
+object ToolRunRequestHandler : MessageHandler {
+    class ToolRunMessageBody(type: MessageTypes) : MessageBody(type) {
+        val toolId: String? by other("request type")
+        val data: Any? by other("data")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<ToolRunMessageBody>(body) { messageBody ->
+            if (messageBody.toolId.isNullOrBlank()) {
+                connection.logger.error("Bad message content")
+            } else {
+                ChatManager.handleToolRunRequest(connection, parasite, messageBody.toolId!!, messageBody.data)
+            }
+        }
+    }
+}
+
 @Suppress("unused")  // they are used actually
 enum class MessageTypes(val value: String) {
     Version("version") {
@@ -564,7 +585,9 @@ enum class MessageTypes(val value: String) {
     ToolData("data request") {
         override val handler = ToolDataMessageHandler
     },
-//    AdminRequest("admin request"),
+    AdminRequest("admin request") {
+        override val handler = ToolRunRequestHandler
+    },
 
     @JsonEnumDefaultValue Unknown("unknown") {
         override val handler = UnknownMessageHandler
