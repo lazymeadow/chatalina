@@ -1,7 +1,7 @@
 package net.chatalina.database
 
-import net.chatalina.database.Messages.DAO.withRoomMessageHistory
 import kotlinx.datetime.Instant
+import net.chatalina.database.Messages.DAO.withRoomMessageHistory
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
@@ -32,6 +32,7 @@ object Rooms : IntIdTable("rooms"), ChatTable {
             .where { RoomAccess.inRoom eq true }
             .groupBy(RoomAccess.room)
             .alias("access")
+
         // getting columns out of aliased queries in exposed is a CONSTANT ADVENTURE that they keep MAKING HARDER
         // do i need to index this out of the aliased query, or just refer to the aliased function directly?
         // nobody fuckin knows! it's probably dependent on gamma rays and the current sea level!!!
@@ -53,20 +54,26 @@ object Rooms : IntIdTable("rooms"), ChatTable {
          */
         fun sparseList(forParasite: String? = null, withMembers: Boolean = false, onlyEmpty: Boolean = false) =
             transaction {
-                Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
+                Rooms.join(
+                    roomAccessQuery,
+                    if (onlyEmpty) JoinType.LEFT else JoinType.INNER,
+                    Rooms.id,
+                    roomAccessQuery[RoomAccess.room]
+                )
                     .select(Rooms.id, name, roomAccessQuery[membersCol])
                     .also { q ->
                         forParasite?.let { p ->
                             q.where { stringParam(p) eq anyFrom(roomAccessQuery[membersCol]) }
                         }
                         if (onlyEmpty) {
-                            q.where {
-                                CustomFunction<Int>(
-                                    "CARDINALITY",
-                                    IntegerColumnType(),
-                                    roomAccessQuery[membersCol]
-                                ) eq intLiteral(0)
-                            }
+                            q.where { roomAccessQuery[membersCol].isNull() }
+                                .orWhere {
+                                    CustomFunction<Int>(
+                                        "CARDINALITY",
+                                        IntegerColumnType(),
+                                        roomAccessQuery[membersCol]
+                                    ) eq intLiteral(0)
+                                }
                         }
                     }
                     .orderBy(Rooms.id)
@@ -129,16 +136,17 @@ object Rooms : IntIdTable("rooms"), ChatTable {
             Rooms.deleteWhere { id eq roomId }
         }
 
-        fun addMember(parasiteId: EntityID<String>, roomId: EntityID<Int> = EntityID(0, Rooms)): RoomObject? = transaction {
-            RoomAccess.upsert {
-                it[room] = roomId
-                it[parasite] = parasiteId
-                it[inRoom] = true
-                it[updated] = CurrentTimestamp
+        fun addMember(parasiteId: EntityID<String>, roomId: EntityID<Int> = EntityID(0, Rooms)): RoomObject? =
+            transaction {
+                RoomAccess.upsert {
+                    it[room] = roomId
+                    it[parasite] = parasiteId
+                    it[inRoom] = true
+                    it[updated] = CurrentTimestamp
+                }
+                RoomInvitations.DAO.deleteAll(roomId, parasiteId)
+                find(roomId)
             }
-            RoomInvitations.DAO.deleteAll(roomId, parasiteId)
-            find(roomId)
-        }
 
         fun removeMember(roomId: EntityID<Int>, parasiteId: EntityID<String>): RoomObject? = transaction {
             RoomAccess.upsert {
