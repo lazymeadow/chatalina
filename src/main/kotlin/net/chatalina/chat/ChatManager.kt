@@ -743,11 +743,42 @@ object ChatManager {
                             }
                         }
                     }
-                    ToolTypes.Room -> TODO()
+                    ToolTypes.Room -> {
+                        data class RoomToolData(val room: Int)
+
+                        val requestData = data?.let { defaultMapper.convertValue<RoomToolData>(data) }
+                                ?: throw BadRequestException("No data")
+
+                        val room =
+                            Rooms.DAO.find(requestData.room) ?: throw BadRequestException("Missing room for tool")
+
+                        val canRunTool = definition.accessLevel == ParasitePermissions.Admin ||
+                                (definition.accessLevel == ParasitePermissions.Mod && room.members.contains(sender.id.value))
+
+                        if (canRunTool) {
+                            val resultData = definition.runTool(room)
+                            val newToolData = definition.dataFunction(sender)
+                            connection.send(ServerMessage(definition, newToolData))
+                            connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))
+                            room.members.forEach {
+                                broadcastToParasite(
+                                    it,
+                                    ServerMessage(
+                                        ServerMessageTypes.RoomList,
+                                        mapOf("rooms" to listOf(room), "all" to false, "clear log" to true)
+                                    )
+                                )
+                            }
+                        } else {
+                            connection.send(ServerMessage(definition, null, error = "Insufficient permissions"))
+                            connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                        }
+                    }
                     ToolTypes.RoomOwner -> TODO()
                     ToolTypes.Parasite -> TODO()
                     ToolTypes.Data -> {
                         data class DataToolData(val id: String)
+
                         val requestData = data?.let { defaultMapper.convertValue<DataToolData>(data) }
                                 ?: throw BadRequestException("No data")
                         val resultData = definition.runTool(requestData.id)
@@ -755,12 +786,7 @@ object ChatManager {
                     }
                 }
             } else {
-                connection.send(
-                    ServerMessage(
-                        ServerMessageTypes.ToolResponse,
-                        mapOf("request" to toolId, "error" to "Insufficient permissions")
-                    )
-                )
+                connection.send(ServerMessage(definition, null, error = "Insufficient permissions"))
                 connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
             }
         }

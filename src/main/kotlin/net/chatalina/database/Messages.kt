@@ -1,10 +1,5 @@
 package net.chatalina.database
 
-import net.chatalina.chat.EncryptedData
-import net.chatalina.chat.dbDecrypt
-import net.chatalina.chat.dbEncrypt
-import net.chatalina.historyLimit
-import net.chatalina.plugins.defaultMapper
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonValue
@@ -12,6 +7,11 @@ import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import net.chatalina.chat.EncryptedData
+import net.chatalina.chat.dbDecrypt
+import net.chatalina.chat.dbEncrypt
+import net.chatalina.historyLimit
+import net.chatalina.plugins.defaultMapper
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.*
@@ -19,7 +19,6 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNull
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.rowNumber
-import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.*
 import javax.crypto.BadPaddingException
@@ -31,7 +30,9 @@ enum class MessageDestinationTypes {
 
 data class MessageDestination(
     val id: String, val type: MessageDestinationTypes
-)
+) {
+    constructor(id: EntityID<*>, type: MessageDestinationTypes): this(id.value.toString(), type)
+}
 
 
 private fun messageDecrypt(message: EncryptedData): MessageData {
@@ -153,6 +154,11 @@ object Messages : UUIDTable("messages"), ChatTable {
                     { it[recipientCol.aliasOnlyExpression()] },
                     { resultRowToObject(it, subQuery) })
                 .map { (r, m) -> mapOf("recipient id" to r, "messages" to m.sortedBy { it.sent }) }
+        }
+
+
+        fun moderatorClearMessages(destinationInfo: MessageDestination) = transaction {
+            Messages.deleteWhere { (destination eq destinationInfo.id) and (destinationType eq destinationInfo.type) }
         }
 
         /** FOR MESSAGE HISTORY **/

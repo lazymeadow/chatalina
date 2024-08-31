@@ -45,7 +45,7 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                 row[owner],
                 row[created],
                 row[maxUpdated] ?: row[updated],
-                row[roomAccessQuery[membersCol]].toList()
+                row.getOrNull(roomAccessQuery[membersCol])?.toList() ?: emptyList()
             )
         }
 
@@ -110,7 +110,7 @@ object Rooms : IntIdTable("rooms"), ChatTable {
 
         fun find(roomId: Int) = find(EntityID(roomId, Rooms))
         fun find(roomId: EntityID<Int>) = transaction {
-            Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
+            Rooms.leftJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
                 .select(Rooms.id, name, owner, created, updated, roomAccessQuery[membersCol], maxUpdated)
                 .where { Rooms.id eq roomId }
                 .firstOrNull()?.let { resultRowToObject(it) }

@@ -3,10 +3,7 @@ package net.chatalina.chat
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
-import net.chatalina.database.AlertData
-import net.chatalina.database.ParasitePermissions
-import net.chatalina.database.Parasites
-import net.chatalina.database.Rooms
+import net.chatalina.database.*
 import net.chatalina.plugins.dataMapper
 import org.jetbrains.exposed.dao.id.EntityID
 
@@ -143,8 +140,8 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "That's weird.",
         action = "empty",
         runFunction = { room ->
-            TODO("")
-//            "${room.name} log is empty now."
+                Messages.DAO.moderatorClearMessages(MessageDestination(room.id, MessageDestinationTypes.Room))
+                mapOf("message" to "Room log cleared for room '${room.name}'")
         }
     ),
     ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
@@ -153,13 +150,13 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         ToolTypes.Room,
         "Delete room with no members",
         "Choose room to delete",
-        "Removes a room that no longer has any members (except the owner). ¡ATTN: This is a hard delete!",
+        "Removes a room that no longer has any members. ¡ATTN: This is a hard delete!",
         { _ -> Rooms.DAO.sparseList(onlyEmpty = true) },
         "Wow, there aren't any empty rooms!",
         action = "delete",
         runFunction = { room ->
-            TODO("")
-//            "${room.name} is gone forever!"
+            Rooms.DAO.delete(room.id)
+            mapOf("message" to "${room.name} is gone forever!")
         }
     ),
     ToolDefinition<List<Map<*, *>>, Pair<Rooms.RoomObject, Parasites.ParasiteObject>>(
