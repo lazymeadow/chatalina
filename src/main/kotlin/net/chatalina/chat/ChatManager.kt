@@ -760,15 +760,13 @@ object ChatManager {
                             val newToolData = definition.dataFunction(sender)
                             connection.send(ServerMessage(definition, newToolData))
                             connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))
-                            room.members.forEach {
-                                broadcastToParasite(
-                                    it,
-                                    ServerMessage(
-                                        ServerMessageTypes.RoomList,
-                                        mapOf("rooms" to listOf(room), "all" to false, "clear log" to true)
-                                    )
+                            broadcastToRoom(
+                                room,
+                                ServerMessage(
+                                    ServerMessageTypes.RoomList,
+                                    mapOf("rooms" to listOf(room), "all" to false, "clear log" to true)
                                 )
-                            }
+                            )
                         } else {
                             connection.send(ServerMessage(definition, null, error = "Insufficient permissions"))
                             connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
