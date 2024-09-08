@@ -166,12 +166,12 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Set new room owner",
         "Select room",
         "Set the owner of a room to a different member of the room (they must be in the room).",
-        { parasite -> Rooms.DAO.sparseList(parasite.id.value, withMembers = true) },
+        { parasite -> Rooms.DAO.sparseList(parasite.id.value, withMembers = true, includeGeneral = false) },
         "There aren't any rooms you walnut.",
         text2 = "Select new owner",
         runFunction = { (room, parasite) ->
-            TODO("")
-//            "The new owner of ${room.name} is ${parasite.id}."
+            Rooms.DAO.setOwner(room.id, parasite.id)
+            mapOf("message" to "The new owner of ${room.name} is ${parasite.id}.")
         }
     ),
     ToolDefinition<List<Map<*, *>>, Pair<Rooms.RoomObject, Parasites.ParasiteObject>>(
@@ -181,12 +181,12 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "Set new room owner",
         "Select room",
         "Set the owner of a room to a different member of the room (they must be in the room).",
-        { _: Any -> Rooms.DAO.sparseList(withMembers = true) },
+        { _: Any -> Rooms.DAO.sparseList(withMembers = true, includeGeneral = false) },
         "This tool does nothing if there are no rooms to edit.",
         text2 = "Select new owner",
         runFunction = { (room, parasite) ->
-            TODO("")
-//            "The new owner of ${room.name} is ${parasite.id}."
+            Rooms.DAO.setOwner(room.id, parasite.id)
+            mapOf("message" to "The new owner of ${room.name} is ${parasite.id}.")
         }
     ),
     ToolDefinition<List<Map<String, EntityID<String>>>, Parasites.ParasiteObject>(

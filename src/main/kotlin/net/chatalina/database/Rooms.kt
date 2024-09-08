@@ -52,7 +52,12 @@ object Rooms : IntIdTable("rooms"), ChatTable {
         /**
          * sparseList is only for tools, to build out the room select menus
          */
-        fun sparseList(forParasite: String? = null, withMembers: Boolean = false, onlyEmpty: Boolean = false) =
+        fun sparseList(
+            forParasite: String? = null,
+            withMembers: Boolean = false,
+            onlyEmpty: Boolean = false,
+            includeGeneral: Boolean = true
+        ) =
             transaction {
                 Rooms.join(
                     roomAccessQuery,
@@ -66,7 +71,7 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                             q.where { stringParam(p) eq anyFrom(roomAccessQuery[membersCol]) }
                         }
                         if (onlyEmpty) {
-                            q.where { roomAccessQuery[membersCol].isNull() }
+                            q.andWhere { roomAccessQuery[membersCol].isNull() }
                                 .orWhere {
                                     CustomFunction<Int>(
                                         "CARDINALITY",
@@ -74,6 +79,9 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                                         roomAccessQuery[membersCol]
                                     ) eq intLiteral(0)
                                 }
+                        }
+                        if (!includeGeneral) {
+                            q.andWhere { Rooms.id neq 0 }
                         }
                     }
                     .orderBy(Rooms.id)
@@ -157,6 +165,13 @@ object Rooms : IntIdTable("rooms"), ChatTable {
             }
             RoomInvitations.DAO.deleteAll(roomId, parasiteId)
             find(roomId)
+        }
+
+        fun setOwner(roomId: EntityID<Int>, newOwner: EntityID<String>) = transaction {
+            Rooms.update({ Rooms.id eq roomId }) {
+                it[owner] = newOwner
+                it[updated] = CurrentTimestamp
+            }
         }
     }
 }

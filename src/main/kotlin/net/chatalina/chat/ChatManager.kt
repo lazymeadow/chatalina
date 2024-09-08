@@ -774,7 +774,66 @@ object ChatManager {
                             connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
                         }
                     }
-                    ToolTypes.RoomOwner -> TODO()
+                    ToolTypes.RoomOwner -> {
+                        data class RoomOwnerToolData(val room: Int, val parasite: String)
+
+                        val requestData = data?.let { defaultMapper.convertValue<RoomOwnerToolData>(data) }
+                                ?: throw BadRequestException("No data")
+                        val newOwner =
+                            Parasites.DAO.find(requestData.parasite)
+                                    ?: throw BadRequestException("Invalid parasite id for room")
+                        val room =
+                            Rooms.DAO.find(requestData.room) ?: throw BadRequestException("Missing room for tool")
+
+                        if (room.owner == newOwner.id) {
+                            connection.send(
+                                ServerMessage(
+                                    ServerMessageTypes.ToolConfirm,
+                                    mapOf("message" to "No change", "perm level" to definition.accessLevel)
+                                )
+                            )
+                            return
+                        }
+
+                        val canRunTool = definition.accessLevel == ParasitePermissions.Admin ||
+                                (definition.accessLevel == ParasitePermissions.Mod && room.members.contains(sender.id.value))
+
+                        if (canRunTool) {
+                            if (room.members.contains(requestData.parasite)) {
+                                val resultData = definition.runTool(room to newOwner)
+                                val newToolData = definition.dataFunction(sender)
+                                connection.send(ServerMessage(definition, newToolData))
+                                connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))
+                                broadcastToRoom(
+                                    room,
+                                    ServerMessage(
+                                        ServerMessageTypes.RoomList,
+                                        mapOf("rooms" to listOf(room.copy(owner = newOwner.id)), "all" to false)
+                                    )
+                                )
+                                AlertData.dismiss(
+                                    "You are no longer the owner of the room '${room.name}'.",
+                                    "Aww, nuts"
+                                ).also { alertData ->
+                                    Alerts.DAO.create(room.owner, alertData).also { a ->
+                                        broadcastToParasite(room.owner, ServerMessage(alertData, a?.id))
+                                    }
+                                }
+                                AlertData.dismiss("You are now the owner of the room '${room.name}'.", "Neat")
+                                    .also { alertData ->
+                                        Alerts.DAO.create(newOwner.id, alertData).also { a ->
+                                            broadcastToParasite(newOwner.id, ServerMessage(alertData, a?.id))
+                                        }
+                                    }
+                            } else {
+                                connection.send(ServerMessage(definition, null, error = "Invalid parasite id for room"))
+                            }
+                        } else {
+                            connection.send(ServerMessage(definition, null, error = "Insufficient permissions"))
+                            connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                        }
+
+                    }
                     ToolTypes.Parasite -> TODO()
                     ToolTypes.Data -> {
                         data class DataToolData(val id: String)
