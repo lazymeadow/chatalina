@@ -163,6 +163,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             tokenEncrypt(parasiteId).also { token ->
                 ParasitePasswords.update({ ParasitePasswords.parasite eq parasiteId }) {
                     it[resetToken] = token
+                    it[updated] = CurrentTimestamp
                 }
             }
         }
@@ -225,6 +226,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         fun updatePermission(parasiteId: EntityID<String>, newPermission: ParasitePermissions) = transaction {
             Parasites.update({ Parasites.id eq parasiteId }) {
                 it[settings] = settings.setJsonbValue(ParasiteSettings::permission.name, newValue = newPermission.toString(), createIfMissing = true)
+                it[updated] = CurrentTimestamp
             }
         }
     }
