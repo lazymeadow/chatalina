@@ -191,21 +191,27 @@ object EmailHandler {
         args: Map<String, String>,
         vararg recipients: Parasites.ParasiteObject
     ) {
-        logger.error("Sending email")
+        logger.debug("Sending email")
 
         if (recipients.isEmpty()) logger.error("Unable to send email to no recipients (type: {})", type.name)
 
         try {
             val email = ImageHtmlEmail()
             email.hostName = smtpHost
-            email.sslSmtpPort = smtpPort
-            email.authenticator = DefaultAuthenticator(smtpUser, smtpPass)
-            email.setSSLOnConnect(smtpTls)
-            email.isSSLCheckServerIdentity = smtpTls
-            email.isStartTLSRequired = smtpTls
+            if (smtpTls) {
+                email.sslSmtpPort = smtpPort
+                if (!smtpUser.isNullOrBlank() && !smtpPass.isNullOrBlank()) {
+                    email.authenticator = DefaultAuthenticator(smtpUser, smtpPass)
+                }
+                email.setSSLOnConnect(smtpTls)
+                email.isSSLCheckServerIdentity = smtpTls
+                email.isStartTLSRequired = smtpTls
+            } else {
+                email.setSmtpPort(smtpPort.toInt())
+            }
             email.setFrom(smtpFromAddress, "The $siteName Server <3")
 
-            email.dataSourceResolver = DataSourceClassPathResolver("/web-client/files/images")//, true)
+            email.dataSourceResolver = DataSourceClassPathResolver("/static/images", true)
 
             email.subject = type.subject
             val emailArgs = args + ("site_name" to siteName)
@@ -227,7 +233,7 @@ object EmailHandler {
 
             email.send()
 
-            logger.error("Email sent")
+            logger.debug("Email sent")
         } catch (e: EmailException) {
             logger.error("Error sending email:")
             throw e
