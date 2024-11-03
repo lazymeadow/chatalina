@@ -12,7 +12,7 @@ let emojiSearchTimeout;
 export function _parseEmojis(element) {
     twemoji.parse(element || document.body, {
         callback: (icon, options) =>`${options.base}/${icon.toUpperCase()}.${options.ext}`,
-        base: 'https://emoji.bestevarchat.com/openmoji-svg-color',
+        base: process.env.BEC_EMOJIS,
         ext: 'svg',
         attributes: function (icon, variant) {
             return {title: icon + variant};
