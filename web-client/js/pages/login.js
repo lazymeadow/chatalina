@@ -25,6 +25,13 @@ $(function () {
             let message
             if (response.status === 401) {
                 message = "Invalid username or password."
+            } else if (response.status === 403) {
+                const query = new URLSearchParams({
+                    message: "Your account has been deactivated.",
+                    parasite: data.parasite
+                })
+                window.location = `/reactivate?${query.toString()}`
+                return
             } else {
                 message = await response.text()
             }

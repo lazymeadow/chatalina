@@ -11,7 +11,7 @@ enum class ToolTypes(val value: String? = null) {
     Grant,
     Room,
     RoomOwner("room owner"),
-    Parasite,
+    ParasiteActiveState("parasite"),
     Data;
 
     override fun toString(): String {
@@ -36,7 +36,8 @@ data class ToolDefinition<R, E : Any>(
     @JsonProperty("tool text 2") val text2: String? = null,
     @JsonIgnore private val runFunction: ToolDefinition<R, E>.(E) -> Map<String, Any>
 ) {
-    @Suppress("UNCHECKED_CAST") fun runTool(param: Any) = runFunction(param as E) + mapOf("perm level" to this.accessLevel)
+    @Suppress("UNCHECKED_CAST") fun runTool(param: Any) =
+        runFunction(param as E) + mapOf("perm level" to this.accessLevel)
 }
 
 private fun runGrantTool(
@@ -140,8 +141,8 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "That's weird.",
         action = "empty",
         runFunction = { room ->
-                Messages.DAO.moderatorClearMessages(MessageDestination(room.id, MessageDestinationTypes.Room))
-                mapOf("message" to "Room log cleared for room '${room.name}'")
+            Messages.DAO.moderatorClearMessages(MessageDestination(room.id, MessageDestinationTypes.Room))
+            mapOf("message" to "Room log cleared for room '${room.name}'")
         }
     ),
     ToolDefinition<List<Map<*, *>>, Rooms.RoomObject>(
@@ -192,7 +193,7 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
     ToolDefinition<List<Map<String, EntityID<String>>>, Parasites.ParasiteObject>(
         "deactivate parasite",
         ParasitePermissions.Admin,
-        ToolTypes.Parasite,
+        ToolTypes.ParasiteActiveState,
         "Deactivate parasite",
         "Go away",
         "Set the chosen parasite to inactive. Removes all alerts and invitations, removes them from all rooms, resets their display name to their id, and empties their reset token.  Inactive parasites are blocked from logging in, and must re-request access from an admin.",
@@ -200,14 +201,17 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
         "I guess you\\'re the only one here.",
         action = "deactivate",
         runFunction = { parasite ->
-            TODO("")
-//            "Deactivated parasite: ${parasite.id}."
+            Alerts.DAO.deleteAllForParasite(parasiteId = parasite.id)
+            Rooms.DAO.removeFromAll(parasiteId = parasite.id)
+            Parasites.DAO.setActive(parasiteId = parasite.id, isActive = false)
+            val orphanedRooms = Rooms.DAO.selectRoomsWhereOwner(parasiteId = parasite.id)
+            mapOf("message" to "Deactivated parasite: ${parasite.id}. (Orphaned rooms: ${orphanedRooms.joinToString { "${it["name"]} (${it["id"]})" }})")
         }
     ),
     ToolDefinition<List<Map<String, EntityID<String>>>, Parasites.ParasiteObject>(
         "reactivate parasite",
         ParasitePermissions.Admin,
-        ToolTypes.Parasite,
+        ToolTypes.ParasiteActiveState,
         "Reactivate parasite",
         "Perform necromancy",
         "Sets a parasite back to active. Restores nothing. They can do that when they log in.",
@@ -219,8 +223,9 @@ val toolDefinitions = listOf<ToolDefinition<*, *>>(
             "Sick"
         ),
         runFunction = { parasite ->
-            TODO("")
-//            "You've resurrected ${parasite.id}. Now you must live with that choice."
+            Rooms.DAO.addMember(parasiteId = parasite.id)  // add reactivated parasite to "general" room
+            Parasites.DAO.setActive(parasiteId = parasite.id, isActive = true)
+            mapOf("message" to "You've resurrected ${parasite.id}. Now you must live with that choice.")
         }
     ),
     ToolDefinition<List<Map<*, *>>, String>(

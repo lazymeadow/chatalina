@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% set title = 'Parasite reactivation requested' %}
+{% set image = 'cat_tied.png' %}
+{% set image_alt = 'a fat cat tangled up in a ball of yarn' %}
+{% set image_title = 'yarn cat' %}
+
+{% block html_body %}
+<p>
+    A parasite is requesting reactivation of their account.
+</p>
+<dl>
+    <dt>Parasite id</dt>
+    <dd>{{ parasite_id | default("UNKNOWN") }}</dd>
+    <dt>Parasite email</dt>
+    <dd>{{ parasite_email | default("UNKNOWN") }}</dd>
+</dl>
+<p>
+    To grant this request, use the admin tools inside the chat.
+</p>
+<p>
+    Otherwise, just ignore this email. Nobody's gonna know. How would they know?
+</p>
+{% endblock %}

@@ -9,6 +9,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import net.chatalina.chat.EmailTypes
+import net.chatalina.chat.sendAdminEmail
 import net.chatalina.chat.sendEmail
 import net.chatalina.chat.tokenDecrypt
 import net.chatalina.database.Parasites
@@ -48,8 +49,6 @@ fun Route.authenticationRoutes() {
         getReactivate()
         postReactivate()
     }
-    // I don't think this endpoint is used at all
-    // post("/validate_username") {}
 }
 
 private open class PreAuthRequestBody(open val t: String? = null) {
@@ -86,11 +85,13 @@ private fun Route.getLogin() {
         call.redirectIfLoggedIn()
         call.withPreAuthSession { session ->
             val message = call.request.queryParameters["message"] ?: ""
+            val error = call.request.queryParameters["error"] ?: ""
             val parasite = call.request.queryParameters["parasite"] ?: ""
             call.respond(
                 application.getPebbleContent(
                     "login.html",
                     "message" to message,
+                    "error" to error,
                     "username" to parasite,
                     "t" to session.t
                 )
@@ -108,8 +109,12 @@ private fun Route.postLogin() {
             val body = call.receive<LoginRequest>()
 
             if (body.getVal() == session.getVal() && Parasites.DAO.checkPassword(body.parasite, body.password)) {
-                call.sessions.set(ParasiteSession(body.parasite))
-                call.respond(HttpStatusCode.OK)
+                if (!Parasites.DAO.isActive(body.parasite)) {
+                    throw AuthorizationException()
+                } else {
+                    call.sessions.set(ParasiteSession(body.parasite))
+                    call.respond(HttpStatusCode.OK)
+                }
             } else {
                 throw AuthenticationException()
             }
@@ -119,6 +124,7 @@ private fun Route.postLogin() {
 
 private fun Route.getLogout() {
     get {
+        application.log.debug("log out called")
         call.sessions.clear<ParasiteSession>()
         call.sessions.clear<PreAuthSession>()
         throw RedirectException("/login")
@@ -299,12 +305,40 @@ private fun Route.postResetPassword() {
 
 private fun Route.getReactivate() {
     get {
-        TODO()
+        call.redirectIfLoggedIn()
+        call.withPreAuthSession { session ->
+            val message = call.request.queryParameters["message"] ?: ""
+            val error = call.request.queryParameters["error"] ?: ""
+            val parasite = call.request.queryParameters["parasite"] ?: ""
+            call.respond(application.getPebbleContent("reactivate.html", "t" to session.t, "message" to message, "error" to error, "parasite" to parasite))
+        }
     }
 }
 
 private fun Route.postReactivate() {
     post {
-        TODO()
+        call.requirePreAuthSession { session ->
+            data class ReactivateRequestBody(val parasite: String, override val t: String? = null) :
+                PreAuthRequestBody(t)
+
+            val body = call.receive<ReactivateRequestBody>()
+            if (body.getVal() != session.getVal()) {
+                application.log.debug("Reactivation request failed due to mismatched token for parasite id: ${body.parasite}")
+            } else {
+                val foundParasite = Parasites.DAO.find(body.parasite)
+                if (foundParasite == null) {
+                    application.log.debug("Reactivation reset request failed for parasite id: ${body.parasite}")
+                } else if (foundParasite.active) {
+                    application.log.debug("Reactivation request received for active parasite id: ${body.parasite}")
+                    throw RedirectException("/login?message=Your+account+is+active.+Just+log+in.")
+                } else {
+                    application.sendAdminEmail(
+                        EmailTypes.ReactivationRequest,
+                        mapOf("parasite_id" to foundParasite.id.value, "parasite_email" to foundParasite.email)
+                    )
+                }
+            }
+            call.respond(HttpStatusCode.Accepted)
+        }
     }
 }

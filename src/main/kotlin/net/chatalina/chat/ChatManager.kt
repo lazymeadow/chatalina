@@ -777,9 +777,8 @@ object ChatManager {
 
                         val requestData = data?.let { defaultMapper.convertValue<RoomOwnerToolData>(data) }
                                 ?: throw BadRequestException("No data")
-                        val newOwner =
-                            Parasites.DAO.find(requestData.parasite)
-                                    ?: throw BadRequestException("Invalid parasite id for room")
+                        val newOwner = Parasites.DAO.find(requestData.parasite)
+                                ?: throw BadRequestException("Invalid parasite id for room")
                         val room =
                             Rooms.DAO.find(requestData.room) ?: throw BadRequestException("Missing room for tool")
 
@@ -832,7 +831,21 @@ object ChatManager {
                         }
 
                     }
-                    ToolTypes.Parasite -> TODO()
+                    ToolTypes.ParasiteActiveState -> {
+                        data class ParasiteToolData(val parasite: String)
+
+                        val requestData = data?.let { defaultMapper.convertValue<ParasiteToolData>(data) }
+                                ?: throw BadRequestException("No data")
+                        if (requestData.parasite == connection.parasiteId) {
+                            throw BadRequestException("You can't do that to yourself!")
+                        }
+                        val parasite = Parasites.DAO.find(requestData.parasite)
+                                ?: throw BadRequestException("Invalid parasite id")
+                        val resultData = definition.runTool(parasite)
+                        // force logout for parasite's connected sockets
+                        broadcastToParasite(parasite.id, ServerMessage.AuthFail())
+                        connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))
+                    }
                     ToolTypes.Data -> {
                         data class DataToolData(val id: String)
 
@@ -851,6 +864,10 @@ object ChatManager {
 
     fun addConnection(connection: ChatSocketConnection) {
         val parasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
+        if (!parasite.active) {
+            // deactivated parasites aren't allowed to do anything
+            throw AuthenticationException()
+        }
         synchronized(currentSocketConnections) { currentSocketConnections.add(connection) }
 
         val wasOffline = ParasiteStatusMap.getStatus(parasite.id) == ParasiteStatus.Offline
@@ -934,6 +951,10 @@ object ChatManager {
 
     suspend fun handleMessage(connection: ChatSocketConnection, body: String) {
         val currentParasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
+        if (!currentParasite.active) {
+            // deactivated parasites aren't allowed to do anything
+            throw AuthenticationException()
+        }
         val messageBody = try {
             defaultMapper.readValue<MessageBody>(body)
         } catch (e: Throwable) {
@@ -1003,4 +1024,15 @@ data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any
             put("message", message)
         }
     })
+
+    companion object {
+        fun AuthFail() = ServerMessage(
+            ServerMessageTypes.AuthFail,
+            mapOf(
+                "username" to "Server",
+                "message" to "Cannot connect. Authentication failure!",
+                "time" to java.time.Instant.now()
+            )
+        )
+    }
 }

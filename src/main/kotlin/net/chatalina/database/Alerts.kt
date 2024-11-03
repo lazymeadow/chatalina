@@ -74,5 +74,9 @@ object Alerts : UUIDTable("alerts"), ChatTable {
         fun delete(alertId: UUID, parasiteId: EntityID<String>) = transaction {
             Alerts.deleteWhere { (Alerts.id eq alertId) and (parasite eq parasiteId) }
         }
+
+        fun deleteAllForParasite(parasiteId: EntityID<String>) = transaction {
+            Alerts.deleteWhere { parasite eq parasiteId }
+        }
     }
 }

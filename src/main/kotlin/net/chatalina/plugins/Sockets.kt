@@ -1,10 +1,5 @@
 package net.chatalina.plugins
 
-import net.chatalina.chat.ChatManager
-import net.chatalina.chat.ServerMessage
-import net.chatalina.chat.ServerMessageTypes
-import net.chatalina.database.AlertData
-import net.chatalina.http.AuthenticationException
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.plugins.*
@@ -16,9 +11,12 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
+import net.chatalina.chat.ChatManager
+import net.chatalina.chat.ServerMessage
+import net.chatalina.database.AlertData
+import net.chatalina.http.AuthenticationException
 import org.slf4j.LoggerFactory
 import java.time.Duration
-import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
 fun Application.configureSockets() {
@@ -57,16 +55,7 @@ fun Application.configureSockets() {
                 } catch (e: ClosedReceiveChannelException) {
                     theConnection.logger.debug("{}: onClose {}", theConnection.name, closeReason.await())
                 } catch (e: AuthenticationException) {
-                    theConnection.send(
-                        ServerMessage(
-                            ServerMessageTypes.AuthFail,
-                            mapOf(
-                                "username" to "Server",
-                                "message" to "Cannot connect. Authentication failure!",
-                                "time" to Instant.now()
-                            )
-                        )
-                    )
+                    theConnection.send(ServerMessage.AuthFail())
                 } catch (e: Throwable) {
                     e.printStackTrace()
                     application.log.error("what the fuck")

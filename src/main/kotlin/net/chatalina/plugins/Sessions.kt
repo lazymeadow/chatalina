@@ -32,8 +32,8 @@ fun Application.configureSessions() {
 
     install(Sessions) {
         cookie<ParasiteSession>("parasite") {
-            cookie.extensions["SameSite"] = "None"
             if (this@configureSessions.isProduction) {
+                cookie.extensions["SameSite"] = "None"
                 cookie.secure = true
             }
             cookie.path = "/"
@@ -42,8 +42,8 @@ fun Application.configureSessions() {
             transform(SessionTransportTransformerEncrypt(encryptSecret, signSecret))
         }
         cookie<PreAuthSession>("bec-pre-auth") {
-            cookie.extensions["SameSite"] = "None"
             if (this@configureSessions.isProduction) {
+                cookie.extensions["SameSite"] = "None"
                 cookie.secure = true
             }
             cookie.path = "/"

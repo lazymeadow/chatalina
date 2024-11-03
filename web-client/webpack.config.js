@@ -15,6 +15,7 @@ const config = [
 			small: ['./less/login.less'],
 			login: ['./js/pages/login.js'],
 			register: ['./js/pages/register.js'],
+			reactivate: ['./js/pages/reactivate.js'],
 			'forgot-password': ['./js/pages/forgot-password.js'],
 			'reset-password': ['./js/pages/reset-password.js']
 		},

@@ -173,6 +173,22 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                 it[updated] = CurrentTimestamp
             }
         }
+
+        fun selectRoomsWhereOwner(parasiteId: EntityID<String>) = transaction {
+            Rooms.select(Rooms.id, name).where(owner eq parasiteId).map {
+                buildMap {
+                    put("id", it[Rooms.id])
+                    put("name", it[name])
+                }
+            }
+        }
+
+        fun removeFromAll(parasiteId: EntityID<String>) = transaction {
+            RoomAccess.update({RoomAccess.parasite eq parasiteId}) {
+                it[inRoom] = false
+                it[updated] = CurrentTimestamp
+            }
+        }
     }
 }
 

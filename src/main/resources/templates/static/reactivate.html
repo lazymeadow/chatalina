@@ -1,0 +1,30 @@
+{% extends "form-page.html" %}
+
+{% set title = 'Reactivate Account' %}
+{% set formTitle = 'Request Account Reactivation' %}
+{% set formId = 'reactivate' %}
+
+{% block formjs %}
+<script src="reactivate.js"></script>
+{% endblock %}
+
+{% block formContent %}
+<p>You can submit a request for account reactivation here. An admin will get back to you whenever they feel like it. Or not.</p>
+<div class="form-group">
+    <div class="form-element">
+        <label for="parasite">Username</label>
+        <input type=text
+               name="parasite"
+               id="parasite"
+               value="{{ parasite }}"
+               required
+               autocomplete="username"
+               tabindex="1"/>
+    </div>
+    <input type="hidden" readonly="readonly" value="{{ t }}" name="t" required tabindex="0" />
+</div>
+<div class="form-element">
+    <div class="flex-spacer"></div>
+    <button class="primary" type="submit">Request reactivation</button>
+</div>
+{% endblock %}

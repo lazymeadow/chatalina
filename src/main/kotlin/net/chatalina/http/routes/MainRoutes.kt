@@ -27,7 +27,7 @@ private fun Route.getMain() {
         val session = call.principal<ParasiteSession>() ?: let {
             throw RedirectException("/logout")
         }
-        val sessionParasite = Parasites.DAO.find(session.id) ?: let {
+        val sessionParasite = Parasites.DAO.find(session.id)?.takeIf { it.active } ?: let {
             throw RedirectException("/logout")
         }
         call.response.cookies.append("username", sessionParasite.settings.displayName ?: sessionParasite.id.value)
@@ -48,7 +48,7 @@ private fun Route.getMobile() {
         val session = call.principal<ParasiteSession>() ?: let {
             throw RedirectException("/logout")
         }
-        val sessionParasite = Parasites.DAO.find(session.id) ?: let {
+        val sessionParasite = Parasites.DAO.find(session.id)?.takeIf { it.active } ?: let {
             throw RedirectException("/logout")
         }
         // it only sets the cookies for the items you can change :/ so weird

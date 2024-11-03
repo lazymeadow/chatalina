@@ -192,6 +192,10 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             Parasites.selectAll().where { Parasites.id eq parasiteId }.count() > 0
         }
 
+        fun isActive(parasiteId: String): Boolean = transaction {
+            Parasites.select(active).where{Parasites.id eq parasiteId}.firstOrNull()?.get(active) ?: false
+        }
+
         fun create(newUserName: String, newEmail: String, hashedPassword: ByteArray): ParasiteObject? = transaction {
             Parasites.insert {
                 it[id] = newUserName
@@ -225,7 +229,21 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
 
         fun updatePermission(parasiteId: EntityID<String>, newPermission: ParasitePermissions) = transaction {
             Parasites.update({ Parasites.id eq parasiteId }) {
-                it[settings] = settings.setJsonbValue(ParasiteSettings::permission.name, newValue = newPermission.toString(), createIfMissing = true)
+                it[settings] = settings.setJsonbValue(
+                    ParasiteSettings::permission.name,
+                    newValue = newPermission.toString(),
+                    createIfMissing = true
+                )
+                it[updated] = CurrentTimestamp
+            }
+        }
+
+        fun setActive(parasiteId: EntityID<String>, isActive: Boolean) = transaction {
+            Parasites.update({ Parasites.id eq parasiteId }) {
+                if (!isActive) {
+                    it[settings] = null
+                }
+                it[active] = isActive
                 it[updated] = CurrentTimestamp
             }
         }

@@ -1,13 +1,13 @@
 package net.chatalina.chat
 
-import net.chatalina.database.ParasitePermissions
-import net.chatalina.database.Parasites
-import net.chatalina.isProduction
-import net.chatalina.siteName
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.ClasspathLoader
+import net.chatalina.database.ParasitePermissions
+import net.chatalina.database.Parasites
+import net.chatalina.isProduction
+import net.chatalina.siteName
 import org.apache.commons.mail.DefaultAuthenticator
 import org.apache.commons.mail.EmailException
 import org.apache.commons.mail.ImageHtmlEmail
@@ -47,6 +47,21 @@ enum class EmailTypes(
             Your password for ${args["parasite_id"]} was changed.
             
             If you did not do this, let the admin know!
+        """
+    },
+    ReactivationRequest(
+        "reactivation.html",
+        "Parasite reactivation requested",
+        "A parasite is requesting reactivation of their account."
+    ) {
+        override fun compileTextBody(args: Map<String, String>) = """
+            A parasite is requesting reactivation of their account.
+             
+             Parasite id: ${args["parasite_id"]}
+             Parasite email: ${args["parasite_email"]}
+            
+            To grant this request, use the admin tools inside the chat.
+            Otherwise, just ignore this email. Nobody's gonna know. How would they know?
         """
     },
     CriticalError("critical-error.html", "CRITICAL ERROR", "There was a critical error logged!") {
@@ -90,6 +105,21 @@ fun Application.sendEmail(
     }
 }
 
+fun Application.sendAdminEmail(type: EmailTypes, args: Map<String, String> = emptyMap()) {
+    val adminParasites = Parasites.DAO.list(active = true, permissionFilter = ParasitePermissions.Admin)
+
+    if (this.isProduction) {
+        EmailHandler.sendEmail(type, siteName, args, *adminParasites.toTypedArray())
+    } else {
+        log.debug(
+            "Would have sent email to admins (type: {}, admins: {}, args: {})",
+            type.name,
+            adminParasites.joinToString { "${it.name} - ${it.email}" },
+            args
+        )
+    }
+}
+
 fun Application.sendErrorEmail(error: Any?) {
     val errorToInclude = when (error) {
         is Throwable -> """
@@ -102,11 +132,16 @@ fun Application.sendErrorEmail(error: Any?) {
     val adminParasites = Parasites.DAO.list(active = true, permissionFilter = ParasitePermissions.Admin)
 
     if (this.isProduction) {
-        EmailHandler.sendEmail(EmailTypes.CriticalError, siteName, mapOf("error" to errorToInclude), *adminParasites.toTypedArray())
+        EmailHandler.sendEmail(
+            EmailTypes.CriticalError,
+            siteName,
+            mapOf("error" to errorToInclude),
+            *adminParasites.toTypedArray()
+        )
     } else {
         log.debug(
             "Would have sent error email to admins ({})",
-            adminParasites.joinToString { "${it.name} (${it.email})" }
+            adminParasites.joinToString { "${it.name} - ${it.email}" }
         )
         log.debug(errorToInclude)
     }
@@ -150,7 +185,12 @@ object EmailHandler {
         logger.info("Email handler initialized.")
     }
 
-    internal fun sendEmail(type: EmailTypes, siteName: String, args: Map<String, String>, vararg recipients: Parasites.ParasiteObject) {
+    internal fun sendEmail(
+        type: EmailTypes,
+        siteName: String,
+        args: Map<String, String>,
+        vararg recipients: Parasites.ParasiteObject
+    ) {
         logger.error("Sending email")
 
         if (recipients.isEmpty()) logger.error("Unable to send email to no recipients (type: {})", type.name)
