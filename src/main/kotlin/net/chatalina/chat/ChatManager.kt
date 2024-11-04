@@ -9,6 +9,8 @@ import aws.sdk.kotlin.services.s3.putObject
 import aws.smithy.kotlin.runtime.content.ByteStream
 import aws.smithy.kotlin.runtime.http.HttpStatusCode
 import aws.smithy.kotlin.runtime.http.response.statusCode
+import com.fasterxml.jackson.core.exc.StreamConstraintsException
+import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.ktor.client.*
@@ -958,8 +960,12 @@ object ChatManager {
         val messageBody = try {
             defaultMapper.readValue<MessageBody>(body)
         } catch (e: Throwable) {
-            connection.session.application.sendErrorEmail(e)
-            throw BadRequestException("Bad message content")
+            if (e is  JsonMappingException && e.cause is StreamConstraintsException) {
+                throw BadRequestException("Content is too long")
+            } else {
+                connection.session.application.sendErrorEmail(e)
+                throw BadRequestException("Bad message content")
+            }
         }
         connection.logger.debug("received message: {}", messageBody.type)
         messageBody.type.handler.handleMessage(connection, currentParasite, messageBody)
