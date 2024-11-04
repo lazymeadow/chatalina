@@ -482,7 +482,7 @@ object ChatManager {
                     broadcastToRoom(destinationRoom, mapOf("type" to MessageTypes.ChatMessage, "data" to data))
                 }
             }
-        } ?: {
+        } ?: let {
             // ok, it must be a parasite id.
             val destination = MessageDestination(destinationId, MessageDestinationTypes.Parasite)
             if (Parasites.DAO.exists(destination.id)) {

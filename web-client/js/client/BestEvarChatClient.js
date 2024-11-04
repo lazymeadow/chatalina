@@ -179,9 +179,9 @@ export class BestEvarChatClient {
         const roomId = Settings.activeLogId;
         this._send({
             'type': 'image',
-            'image url': imageUrl,
             'nsfw': nsfw,
-            'room id': roomId
+            'room id': roomId,
+            'image url': imageUrl,
         });
     }
 
@@ -189,10 +189,10 @@ export class BestEvarChatClient {
         const roomId = Settings.activeLogId;
         this._send({
             'type': 'image upload',
-            'image data': imageData,
             'image type': imageType,
             'nsfw': nsfw,
-            'room id': roomId
+            'room id': roomId,
+            'image data': imageData,
         });
     }
 
