@@ -422,7 +422,7 @@ export class BestEvarChatClient {
     }
 
     _attemptReconnect() {
-        const alertDelay = 3500;  // same as alert fade length
+        const alertDelay = 5000;  // same as alert fade length
 
         // if not already present, show the disconnected alert
         if (!this._disconnectedAlert) {
