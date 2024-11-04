@@ -124,7 +124,7 @@ export class BestEvarChatClient {
     resetUnreadMessageCount() {
         this._unreadMessageCount = 0;
         this.setWindowTitle();
-        $("#favicon").attr("href", "/static/favicon.png");
+        $("#favicon").attr("href", "/favicon.png");
     }
 
     sendChat(messageText) {

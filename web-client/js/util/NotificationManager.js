@@ -40,7 +40,7 @@ export default class NotificationManager extends LoggingClass {
                 tag: 'chatNotification',
                 silent: true,
                 renotify: true,
-                icon: 'static/favicon.png',
+                icon: 'favicon.png',
                 ...notificationOptions
             });
             this._startNotificationTimeout();
