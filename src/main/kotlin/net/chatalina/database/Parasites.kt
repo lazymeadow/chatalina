@@ -39,7 +39,8 @@ data class ParasiteSettings(
     var volume: String = "100",
     var soundSet: String = "AIM",
     var faction: String = "rebel",
-    var permission: ParasitePermissions = ParasitePermissions.User
+    var permission: ParasitePermissions = ParasitePermissions.User,
+    var theme: String = "classic-teal",
 )
 
 inline fun <reified T : Any?> ParasiteSettings.setProperty(prop: KProperty1<ParasiteSettings, T>, newValue: T) {

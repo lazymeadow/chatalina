@@ -54,13 +54,14 @@ export class DesktopClient extends BestEvarChatClient {
         });
     }
 
-    updateUserSettings({username, color, faction}) {
+    updateUserSettings({username, color, faction, theme}) {
         this._send({
             'type': 'settings',
             'data': {
                 username,
                 color,
-                faction
+                faction,
+                theme
             }
         });
     }

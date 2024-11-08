@@ -1,4 +1,3 @@
-@track-color: @backgroundColor;
 @thumb-color: @lightBackgroundColor;
 
 @thumb-radius: 0;
@@ -9,7 +8,6 @@
 @track-height: 10px;
 
 @track-radius: 0;
-@contrast: 5%;
 
 .shadow() {
   box-shadow: none;
@@ -52,7 +50,7 @@ input[type="range"] {
   &::-webkit-slider-runnable-track {
     .track();
     .shadow();
-    background: @track-color;
+    background: var(--primary-color);
     //border-radius: @track-radius;
     border: none;
   }
@@ -65,7 +63,7 @@ input[type="range"] {
   &::-moz-range-track {
     .track();
     .shadow();
-    background: @track-color;
+    background: var(--primary-color);
     //border-radius: @track-radius;
      border: none;
   }
@@ -82,13 +80,13 @@ input[type="range"] {
   }
 
   &::-ms-fill-lower {
-    background: darken(@track-color, @contrast);
+    background: var(--primary-dark-5);
     border: none;
     border-radius: @track-radius*2;
     .shadow();
   }
   &::-ms-fill-upper {
-    background: @track-color;
+    background: var(--primary-color);
     border: none;
     border-radius: @track-radius*2;
     .shadow();
@@ -97,9 +95,9 @@ input[type="range"] {
     .thumb();
   }
   &:focus::-ms-fill-lower {
-    background: @track-color;
+    background: var(--primary-color);
   }
   &:focus::-ms-fill-upper {
-    background: lighten(@track-color, @contrast);
+    background: var(--primary-light-5);
   }
 }

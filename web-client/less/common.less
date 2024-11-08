@@ -2,19 +2,42 @@
 
 @import 'checkboxes';
 
+@classicTeal: #25687D;
+
+body.classic-teal {
+  --primary-color: @classicTeal;
+  --primary-dark-3: darken(@classicTeal, 3%);
+  --primary-dark-5: darken(@classicTeal, 5%);
+  --primary-dark-10: darken(@classicTeal, 10%);
+  --primary-light-5: lighten(@classicTeal, 5%);
+  --primary-light-20: lighten(@classicTeal, 20%);
+  --primary-light-30: lighten(@classicTeal, 30%);
+}
+
+@newfangledRed: #99305E;
+
+body.newfangled-red {
+  --primary-color: @newfangledRed;
+  --primary-dark-3: darken(@newfangledRed, 3%);
+  --primary-dark-5: darken(@newfangledRed, 5%);
+  --primary-dark-10: darken(@newfangledRed, 10%);
+  --primary-light-5: lighten(@newfangledRed, 5%);
+  --primary-light-20: lighten(@newfangledRed, 20%);
+  --primary-light-30: lighten(@newfangledRed, 30%);
+}
+
 @dark: #4A4A4A;
 @bodyColor: #222222;
 @lightButtonColor: #C6E2EB;
 @borderColor: @dark;
 @lightBorderColor: lightgrey;
-@backgroundColor: #99305E;
 @lightBackgroundColor: #C9C9C9;
 @lightest: #FCFCFC;
 @buttonHoverColor: darken(@lightButtonColor, 15%);
 @errorRed: #CC0000;
 
 body {
-  background: @backgroundColor;
+  background: var(--primary-color);
   font: 14px 'Amiko', sans-serif;
   color: @bodyColor;
   padding: 0;
@@ -159,19 +182,19 @@ div.login, div.not-found, div.form {
   button, .button {
     font: 1em 'Amiko', sans-serif;
     border: none;
-    background-color: @backgroundColor;
+    background-color: var(--primary-color);
     color: white;
     padding: 5px;
     cursor: pointer;
 
     &:hover {
-      background: darken(@backgroundColor, 10%);
+      background: var(--primary-dark-10);
     }
 
     &.secondary {
       background-color: @lightest;
       border: solid 1px @lightBorderColor;
-      color: @backgroundColor;
+      color: var(--primary-color);
 
       &:hover {
         background: lighten(@lightBackgroundColor, 10%);

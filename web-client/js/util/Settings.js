@@ -6,18 +6,25 @@ export class Settings {
 
     static get allowedFactions() {
         return {
-            'First Order': 'first-order',
-            'First Order (Alternate)': 'first-order-alt',
-            'Galactic Empire': 'empire',
-            'Galactic Republic': 'galactic-republic',
-            'Galactic Senate': 'galactic-senate',
-            'Jedi Order': 'jedi-order',
-            'Mandalorian': 'mandalorian',
-            'Old Republic': 'old-republic',
-            'Rebel Alliance': 'rebel',
-            'Sith': 'sith',
-            'Trade Federation': 'trade-federation',
+            'first-order': 'First Order',
+            'first-order-alt': 'First Order (Alternate)',
+            'empire': 'Galactic Empire',
+            'galactic-republic': 'Galactic Republic',
+            'galactic-senate': 'Galactic Senate',
+            'jedi-order': 'Jedi Order',
+            'mandalorian': 'Mandalorian',
+            'old-republic': 'Old Republic',
+            'rebel': 'Rebel Alliance',
+            'sith': 'Sith',
+            'trade-federation': 'Trade Federation',
         };
+    }
+
+    static get themes() {
+        return {
+            'classic-teal': 'Classic Teal',
+            'newfangled-red': 'Newfangled Red',
+        }
     }
 
     static init() {
@@ -32,6 +39,7 @@ export class Settings {
         // set value overrides
         Settings.volume = Settings.volume || Cookies.get('volume');
         $('body')[0].style.fontSize = `${Settings.fontSize}px`;
+        Settings.theme = Cookies.get('theme');
     }
 
     static get userId() {
@@ -54,7 +62,7 @@ export class Settings {
         this.#currentLogId = roomOrThreadId;
         localStorage.setItem(`${Settings.userId}.activeLogId`, roomOrThreadId);
     }
-    
+
     static get activeLogType() {
         return this.#currentLogType || localStorage.getItem(`${Settings.userId}.activeLogType`) || 'room';
     }
@@ -71,8 +79,19 @@ export class Settings {
     }
 
     static set faction(faction) {
-        if ($.inArray(faction, Object.values(Settings.allowedFactions)) >= 0) {
+        if ($.inArray(faction, Object.keys(Settings.allowedFactions)) >= 0) {
             localStorage.setItem(`${Settings.userId}.faction`, faction);
+        }
+    }
+
+    static get theme() {
+        return localStorage.getItem(`${Settings.userId}.theme`) || 'classic-teal';
+    }
+
+    static set theme(theme) {
+        if (Settings.themes.hasOwnProperty(theme)) {
+            localStorage.setItem(`${Settings.userId}.theme`, theme);
+            $('body').removeClass(Object.keys(Settings.themes).join(" ")).addClass(theme);
         }
     }
 
@@ -91,8 +110,7 @@ export class Settings {
     static set tabTitle(tabTitle) {
         if (tabTitle) {
             localStorage.setItem(`${Settings.userId}.tabTitle`, tabTitle);
-        }
-        else {
+        } else {
             localStorage.removeItem(`${Settings.userId}.tabTitle`);
         }
     }

@@ -1,14 +1,17 @@
 package net.chatalina.http.routes
 
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import net.chatalina.database.ParasiteSettings
 import net.chatalina.database.Parasites
 import net.chatalina.emoji.EmojiManager
 import net.chatalina.http.RedirectException
 import net.chatalina.http.getPebbleContent
 import net.chatalina.plugins.ParasiteSession
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.declaredMemberProperties
 
 fun Route.mainRoutes() {
     getMain()
@@ -30,14 +33,17 @@ private fun Route.getMain() {
         val sessionParasite = Parasites.DAO.find(session.id)?.takeIf { it.active } ?: let {
             throw RedirectException("/logout")
         }
-        call.response.cookies.append("username", sessionParasite.settings.displayName ?: sessionParasite.id.value)
-        call.response.cookies.append("color", sessionParasite.settings.color)
-        call.response.cookies.append("volume", sessionParasite.settings.volume)
-        call.response.cookies.append("email", sessionParasite.email)
-        call.response.cookies.append("faction", sessionParasite.settings.faction)
-        call.response.cookies.append("permission", sessionParasite.settings.permission.toString())
-        call.response.cookies.append("soundSet", sessionParasite.settings.soundSet)
+
         call.response.cookies.append("id", sessionParasite.id.value)
+        call.response.cookies.append("email", sessionParasite.email)
+        ParasiteSettings::class.declaredMemberProperties.forEach { prop: KProperty1<ParasiteSettings, *> ->
+            val propValue = if (ParasiteSettings::displayName == prop) {
+                prop.get(sessionParasite.settings)?.toString() ?: sessionParasite.id.value
+            } else {
+                prop.get(sessionParasite.settings).toString()
+            }
+            call.response.cookies.append(prop.name, propValue)
+        }
 
         call.respond(application.getPebbleContent("chat.html", "emojiList" to EmojiManager.curatedEmojis))
     }

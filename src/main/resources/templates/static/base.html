@@ -12,23 +12,10 @@
         }
     </script>
     <link id="favicon" rel="shortcut icon" type="image/png" href="/favicon.png"/>
-    {% if prod %}
-    <style>
-        :root {
-            --mainColor: #25687d;
-        }
-    </style>
-    {% else %}
-    <style>
-        :root {
-            --mainColor: #99305E;
-        }
-    </style>
-    {% endif %}
     {% block includes %}
     {% endblock %}
 </head>
-<body>
+<body class="classic-teal">
 <div class="content">
     {% block content %}
     {% endblock %}

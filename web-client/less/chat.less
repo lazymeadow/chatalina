@@ -22,16 +22,16 @@
       & #current-user {
         flex: 0 0 auto;
         padding: 10px 3px;
-        background-color: darken(@backgroundColor, 10%);
+        background-color: var(--primary-dark-10);
         display: flex;
         align-items: center;
 
         &.current {
-          background-color: lighten(@backgroundColor, 20%);
+          background-color: var(--primary-light-20);
         }
 
         &:hover {
-          background-color: lighten(@backgroundColor, 30%);
+          background-color: var(--primary-light-30);
           color: @bodyColor;
         }
 
@@ -78,14 +78,14 @@
       .panel() {
         overflow-y: scroll;
         overflow-x: hidden;
-        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", @backgroundColor),
-        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", @backgroundColor),
-          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", darken(@backgroundColor, 5%)),
-        %(~"linear-gradient(%d, rgba(0, 0, 0, 0)) 0 100%", darken(@backgroundColor, 5%));
-        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", @backgroundColor),
-        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", @backgroundColor),
-          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", darken(@backgroundColor, 5%)),
-        %(~"linear-gradient(rgba(0, 0, 0, 0), %d) 0 100%", darken(@backgroundColor, 5%));
+        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", var(--primary-color)),
+        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", var(--primary-color)),
+          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", var(--primary-dark-5)),
+        %(~"linear-gradient(%d, rgba(0, 0, 0, 0)) 0 100%", var(--primary-dark-5));
+        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", var(--primary-color)),
+        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", var(--primary-color)),
+          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", var(--primary-dark-5)),
+        %(~"linear-gradient(rgba(0, 0, 0, 0), %d) 0 100%", var(--primary-dark-5));
         background-repeat: no-repeat;
         background-size: 100% 50px, 100% 50px, 100% 25px, 100% 25px;
 
@@ -126,7 +126,7 @@
 
           & > .inline-menu {
             display: none;
-            background-color: darken(@backgroundColor, 3%);
+            background-color: var(--primary-dark-3);
             margin: 3px -3px -3px;
 
             & .menu-item {
@@ -136,7 +136,7 @@
               cursor: pointer;
 
               &:hover {
-                background-color: lighten(@backgroundColor, 30%);
+                background-color: var(--primary-light-30);
                 color: @bodyColor;
               }
 
@@ -150,7 +150,7 @@
       }
 
       .selected-panel-item() {
-        background-color: lighten(@backgroundColor, 20%);
+        background-color: var(--primary-light-20);
 
         .list-content {
           font-weight: bold;
@@ -161,7 +161,7 @@
         .panel();
 
         & .users-header {
-          border-bottom: 2px solid darken(@backgroundColor, 3%);
+          border-bottom: 2px solid var(--primary-dark-3);
           padding: 15px 7px 7px 10px;
           display: flex;
           width: ~"calc(100% - 15px)";
@@ -180,7 +180,7 @@
 
           &:hover {
             cursor: pointer;
-            background-color: lighten(@backgroundColor, 30%);
+            background-color: var(--primary-light-30);
             color: @bodyColor;
           }
         }
@@ -192,12 +192,12 @@
 
       & #room-list {
         .panel();
-        border-bottom: 2px solid darken(@backgroundColor, 3%);
+        border-bottom: 2px solid var(--primary-dark-3);
         max-height: calc(50% - 24px);  // 24 for half
         // the "current user" div
 
         & .rooms-header {
-          border-bottom: 2px solid darken(@backgroundColor, 3%);
+          border-bottom: 2px solid var(--primary-dark-3);
           padding: 15px 7px 7px 10px;
           display: flex;
           width: ~"calc(100% - 15px)";
@@ -225,7 +225,7 @@
         }
 
         & > div:not(.rooms-header) > div:first-child:hover {
-          background-color: lighten(@backgroundColor, 30%);
+          background-color: var(--primary-light-30);
           color: @bodyColor;
         }
 
