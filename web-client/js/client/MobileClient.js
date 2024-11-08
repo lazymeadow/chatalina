@@ -23,6 +23,6 @@ export class MobileClient extends BestEvarChatClient {
 
         _parseEmojis();
 
-        return 'Best Evar Chat 3.0';
+        return process.env.BEC_TITLE;
     }
 }

@@ -110,7 +110,7 @@ export class MainMenu extends LoggingClass {
                             // Browser tab title
                                 .append($('<div>').addClass('form-element')
                                     .append($('<label>', {text: 'Tab Title', for: 'tab_title'}))
-                                    .append($('<input>', {id: 'tab_title', placeholder: '<Room> | Best Evar Chat 3.0'})
+                                    .append($('<input>', {id: 'tab_title', placeholder: `<Room> | ${process.env.BEC_TITLE || 'Chat'} ${CLIENT_VERSION}`})
                                         .val(Settings.tabTitle)))
                                 // Volume
                                 .append($('<div>').addClass('form-element')
@@ -402,7 +402,7 @@ export class MainMenu extends LoggingClass {
                         }
                         if (title) {
                             this._chatClient.submitBug({
-                                title: `[Best Evar Chat] ${title} (submitted by ${Settings.userId})`,
+                                title: `[${process.env.BEC_TITLE}] ${title} (submitted by ${Settings.userId})`,
                                 body: $('#body').val()
                             });
                         }
@@ -444,7 +444,7 @@ export class MainMenu extends LoggingClass {
                         }
                         if (title) {
                             this._chatClient.submitFeature({
-                                title: `[Best Evar Chat] ${title} (submitted by ${Settings.userId})`,
+                                title: `[${process.env.BEC_TITLE}] ${title} (submitted by ${Settings.userId})`,
                                 body: $('#body').val()
                             });
                         }
@@ -463,6 +463,7 @@ export class MainMenu extends LoggingClass {
                     showCancel: false,
                     title: 'About',
                     content: $('<div>')
+                        .append('<h3>4.0.0</h3><em>November 7th, 2024</em><p><strong>IT\'S THE FUCKIN\' CHATALINA WINE MIXER BABY</strong></p><p>Yeah that\'s right bitches, we did it</p>')
                         .append('<h3>3.5.2</h3><em>November 9th, 2022</em><p><strong>Critical update!!!</strong></p><p>Sharing a link from our very favorite music service now shows an embedded player. Yes, in this very chat. I know it\'s been over two years since the last update. There\'s no need to be rude.</small></p><p>What? It\'s Gorilla Groove. Why would you say Spotify? What\'s wrong with you?</p>')
                         .append('<h3>3.5.1</h3><em>May 23rd, 2021</em><p>We fixed the Sean bug</p>')
                         .append('<h3>3.5.0</h3><em>September 25th, 2020</em><p>Look, we tried.</p><p>Chat 4.0 was a disaster. Python 3 is my mortal enemy. We can never reconcile.</p><ul><li>New emoji assets</li><li>Admin/Moderator Tools</li><li>Emoji Search</li></ol>')

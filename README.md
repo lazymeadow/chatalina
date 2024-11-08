@@ -1,7 +1,1 @@
-STEP ONE: recreate best evar chat exactly in kotlin, stupid socket API and all
-
-STEP TWO: make it a little less bad and add OBEI
-
-STEP THREE: ha
-
-STEP FOUR: make it actually better
+![chatalina](https://user-images.githubusercontent.com/11927977/160942016-11afb9e3-0564-4810-b8be-6ef390e05c9c.gif)

@@ -82,7 +82,7 @@ export class BestEvarChatClient {
         else {
             name = this._roomManager.getActiveRoomName();
         }
-        return Settings.tabTitle || `${name} | Best Evar Chat ${CLIENT_VERSION}`;
+        return Settings.tabTitle || `${name} | ${process.env.BEC_TITLE || 'Chat'} ${CLIENT_VERSION}`;
     }
 
     setWindowTitle() {

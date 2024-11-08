@@ -1,5 +1,5 @@
 /**
- * BEST EVAR CHAT 4.0.0 WEB CLIENT
+ * CHATALINA 4.0.0 WEB CLIENT
  * @author Audrey Wiltsie
  */
 

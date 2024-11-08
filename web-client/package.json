@@ -1,7 +1,7 @@
 {
-  "name": "best-evar-chat",
+  "name": "chatalina",
   "version": "4.0.0",
-  "description": "The Best Evar Chat!",
+  "description": "It's the fuckin' chatalina wine mixer",
   "private": true,
   "scripts": {
     "build": "webpack",
@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lazymeadow/best-ever-chat.git"
+    "url": "git+https://github.com/lazymeadow/chatalina.git"
   },
   "author": "Audrey Wiltsie",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/lazymeadow/best-ever-chat/issues"
+    "url": "https://github.com/lazymeadow/chatalina/issues"
   },
-  "homepage": "https://github.com/lazymeadow/best-ever-chat#readme",
+  "homepage": "https://github.com/lazymeadow/chatalina#readme",
   "devDependencies": {
     "@fortawesome/fontawesome-free": "^5.2.0",
     "webpack": "^5.90.3",
