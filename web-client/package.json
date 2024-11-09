@@ -4,7 +4,7 @@
   "description": "It's the fuckin' chatalina wine mixer",
   "private": true,
   "scripts": {
-    "build": "webpack",
+    "build": "webpack --mode production --env production",
     "buildDev": "webpack --mode development",
     "watch": "webpack watch --mode development"
   },

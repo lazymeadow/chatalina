@@ -30,9 +30,6 @@ group = "net.chatalina"
 version = "0.0.1"
 application {
     mainClass.set("io.ktor.server.netty.EngineMain")
-
-    val isDevelopment: Boolean = project.ext.has("development")
-    applicationDefaultJvmArgs = listOf("-Dio.ktor.development=$isDevelopment")
 }
 
 node {
@@ -41,8 +38,11 @@ node {
 
 val buildNpmTask = tasks.register<NpmTask>("buildNpm") {
     dependsOn(tasks.npmInstall)
-    npmCommand.set(listOf("run", "build"))
-    environment.set(mapOf("BEC_SERVER" to "localhost:6969"))
+    if (project.hasProperty("buildEnv") && project.property("buildEnv") == "PROD") {
+        npmCommand.set(listOf("run", "build"))
+    } else {
+        npmCommand.set(listOf("run", "buildDev"))
+    }
     outputs.upToDateWhen {
         false
     }
