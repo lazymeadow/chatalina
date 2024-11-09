@@ -35,7 +35,7 @@ fun Route.authenticationRoutes() {
     }
     route("/register") {
         getRegister()
-        postRegister()
+//        postRegister()
     }
     route("/forgot-password") {
         getForgotPassword()
@@ -141,10 +141,11 @@ private fun Route.postLogout() {
 
 private fun Route.getRegister() {
     get {
-        call.redirectIfLoggedIn()
-        call.withPreAuthSession { session ->
-            call.respond(application.getPebbleContent("register.html", "t" to session.t))
-        }
+        throw RedirectException("/")
+//        call.redirectIfLoggedIn()
+//        call.withPreAuthSession { session ->
+//            call.respond(application.getPebbleContent("register.html", "t" to session.t))
+//        }
     }
 }
 
