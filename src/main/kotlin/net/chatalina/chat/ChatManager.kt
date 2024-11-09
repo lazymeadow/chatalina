@@ -846,6 +846,8 @@ object ChatManager {
                         val resultData = definition.runTool(parasite)
                         // force logout for parasite's connected sockets
                         broadcastToParasite(parasite.id, ServerMessage.AuthFail())
+                        // update everyone's user lists
+                        broadcastUserList()
                         connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))
                     }
                     ToolTypes.Data -> {
