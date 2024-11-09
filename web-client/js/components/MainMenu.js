@@ -475,6 +475,8 @@ export class MainMenu extends LoggingClass {
                     showCancel: false,
                     title: 'About',
                     content: $('<div>')
+                        .append('<h3>4.0.2</h3><em>November 9th, 2024</em><p><strong>Misc Fixes</strong></p><p>If you saw some bots register for chat, no you didn\'t. Also nobody else can register anymore either.</p><p>Also, links to new github issues open in a new tab. Nature is healing.</p>')
+                        .append('<h3>4.0.1</h3><em>November 8th, 2024</em><p><strong>Pick your theme</strong></p><p>The test environment colors were a big hit, so now you can choose between "Classic Teal" and "Newfangled Red".</p>')
                         .append('<h3>4.0.0</h3><em>November 7th, 2024</em><p><strong>IT\'S THE FUCKIN\' CHATALINA WINE MIXER BABY</strong></p><p>Yeah that\'s right bitches, we did it</p>')
                         .append('<h3>3.5.2</h3><em>November 9th, 2022</em><p><strong>Critical update!!!</strong></p><p>Sharing a link from our very favorite music service now shows an embedded player. Yes, in this very chat. I know it\'s been over two years since the last update. There\'s no need to be rude.</small></p><p>What? It\'s Gorilla Groove. Why would you say Spotify? What\'s wrong with you?</p>')
                         .append('<h3>3.5.1</h3><em>May 23rd, 2021</em><p>We fixed the Sean bug</p>')
