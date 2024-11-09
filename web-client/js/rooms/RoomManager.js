@@ -106,7 +106,7 @@ export class RoomManager extends LoggingClass {
     }
 
     getActiveRoomName() {
-        return this._roomDataMap.get(Settings.activeLogId).name;
+        return this._roomDataMap.get(Settings.activeLogId)?.name || '-';
     }
 
     // Private functions

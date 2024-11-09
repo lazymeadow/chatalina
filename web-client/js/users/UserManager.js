@@ -108,7 +108,7 @@ export class UserManager extends LoggingClass {
     }
 
     getActiveThreadName() {
-        return this._userDataMap.get(Settings.activeLogId).username;
+        return this._userDataMap.get(Settings.activeLogId)?.username || '-';
     }
 
     _addUser(userData) {

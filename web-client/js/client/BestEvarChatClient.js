@@ -1,9 +1,8 @@
 import {UserManager} from "../users";
 import {Logger, NotificationManager, Settings, SoundManager} from "../util";
 import {Alert, MessageLog} from "../components";
-import {CLIENT_VERSION, MAX_RETRIES} from "../lib";
-import {AdminTools} from "../components/Tools";
-import {ModTools} from "../components/Tools";
+import {CLIENT_VERSION, INITIAL_RETRIES} from "../lib";
+import {AdminTools, ModTools} from "../components/Tools";
 
 
 export class BestEvarChatClient {
@@ -11,7 +10,7 @@ export class BestEvarChatClient {
     _mainMenu;
     _ready = false
 
-    constructor(hostname = process.env.BEC_SERVER, secure= (process.env.NODE_ENV === 'production'), routingPath = 'chat') {
+    constructor(hostname = process.env.BEC_SERVER, secure = (process.env.NODE_ENV === 'production'), routingPath = 'chat') {
         this._hostname = `${secure ? 'wss' : 'ws'}://${hostname}/${routingPath}`;
 
         Settings.init();
@@ -34,13 +33,13 @@ export class BestEvarChatClient {
         this._sock = new WebSocket(this._hostname);
 
         this._sock.onopen = () => {
+            window.clearTimeout(this._reconnectTimeout);
             this._reconnectEnabled = true;
+            this._reconnectCount = 0;
             if (this._disconnectedAlert) {
                 this._disconnectedAlert.remove();
                 this._disconnectedAlert = null;
             }
-            window.clearTimeout(this._reconnectTimeout);
-            this._reconnectCount = 0;
             this._send({
                 'type': 'version',
                 'client version': CLIENT_VERSION
@@ -64,8 +63,7 @@ export class BestEvarChatClient {
         if (logout) {
             if (this._sock.readyState === this._sock.OPEN) this._sock.close(1000);
             location.replace('/logout');
-        }
-        else if (this._reconnectEnabled) {
+        } else if (this._reconnectEnabled) {
             this._attemptReconnect();
         }
     }
@@ -78,8 +76,7 @@ export class BestEvarChatClient {
         let name;
         if (Settings.activeLogType === 'thread') {
             name = this._userManager.getActiveThreadName();
-        }
-        else {
+        } else {
             name = this._roomManager.getActiveRoomName();
         }
         return Settings.tabTitle || `${name} | ${process.env.BEC_TITLE || 'Chat'} ${CLIENT_VERSION}`;
@@ -115,8 +112,7 @@ export class BestEvarChatClient {
     reprintLog() {
         if (Settings.activeLogType === 'room') {
             this._roomManager.setActiveRoom(Settings.activeLogId);
-        }
-        else {
+        } else {
             this._userManager.setActiveThread(Settings.activeLogId);
         }
     }
@@ -134,8 +130,7 @@ export class BestEvarChatClient {
                 'message': messageText,
                 'room id': parseInt(Settings.activeLogId, 10)
             });
-        }
-        else {
+        } else {
             this._send({
                 'type': 'private message',
                 'message': messageText,
@@ -256,49 +251,38 @@ export class BestEvarChatClient {
         if (messageType === 'auth fail') {
             this._reconnectEnabled = false;
             this.disconnect(true);
-        }
-        else if (messageType === 'room data') {
+        } else if (messageType === 'room data') {
             if (this._ready) {
                 this._receivedRoomData(messageData);
             } else {
                 this._cachedRooms = messageData
                 this._tryInitData()
             }
-        }
-        else if (messageType === 'private message data') {
+        } else if (messageType === 'private message data') {
             this._cachedThreads = messageData
             this._tryInitData()
-        }
-        else if (messageType === 'user list') {
+        } else if (messageType === 'user list') {
             if (this._ready) {
                 this._receivedUserList(messageData);
             } else {
                 this._cachedUsers = messageData
                 this._tryInitData()
             }
-        }
-        else if (messageType === 'update') {
+        } else if (messageType === 'update') {
             this._receivedUpdate(messageData);
-        }
-        else if (messageType === 'chat message') {
+        } else if (messageType === 'chat message') {
             this._receivedChatMessage(messageData);
-        }
-        else if (messageType === 'private message') {
+        } else if (messageType === 'private message') {
             this._receivedPrivateMessage(messageData);
-        }
-        else if (messageType === 'alert') {
+        } else if (messageType === 'alert') {
             this._receivedAlert(messageData);
-        }
-        else if (messageType === 'invitation') {
+        } else if (messageType === 'invitation') {
             this._receivedInvitation(messageData);
-        }
-        else if (messageType === 'tool list') {
+        } else if (messageType === 'tool list') {
             this._receivedToolList(messageData);
-        }
-        else if (messageType === 'data response') {
+        } else if (messageType === 'data response') {
             this._receivedToolData(messageData);
-        }
-        else if (messageType === 'tool confirm') {
+        } else if (messageType === 'tool confirm') {
             this._receivedToolConfirm(messageData);
         }
     }
@@ -314,6 +298,7 @@ export class BestEvarChatClient {
             this._cachedThreads = null
         }
     }
+
     _receivedRoomData({rooms, all, 'clear log': clearLog}) {
         this._roomManager.addRooms(rooms, all, clearLog);
     }
@@ -336,8 +321,7 @@ export class BestEvarChatClient {
                         this._mainMenu.redraw();
                     }
                 }
-            }
-            else {
+            } else {
                 Settings[key] = value;
                 if (key === 'volume') {
                     SoundManager.updateVolume();
@@ -386,8 +370,7 @@ export class BestEvarChatClient {
         if (message.includes('offline')) {
             this._soundManager.playDisconnected();
             this._notificationManager.sendStatusNotification(message, '', 'sleep');
-        }
-        else if (message.includes('online')) {
+        } else if (message.includes('online')) {
             this._soundManager.playConnected();
             this._notificationManager.sendStatusNotification(message, '', 'walk');
         }
@@ -396,8 +379,7 @@ export class BestEvarChatClient {
     _receivedToolList({'perm level': permLevel, data}) {
         if (permLevel === 'admin') {
             AdminTools.instance(this).setTools(data);
-        }
-        else if (permLevel === 'mod') {
+        } else if (permLevel === 'mod') {
             ModTools.instance(this).setTools(data);
         }
     }
@@ -406,8 +388,7 @@ export class BestEvarChatClient {
         const permLevel = toolData['tool info']['perm level'];
         if (permLevel === 'admin') {
             AdminTools.instance(this).populateTool(toolData);
-        }
-        else if (permLevel === 'mod') {
+        } else if (permLevel === 'mod') {
             ModTools.instance(this).populateTool(toolData);
         }
     }
@@ -415,14 +396,15 @@ export class BestEvarChatClient {
     _receivedToolConfirm({'perm level': permLevel, message}) {
         if (permLevel === 'admin') {
             AdminTools.instance(this).toolConfirm(message);
-        }
-        else if (permLevel === 'mod') {
+        } else if (permLevel === 'mod') {
             ModTools.instance(this).toolConfirm(message);
         }
     }
 
-    _attemptReconnect() {
-        const alertDelay = 5000;  // same as alert fade length
+    _attemptReconnect(numRetries = INITIAL_RETRIES) {
+        // try 3 times initially, 5 seconds apart. this'll catch a server reboot. then try every minute until we get in
+        const firstPhaseDelay = 5*1000;
+        const secondPhaseDelay = 60*1000;
 
         // if not already present, show the disconnected alert
         if (!this._disconnectedAlert) {
@@ -438,32 +420,31 @@ export class BestEvarChatClient {
         window.clearTimeout(this._reconnectTimeout);
         // define timeout callback
         const reconnect = () => {
-            new Alert({content: `Attempting to reconnect to the server ... (${this._reconnectCount}/${MAX_RETRIES})`});
+            this._reconnectCount++;
+            new Alert({content: 'Attempting to reconnect to the server...'});
             this.connect();
         };
 
         // do the automatic reconnection attempts
-        this._reconnectCount++;
-        if (this._reconnectCount <= MAX_RETRIES) {
+        if (this._reconnectCount < numRetries) {
             this._reconnectTimeout = window.setTimeout(
                 reconnect,
                 // first attempt is immediate, all subsequent are delayed
-                this._reconnectCount === 1 ? 0 : alertDelay
+                this._reconnectCount === 0 ? 0 : firstPhaseDelay
             );
-        }
-        else if (!this._reconnectAlert) {
-            // automatic retries failed, show a new reconnect alert after delay
-            this._reconnectTimeout = window.setTimeout(() => {
+        } else if (!this._reconnectAlert) {
+            window.setTimeout(() => {
                 this._reconnectAlert = new Alert({
-                    content: 'Failed to open connection to server.',
+                    content: 'I\'ll try to reconnect you soon',
                     type: 'dismiss',
-                    dismissText: 'Retry',
-                    dismissCallback: () => {
-                        this._reconnectCount = 0;
-                        this._attemptReconnect();
-                    }
+                    dismissText: 'No, try right now',
+                    dismissCallback: reconnect
                 });
-            }, alertDelay);
+            }, firstPhaseDelay)
+            this._reconnectTimeout = window.setTimeout(() => {
+                this._reconnectAlert.remove();  // clear the force retry alert
+                reconnect();
+            }, secondPhaseDelay);
         }
     }
 }
