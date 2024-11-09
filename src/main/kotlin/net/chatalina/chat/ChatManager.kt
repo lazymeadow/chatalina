@@ -227,8 +227,8 @@ object ChatManager {
         } else {
             val anchorTagRegex = """<\s?[a|A]\s?(?=>)""".toRegex()  // match stuff like <a href=..., < A ... or just <a>
             return if (anchorTagRegex.containsMatchIn(message)) {
-                // skip linkification, since it's already done. just add target="_blank" and rel="noreferrer"
-                anchorTagRegex.replace(message) { "<a target=\"_blank\" rel=\"noreferrer\"" }.let {
+                // skip linkification, since it's already done. just add target="_blank" and rel="noreferrer noopener"
+                anchorTagRegex.replace(message) { "<a target=\"_blank\" rel=\"noreferrer noopener\"" }.let {
                     EmojiManager.convertEmojis(it)
                 }
             } else {
@@ -244,7 +244,7 @@ object ChatManager {
                                     LinkType.EMAIL -> "mailto:$text"
                                     else -> text
                                 }.let { textToNormalizedUri(it)?.toASCIIString() ?: it.encodeURLPath() }
-                                append("<a href=\"${urlToUse}\" target=\"_blank\" rel=\"noreferrer\">${text.escapeHTML()}</a>")
+                                append("<a href=\"${urlToUse}\" target=\"_blank\" rel=\"noreferrer noopener\">${text.escapeHTML()}</a>")
                             } else {
                                 append(text)
                             }
@@ -665,7 +665,7 @@ object ChatManager {
                     connection.send(
                         ServerMessage(
                             AlertData.dismiss(
-                                "<a href=${responseBody["html_url"]}>${issueTypeFormatted} #${responseBody["number"]}</a> created!",
+                                "<a href=${responseBody["html_url"]} target=\"_blank\" rel=\"noreferrer noopener\">${issueTypeFormatted} #${responseBody["number"]}</a> created!",
                                 "OK"
                             )
                         )
