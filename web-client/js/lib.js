@@ -2,7 +2,7 @@ import twemoji from "twemoji";
 import moment from 'moment';
 import {ChatHistory, Settings} from "./util";
 
-export const CLIENT_VERSION = '4.0.2';
+export const CLIENT_VERSION = '4.0.3';
 export const INITIAL_RETRIES = 3;
 
 let idleTimeout;
@@ -11,7 +11,7 @@ let emojiSearchTimeout;
 
 export function _parseEmojis(element) {
     twemoji.parse(element || document.body, {
-        callback: (icon, options) =>`${options.base}/${icon.toUpperCase()}.${options.ext}`,
+        callback: (icon, options) => `${options.base}/${icon.toUpperCase()}.${options.ext}`,
         base: process.env.BEC_EMOJIS,
         ext: 'svg',
         attributes: function (icon, variant) {
@@ -24,7 +24,7 @@ function _emojiLibraryClickSetup() {
     // adding emojis to your chat message when clicked in the list
     $('#emoji_list .emoji').click(event => {
         event.stopPropagation();
-        const chatText = $('.chat-bar').children('input');
+        const chatText = $('#chat-bar').children('input');
         chatText.val(chatText.val() + $(event.target).prop('alt'));
     });
 }
@@ -46,7 +46,7 @@ export function _formatTime(timestamp) {
 }
 
 export function _focusChatBar() {
-    $('.chat-bar').children('input').focus();
+    $('#chat-bar').children('input').focus();
 }
 
 /**
@@ -59,9 +59,10 @@ export function preClientInit() {
     // dismiss popout menus when clicking away from them
     $('body').click(() => {
         $('.popout-option').hide();
+        $('.popout-indicator').hide();
     });
 
-    const chatBar = $('.chat-bar');
+    const chatBar = $('#chat-bar');
     // add popout handlers on click for image chat and emoji list
     chatBar.children('.button').each((index, element) => {
         const popoutOption = $(element).children('.popout-option');
@@ -71,13 +72,17 @@ export function preClientInit() {
 
         $(element).click(event => {
             event.stopPropagation();
+            const indicators = $('.popout-indicator');
             if (popoutOption.is(':visible')) {
                 popoutOption.hide();
+                indicators.hide();
             } else {
                 // hide all popouts
                 $('.popout-option').hide();
+                indicators.hide();
                 // toggle the child
                 popoutOption.show();
+                popoutOption.siblings('.popout-indicator').show();
             }
         });
     });
@@ -85,6 +90,7 @@ export function preClientInit() {
         .focus(() => {
             // hide all open popouts
             $('.popout-option').hide();
+            $('.popout-indicator').hide();
         });
 
     // parse emoji list and button
@@ -111,6 +117,7 @@ export function postClientInit(chatClient) {
         const imageUrlElement = $('#image_url');
         chatClient.sendImage(imageUrlElement.val(), $('#image_url_nsfw').is(':checked'));
         $('.popout-option').hide();
+        $('.popout-indicator').hide();
         imageUrlElement.val('');
     };
 
@@ -138,13 +145,14 @@ export function postClientInit(chatClient) {
         const imageUploadElement = $('#image_upload');
         chatClient.sendImageUpload(imageData, imageUploadElement.prop('files')[0].type, $('#image_upload_nsfw').is(':checked'));
         $('.popout-option').hide();
+        $('.popout-indicator').hide();
         imageUploadElement.val('');
     };
 
     $('#image_upload_button').click(image_upload);
 
 
-    $('.chat-bar').children('input')
+    $('#chat-bar').children('input')
         .keyup(event => {
             let chatInput = $(event.target);
             const currentMessage = chatInput.val();
@@ -184,8 +192,7 @@ export function postClientInit(chatClient) {
         for (let index = 0; index < 108; index++) {
             if (index === 0 && unicodeChars.length === 0) {
                 row.append($('<td>', {text: 'Only official emojis, you fool.'}));
-            }
-            else {
+            } else {
                 const item = unicodeChars[index];
                 if (!item) {
                     row.append($('<td>'));

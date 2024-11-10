@@ -5,7 +5,7 @@
 
 import Cookies from 'js-cookie';
 import {MobileClient} from "./client";
-import {preClientInit, postClientInit} from "./lib";
+import {postClientInit, preClientInit} from "./lib";
 
 if (!Cookies.get('id')) {
     location.reload();
@@ -15,7 +15,7 @@ $(() => {
     const overlay = $('.overlay');
 
     const hideMenu = () => {
-        const popoutMenu = $('#main_menu + .popout-menu');
+        const popoutMenu = $('#main-menu + .popout-menu');
         popoutMenu.animate({right: '-80%'}, {
             duration: 500,
             done: () => {
@@ -29,13 +29,13 @@ $(() => {
     overlay.click(hideMenu);
 
 
-    $('#main_menu + .popout-menu').children().click(hideMenu);
+    $('#main-menu + .popout-menu').children().click(hideMenu);
 
     // slide in main menu on click and show overlay
-    $('#main_menu').click(event => {
+    $('#main-menu').click(event => {
         event.stopPropagation();
         overlay.show();
-        $('#main_menu + .popout-menu').show().animate({right: '0'}, {duration: 500});
+        $('#main-menu + .popout-menu').show().animate({right: '0'}, {duration: 500});
     });
 
     preClientInit();

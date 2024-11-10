@@ -1,245 +1,156 @@
-@chatBarHeight: 45px;
 @popoutIndicatorSize: 10px;
 
-@import 'colorpicker';
-
-@import 'common';
 @import 'client-common';
 
-@import 'input-range';
-
 .content {
-  button, & :not(.chat-bar) > .button {
-    min-width: 80px;
+  #right {
+    flex: 4 0 auto;
+    background-color: var(--secondary-background-color);
+    z-index: 10;
+    width: ~"calc(100% - 200px)";
+    display: flex;
+    flex-flow: column nowrap;
+
+    #log {
+      flex: 1 1 auto;
+    }
+
+    #chat-bar {
+      flex: 0 0 auto;
+
+      & > .button {
+        & > .popout-indicator {
+          bottom: 28px;
+        }
+
+        & > .popout-option {
+          bottom: 37px;
+        }
+      }
+    }
   }
 
-  & > div:not(#alerts) {
-    &.left {
-      flex: 1 0 auto;
-      color: white;
-      width: 200px;
+  #left {
+    flex: 1 0 auto;
+    color: var(--nav-item-text);
+    width: 200px;
+    display: flex;
+    flex-flow: column nowrap;
 
-      & #current-user {
-        flex: 0 0 auto;
+    #current-user {
+      .left-item();
+      .left-item-clickable();
+      .user-element();
+      flex: 0 0 auto;
+      background-color: var(--nav-background-color);
+
+      .list-content {
         padding: 10px 3px;
-        background-color: var(--primary-dark-10);
-        display: flex;
-        align-items: center;
-
-        &.current {
-          background-color: var(--primary-light-20);
-        }
-
-        &:hover {
-          background-color: var(--primary-light-30);
-          color: @bodyColor;
-        }
-
-        & > span {
-          flex: 0 0 auto;
-
-          &:last-of-type {
-            float: right;
-            position: relative;
-            cursor: pointer;
-            display: flex;
-            width: 25px;
-            height: 25px;
-            align-items: center;
-            justify-content: center;
-
-            & > .popout-menu {
-              .popout-menu();
-
-              min-width: 200px;
-              margin-top: 5px;
-              top: 20px;
-              left: -10px;
-            }
-          }
-
-          &.list-content {
-            font-size: 1.1em;
-            font-weight: bold;
-            flex: 1 1 auto;
-            overflow-x: hidden;
-            text-overflow: ellipsis;
-            cursor: pointer;
-            white-space: nowrap;
-          }
-        }
-
-        &.active .online-status {
-          color: #34b93d;
-          padding-right: 3px;
-        }
+        font-size: 1.1em;
+        font-weight: bold;
       }
 
-      .panel() {
-        overflow-y: scroll;
-        overflow-x: hidden;
-        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", var(--primary-color)),
-        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", var(--primary-color)),
-          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", var(--primary-dark-5)),
-        %(~"linear-gradient(%d, rgba(0, 0, 0, 0)) 0 100%", var(--primary-dark-5));
-        background: /* Shadow covers */ %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", var(--primary-color)),
-        %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", var(--primary-color)),
-          /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", var(--primary-dark-5)),
-        %(~"linear-gradient(rgba(0, 0, 0, 0), %d) 0 100%", var(--primary-dark-5));
-        background-repeat: no-repeat;
-        background-size: 100% 50px, 100% 50px, 100% 25px, 100% 25px;
+      & > span {
+        flex: 0 0 auto;
 
-        /* Opera doesn't support this in the shorthand */
-        background-attachment: local, local, scroll, scroll;
-
-        & > div {
-          z-index: 1;
-          width: 100%;
-          padding: 3px;
-
-          & > div:not(.inline-menu) {
-            display: flex;
-            height: 2em;
-            margin: -3px;
-            white-space: nowrap;
-            align-items: center;
-
-            & > span {
-              flex: 0 0 auto;
-
-              &:hover {
-                cursor: pointer;
-              }
-
-              &:last-of-type:not(.list-content) {
-                opacity: .5;
-                padding-right: 9px;
-              }
-
-              &.list-content {
-                flex: 1 1 auto;
-                overflow-x: hidden;
-                text-overflow: ellipsis;
-              }
-            }
-          }
-
-          & > .inline-menu {
-            display: none;
-            background-color: var(--primary-dark-3);
-            margin: 3px -3px -3px;
-
-            & .menu-item {
-              opacity: .85;
-              padding: 7px 3px 7px 23px;
-              display: block;
-              cursor: pointer;
-
-              &:hover {
-                background-color: var(--primary-light-30);
-                color: @bodyColor;
-              }
-
-              & > .fas, & > .far, & > .fab {
-                padding-right: 3px;
-              }
-            }
-          }
-
-        }
-      }
-
-      .selected-panel-item() {
-        background-color: var(--primary-light-20);
-
-        .list-content {
-          font-weight: bold;
-        }
-      }
-
-      & #user-list {
-        .panel();
-
-        & .users-header {
-          border-bottom: 2px solid var(--primary-dark-3);
-          padding: 15px 7px 7px 10px;
-          display: flex;
-          width: ~"calc(100% - 15px)";
-        }
-
-        #inactive-user-toggle {
-          padding: 7px 3px 7px 23px;
-          width: ~"calc(100% - 26px)";
-          font-size: .9em;
-          opacity: .75;
+        &:last-of-type {
+          position: relative;
           cursor: pointer;
-        }
+          display: flex;
+          width: 25px;
+          height: 25px;
+          align-items: center;
+          justify-content: center;
+          padding-right: @elementPadding;
 
-        & div div {
-          .user-element();
-
-          &:hover {
-            cursor: pointer;
-            background-color: var(--primary-light-30);
-            color: @bodyColor;
+          & > .popout-menu {
+            min-width: 200px;
+            margin-top: 5px;
+            top: 20px;
+            left: -10px;
           }
         }
-
-        & .current {
-          .selected-panel-item();
-        }
       }
+    }
 
-      & #room-list {
-        .panel();
-        border-bottom: 2px solid var(--primary-dark-3);
-        max-height: calc(50% - 24px);  // 24 for half
-        // the "current user" div
+    .panel {
+      overflow-y: scroll;
+      overflow-x: hidden;
+      background: var(--nav-gradient-top);
+      background: var(--nav-gradient-bottom);
+      background-repeat: no-repeat;
+      background-size: 100% 50px, 100% 50px, 100% 25px, 100% 25px;
 
-        & .rooms-header {
-          border-bottom: 2px solid var(--primary-dark-3);
-          padding: 15px 7px 7px 10px;
-          display: flex;
-          width: ~"calc(100% - 15px)";
+      /* Opera doesn't support this in the shorthand */
+      background-attachment: local, local, scroll, scroll;
 
-          & span {
-            flex: 1 1 auto;
+      border-bottom: 2px solid var(--nav-section-border);
+      max-height: calc(50% - 24px);
 
-            &#add-room {
-              flex: 0 0 auto;
+      & > .header {
+        border-bottom: 2px solid var(--nav-section-border);
+        padding: 10px 5px 10px 15px;
+        display: flex;
 
-              &:hover {
-                cursor: pointer;
-              }
+        & span {
+          flex: 1 1 auto;
+          width: 25px;
+
+          &[role=button] {
+            flex: 0 0 auto;
+
+            &:hover {
+              cursor: pointer;
             }
           }
         }
+      }
+    }
 
-        & > div {
-          .room-element();
-          & .message-indicator {
-            width: 2em;
-            height: 2em;
-            line-height: 2em;
+    #room-list {
+      & > .items > div {
+        .room-element();
+
+        & > div:first-child {
+          .left-item();
+          .left-item-clickable();
+        }
+
+        & > .inline-menu {
+          .left-item();
+
+          & .menu-item {
+            &:hover {
+              background-color: var(--nav-inline-menu-hover);
+              color: var(--nav-inline-menu-hover-text);
+            }
           }
-        }
-
-        & > div:not(.rooms-header) > div:first-child:hover {
-          background-color: var(--primary-light-30);
-          color: @bodyColor;
-        }
-
-        & .current {
-          .selected-panel-item();
         }
       }
     }
 
-    &.right {
-      flex: 4 0 auto;
-      background-color: white;
-      z-index: 10;
-      width: ~"calc(100% - 200px)";
+    #user-list {
+      & > .items > div {
+        .user-element();
+        .left-item();
+        .left-item-clickable();
+      }
     }
+  }
+}
+
+.left-item() {
+  color: var(--nav-item-text);
+}
+
+.left-item-clickable() {
+  &:hover {
+    background-color: var(--nav-item-hover);
+    color: var(--nav-item-hover-text);
+  }
+
+  &.current {
+    background-color: var(--nav-item-highlight);
+    color: var(--nav-item-highlight-text);
   }
 }

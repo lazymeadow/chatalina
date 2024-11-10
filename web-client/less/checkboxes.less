@@ -1,7 +1,25 @@
-@checked-color: #228729;
 @checkbox-height: 20px;
 @duration: .4s;
-@lightBorderColor: lightgrey;
+
+@import 'checkboxes';
+
+input[type=checkbox] {
+  display: none;
+}
+
+div.check-box {
+  display: flex;
+  flex-direction: row;
+
+  & label {
+    font-size: .9em;
+
+    &.check-box {
+      margin-right: 0;
+      margin-left: 0;
+    }
+  }
+}
 
 /* Checkmark style starts */
 @-moz-keyframes bottom-check {
@@ -72,7 +90,7 @@ label.check-box {
   height: @checkbox-height;
   width: @checkbox-height;
   background-color: transparent;
-  border: 1px @lightBorderColor solid;
+  border: 1px solid var(--light-border-color);
   position: relative;
   display: inline-block;
   -moz-box-sizing: border-box;
@@ -91,7 +109,7 @@ label.check-box {
     position: absolute;
     height: 0;
     width: @checkbox-height * .2;
-    background-color: @checked-color;
+    background-color: var(--checked-green);
     display: inline-block;
     -moz-transform-origin: left top;
     -ms-transform-origin: left top;
@@ -131,7 +149,7 @@ label.check-box {
 }
 
 input[type=checkbox]:checked + label.check-box, label.check-box.checked {
-  border-color: @checked-color;
+  border-color: var(--checked-green);
 
   &::after {
     height: @checkbox-height * .5;

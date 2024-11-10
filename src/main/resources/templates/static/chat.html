@@ -9,100 +9,101 @@
 
 {% block content %}
 <div id="alerts"></div>
-<div class="left">
+<div id="left">
     <div id="current-user" class="active">
         <span class="online-status"></span>
         <span class="list-content"></span>
         <span>
-            <span class="fas fa-fw fa-caret-down" id="main_menu"></span>
+            <span class="fas fa-fw fa-caret-down" id="main-menu"></span>
             <div class="popout-menu"></div>
         </span>
     </div>
-    <div id="room-list">
-        <div class="rooms-header">
+    <div id="room-list" class="panel">
+        <div class="header">
             <span>Rooms</span>
-            <span id="add-room" class="fas fa-fw fa-plus"></span>
+            <span id="add-room" class="fas fa-fw fa-plus" role="button"></span>
         </div>
+        <div id="rooms" class="items"></div>
     </div>
-    <div id="user-list">
-        <div class="users-header">
+    <div id="user-list" class="panel">
+        <div class="header">
             <span>Users</span>
         </div>
-        <div id="active-user-list"></div>
+        <div id="active-user-list" class="items"></div>
         <div id="inactive-user-toggle">Show more users</div>
-        <div id="inactive-user-list"></div>
+        <div id="inactive-user-list" class="items"></div>
     </div>
 </div>
-<div class="right">
-    <div id="log"></div>
+<div id="right">
+    <div id="log" role="log"></div>
 
-    <div class="chat-bar">
-        <input type="text" placeholder="..." tabindex="0"/>
-        <div class="button">
+    <div id="chat-bar">
+        <input type="text" placeholder="..." tabindex="0" aria-label="New message"
+               aria-description="Press enter to send"/>
+        <div class="button secondary" role="button" aria-label="Emoji Search">
             😃
             <div class="popout-option">
-                <div class="form-group">
-                    <label for="emoji_search">Search:</label>
+                <div>
+                    <label for="emoji_search">Search</label>
                     <input id="emoji_search" name="search" type="text" tabindex="1"/>
-                    <div id="clear_emoji_search">
+                    <button id="clear_emoji_search" class="secondary" aria-label="Clear search">
                         <span class="far fa-times-circle"></span>
-                    </div>
+                    </button>
                 </div>
                 <table id="emoji_list">
                     {% for emoji in emojiList %}
                     {% if (loop.index % 12) == 0 %}
                     <tr>
-                    {% endif %}
+                        {% endif %}
                         <td>
                             <span>{{ emoji }}</span>
                         </td>
-                    {% if ((loop.index + 1) % 12) == 0 %}
+                        {% if ((loop.index + 1) % 12) == 0 %}
                     </tr>
                     {% endif %}
                     {% endfor %}
                 </table>
-                <div class="popout-indicator"></div>
             </div>
+            <div class="popout-indicator"></div>
         </div>
-        <div class="button">
+        <div class="button secondary" role="button" aria-label="Image URL">
             <span class="far fa-fw fa-image"></span>
             <div class="popout-option">
-                <div class="form-group">
+                <div>
                     <label for="image_url">
-                        Image url:
+                        Image url
                     </label>
                     <input id="image_url" name="url" type="url" tabindex="1"/>
                 </div>
-                <div class="form-group">
-                    <div class="form-element">
-                        <label>NSFW:</label>
+                <div>
+                    <div class="check-box">
+                        <label for="image_url_nsfw">NSFW</label>
                         <input id="image_url_nsfw" name="nsfw" type="checkbox"/>
                         <label class="check-box" for="image_url_nsfw" tabindex="1"></label>
                     </div>
                     <button id="image_chat_button" type="button" tabindex="1">Send</button>
                 </div>
-                <div class="popout-indicator"></div>
             </div>
+            <div class="popout-indicator"></div>
         </div>
-        <div class="button">
+        <div class="button secondary" role="button" aria-label="Image upload">
             <span class="far fa-fw fa-file-image"></span>
             <div class="popout-option">
-                <div class="form-group">
+                <div>
                     <input id="image_upload" name="image" type="file" tabindex="1"/>
                 </div>
-                <div class="form-group">
-                    <div class="form-element">
-                        <label>NSFW:</label>
+                <div>
+                    <div class="check-box">
+                        <label for="image_upload_nsfw">NSFW</label>
                         <input id="image_upload_nsfw" name="nsfw" type="checkbox"/>
                         <label class="check-box" for="image_upload_nsfw" tabindex="1"></label>
                     </div>
                     <button id="image_upload_button" type="button" tabindex="1">Send</button>
                 </div>
-                <div class="popout-indicator"></div>
             </div>
+            <div class="popout-indicator"></div>
         </div>
     </div>
-
 </div>
 
 <div class="overlay"></div>

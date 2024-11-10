@@ -1,157 +1,132 @@
-@chatBarHeight: 60px;
 @headerHeight: 40px;
 @popoutIndicatorSize: 15px;
 
-@import "common";
-@import "client-common";
+@import 'client-common';
 
 .content {
   width: 100%;
   flex-flow: column;
   font-size: 1.25em;
+}
 
-  #alerts {
-    right: 60px;
-    top: 40px;
+#header {
+  display: flex;
+  flex-flow: row;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--contrast-text-color);
+  padding: 0 15px;
+  height: @headerHeight;
+
+  #current-log-name {
+    text-overflow: ellipsis;
+    overflow-x: hidden;
+    white-space: nowrap;
+    flex: 1 1 auto;
   }
 
-  & > div#header {
-    display: flex;
-    height: @headerHeight;
-    flex-flow: row;
-    align-items: center;
-    justify-content: space-between;
-    color: white;
-    padding: 0 15px;
-
-    #current-log-name {
-      text-overflow: ellipsis;
-      overflow-x: hidden;
-      white-space: nowrap;
-    }
-
-    & .fas, & .far, & .fab {
-      font-size: 1.5em;
-    }
+  #main-menu {
+    font-size: 1.25em;
   }
 
-  .main {
-    flex: 1 0 auto;
-    height: calc(100% - @headerHeight);
-    background-color: white;
-
-    .chat-bar > .button > .popout-option .form-group {
-      &:not(:first-child) {
-        margin-top: @elementPadding;
-      }
-
-      & > label, & > input {
-        flex: 0 0 auto;
-      }
-
-      & > button {
-        flex: 1 0 auto;
-      }
-    }
-  }
-
-  #emoji_list {
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .popout-menu {
-    .popout-menu();
-
+  & .popout-menu.mobile {
     top: 0;
     right: -80%;
     bottom: 0;
     width: 80%;
-    overflow: hidden;
+    overflow: auto;
 
-    & > .inline-menu {
-      display: none;
-      margin: 3px -3px -3px;
-
-      & .menu-item {
-        opacity: .85;
-        padding: 7px 3px 7px 23px;
-        display: block;
-        cursor: pointer;
-
-        &:hover {
-          background-color: @buttonHoverColor;
-        }
-
-        & > .fas, & > .far, & > .fab {
-          padding-right: 3px;
-        }
+    .menu-item {
+      & .fas, & .far, & .fab {
+        width: 2.5em; // to match fa-stack for user
       }
     }
 
-    & #user-list:not(:empty) {
-      border-top: 1px solid @lightBorderColor;
-      border-bottom: 1px solid @lightBorderColor;
+    & #user-list {
+      & > .items > div {
+        .user-element();
+        .mobile-nav-item();
+        .mobile-nav-item-clickable();
+      }
     }
 
-    & #user-list, & #room-list {
-      max-height: calc(50% - 21px - 81px); // 21 for half the current user, 81 for half the expected menu items
-      overflow-y: auto;
-    }
+    & #room-list {
+      & > .items > div {
+        .room-element();
 
-    & .current {
-      background-color: @lightButtonColor;
+        & > div:first-child {
+          .mobile-nav-item();
+          .mobile-nav-item-clickable();
+        }
+      }
     }
 
     & #current-user {
       .user-element();
+      .mobile-nav-item();
+      .mobile-nav-item-clickable();
+    }
 
-      border-top: 1px solid @lightBorderColor;
+    & .panel, & #current-user {
+      border-top: 1px solid var(--light-border-color);
+    }
 
-      &:hover {
-        background-color: @buttonHoverColor;
-        cursor: pointer;
+    & .panel .header {
+      margin: @elementPadding;
+    }
+  }
+}
+
+#main {
+  flex: 1 0 auto;
+  height: calc(100% - @headerHeight);
+  background-color: var(--secondary-background-color);
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+
+  #log {
+    flex: 1 1 auto;
+  }
+
+  #chat-bar {
+    flex: 0 0 auto;
+
+    & > .button {
+      & > .popout-indicator {
+        bottom: 32px;
       }
-    }
 
-    & .list-content {
-      text-overflow: ellipsis;
-      overflow-x: hidden;
-      white-space: nowrap;
-      flex: 1 1 auto;
-    }
-
-    & #room-list > div {
-      .room-element();
-
-      &:hover {
-        background-color: @buttonHoverColor;
-        cursor: pointer;
+      & > .popout-option {
+        bottom: 47px;
       }
-    }
-
-    & #user-list > div div {
-      .user-element();
-
-      &:hover {
-        background-color: @buttonHoverColor;
-        cursor: pointer;
-      }
-    }
-
-    & #room-list > div > div, & #user-list > div {
-      white-space: nowrap;
-      align-items: center;
     }
   }
 }
 
 .overlay {
-   & > .modal {
-    width: auto;
+  & > .modal {
+    min-width: 100%;
+    margin: 0;
+    padding: 10px 0;
 
-    & .form-group, & .form-element {
+    & .form-group, & .form-element, & .form-group .form-element {
       width: auto;
+      padding: 0 10px;
     }
+  }
+}
+
+.mobile-nav-item() {
+  color: var(--text-color);
+}
+
+.mobile-nav-item-clickable() {
+  &:hover {
+    background-color: var(--popout-menu-hover);
+  }
+
+  &.current {
+    background-color: var(--popout-menu-highlight);
   }
 }

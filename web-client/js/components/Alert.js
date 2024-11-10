@@ -20,17 +20,16 @@ export class Alert extends LoggingClass {
         this.alertsBox = $('#alerts');
 
         if (type === 'fade') {
+            this.alert.attr('role', 'status');
             // after timeout, slideUp alert. if empty, slide up box.
             window.setTimeout(() => {
                 this._fade();
             }, 3500);
-        }
-        else if (type === 'dismiss') {
-            this.alert.append($('<div>').addClass('alert-actions')
+        } else if (type === 'dismiss') {
+            this.alert.attr('role', 'alert').append($('<div>').addClass('alert-actions')
                 .append(this._dismissElement(dismissText, dismissCallback)));
-        }
-        else if (type === 'actionable') {
-            this.alert.append($('<div>').addClass('alert-actions')
+        } else if (type === 'actionable') {
+            this.alert.attr('role', 'alert').append($('<div>').addClass('alert-actions')
                 .append(this._dismissElement(dismissText, dismissCallback))
                 .append($('<span>').text(actionText).click(() => {
                     actionCallback();

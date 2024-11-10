@@ -162,7 +162,7 @@ export class BestEvarChatClient {
         if (isTyping === undefined) {
             return;
         }
-        const shouldBeTyping = $('.chat-bar').children('input').val().length > 0;
+        const shouldBeTyping = $('#chat-bar').children('input').val().length > 0;
 
         let newTyping = (Settings.activeLogId !== Settings.userId && shouldBeTyping) ? Settings.activeLogId : null;
         if (isTyping !== newTyping) {
@@ -403,8 +403,8 @@ export class BestEvarChatClient {
 
     _attemptReconnect(numRetries = INITIAL_RETRIES) {
         // try 3 times initially, 5 seconds apart. this'll catch a server reboot. then try every minute until we get in
-        const firstPhaseDelay = 5*1000;
-        const secondPhaseDelay = 60*1000;
+        const firstPhaseDelay = 5 * 1000;
+        const secondPhaseDelay = 60 * 1000;
 
         // if not already present, show the disconnected alert
         if (!this._disconnectedAlert) {

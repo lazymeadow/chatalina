@@ -11,7 +11,7 @@ export class User extends LoggingClass {
         this.status = status;
         this.typing = typing;
         this.id = id;
-        this.lastActive= lastActive;
+        this.lastActive = lastActive;
         this._threadMessages = new Set();
 
         if (this.id !== Settings.userId) {
@@ -26,10 +26,11 @@ export class User extends LoggingClass {
                 .append($('<span>').addClass('typing-status far fa-fw fa-comment-dots'))
                 .addClass(Settings.activeLogId === this.id ? 'current' : '')
                 .addClass(this.status);
-        }
-        else {
+            this._userElement.click(() => this._selectThisThread());
+        } else {
             this._userElement = $('#current-user');
-            this._userElement.find('.list-content').text(this.username);
+            this._userElement.find('.list-content').text(this.username)
+                .click(() => this._selectThisThread());
             this._userElement.addClass(this.status)
                 .addClass(Settings.activeLogId === this.id ? 'current' : '')
                 .addClass(Settings.activeLogId === this.typing ? 'is-typing' : '')
@@ -40,7 +41,6 @@ export class User extends LoggingClass {
                 .append($('<i>').addClass('fas fa-circle fa-stack-1x'))
                 .append($('<i>', {faction: true}).addClass(`fab fa-stack-1x fa-inverse fa-${this.faction}`));
         }
-        this._userElement.click(() => this._selectThisThread());
     }
 
     get template() {
@@ -54,12 +54,10 @@ export class User extends LoggingClass {
         if ((Settings.activeLogId === this.typing) || (Settings.activeLogId === this.id && Settings.userId === this.typing)) {
             if (Settings.activeLogType === 'thread' && this.typing !== Settings.userId) {
                 this._userElement.removeClass('is-typing');
-            }
-            else {
+            } else {
                 this._userElement.addClass('is-typing');
             }
-        }
-        else {
+        } else {
             this._userElement.removeClass('is-typing');
         }
     }

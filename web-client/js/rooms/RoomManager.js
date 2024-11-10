@@ -1,6 +1,6 @@
 import {LoggingClass, Settings} from "../util";
 import {Room} from "./Room";
-import {_focusChatBar, _parseEmojis, setTitle} from '../lib';
+import {_focusChatBar, _parseEmojis} from '../lib';
 
 export class RoomManager extends LoggingClass {
     constructor(chatClient, messageLog, soundManager) {
@@ -9,7 +9,7 @@ export class RoomManager extends LoggingClass {
         this._messageLog = messageLog;
         this._soundManager = soundManager;
         this._roomDataMap = new Map();
-        this._roomListElement = $('#room-list');
+        this._roomListElement = $('#rooms');
 
         this.allowRoomEdits = false;
     }
@@ -27,7 +27,7 @@ export class RoomManager extends LoggingClass {
         super.debug('Updating rooms...');
         // clear the list if necessary
         if (allRooms) {
-            this._roomListElement.children(':not(.rooms-header)').remove();
+            this._roomListElement.empty();
             this._roomDataMap.clear();
         }
         // add the room data to the list
@@ -67,8 +67,7 @@ export class RoomManager extends LoggingClass {
                 }
                 this._messageLog.printMessage(messageData);
             }
-        }
-        else {
+        } else {
             const roomMessageCount = this._roomDataMap.get(roomId).addMessage(messageData);
             if (Settings.activeLogType === 'room' && Settings.activeLogId === roomId) {
                 if (roomMessageCount <= 1) {
@@ -78,8 +77,7 @@ export class RoomManager extends LoggingClass {
             }
             if (messageData.username === Settings.username) {
                 this._soundManager.playSent();
-            }
-            else if (messageData.username !== 'Server') {
+            } else if (messageData.username !== 'Server') {
                 this._soundManager.playReceived();
             }
         }
@@ -116,16 +114,14 @@ export class RoomManager extends LoggingClass {
             const room = this._roomDataMap.get(roomData.id);
             if (clearRoomLog) {
                 room.resetHistory();
-            }
-            else {
+            } else {
                 $.merge(room.messageHistory, roomData.history);
             }
             room.memberList = new Set(roomData.members);
             room.owner = roomData.owner;
             room.refreshRoomElement();
             this.debug(`Room '${roomData.name}' updated.`);
-        }
-        else {
+        } else {
             const newRoom = new Room(roomData, this);
             this._roomDataMap.set(newRoom.id, newRoom);
             this._roomListElement.append(newRoom.template);

@@ -1,0 +1,149 @@
+@errorRed: #CC0000;
+@checkedColor: #228729;
+@onlineColor: #34b93d;
+
+body {
+  --neutral-0: black;
+  --neutral-7: lighten(black, 7%);
+  --neutral-10: lighten(black, 10%);
+  --neutral-20: lighten(black, 20%);
+  --neutral-30: lighten(black, 30%);
+  --neutral-35: lighten(black, 35%);
+  --neutral-40: lighten(black, 40%);
+  --neutral-50: lighten(black, 50%);
+  --neutral-60: lighten(black, 60%);
+  --neutral-70: lighten(black, 70%);
+  --neutral-80: lighten(black, 80%);
+  --neutral-90: lighten(black, 90%);
+  --neutral-95: lighten(black, 95%);
+  --neutral-97: lighten(black, 97%);
+  --neutral-100: lighten(black, 100%);
+
+  --overlay-color: fade(black, 65%);
+}
+
+.theme-colors(@baseColor) {
+  --error-color: @errorRed;
+  --checked-green: @checkedColor;
+  --online-green: @onlineColor;
+
+  --primary-color: @baseColor;
+  --primary-dark-3: darken(@baseColor, 3%);
+  --primary-dark-5: darken(@baseColor, 5%);
+  --primary-dark-10: darken(@baseColor, 10%);
+  --primary-dark-20: darken(@baseColor, 20%);
+  --primary-light-5: lighten(@baseColor, 5%);
+  --primary-light-20: lighten(@baseColor, 20%);
+  --primary-light-30: lighten(@baseColor, 30%);
+  --primary-light-40: lighten(@baseColor, 40%);
+  --primary-light-50: lighten(@baseColor, 50%);
+}
+
+.top-gradient(@firstColor, @secondColor) {
+  @result: %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", @firstColor),
+  %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", @firstColor),
+    /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", @secondColor),
+  %(~"linear-gradient(%d, rgba(0, 0, 0, 0)) 0 100%", @secondColor);
+}
+
+.bottom-gradient(@firstColor, @secondColor) {
+  @result: %(~"linear-gradient(%d 30%, rgba(255, 255, 255, 0))", @firstColor),
+  %(~"linear-gradient(rgba(255, 255, 255, 0), %d 70%) 0 100%", @firstColor),
+    /* Shadows */ %(~"linear-gradient(%d, rgba(0, 0, 0, 0))", @secondColor),
+  %(~"linear-gradient(rgba(0, 0, 0, 0), %d) 0 100%", @secondColor);
+}
+
+.darker-theme(@baseColor) {
+  .theme-colors(@baseColor);
+
+  --text-color: var(--neutral-7);
+  --contrast-text-color: var(--neutral-100);
+
+  --background-color: var(--primary-color);
+  --secondary-background-color: var(--neutral-100);
+  --light-border-color: var(--neutral-80);
+
+  --alert-background-color: var(--neutral-95);
+  --alert-text: var(--text-color);
+  --alert-border-color: var(--neutral-80);
+
+  --button-background-color: var(--primary-color);
+  --button-text: var(--contrast-text-color);
+  --button-hover: var(--primary-dark-10);
+  --button-secondary-background-color: var(--secondary-background-color);
+  --button-secondary-text: var(--primary-color);
+  --button-secondary-border: var(--neutral-80);
+  --button-secondary-hover: var(--neutral-90);
+  --button-secondary-disabled: var(--neutral-90);
+  --button-secondary-disabled-text: var(--neutral-80);
+
+  --nav-background-color: var(--primary-dark-10);
+  --nav-item-text: var(--contrast-text-color);
+  --nav-item-highlight: var(--primary-light-20);
+  --nav-item-highlight-text: var(--text-color);
+  --nav-item-hover: var(--primary-light-30);
+  --nav-item-hover-text: var(--text-color);
+  --nav-gradient-top: .top-gradient(var(--primary-color), var(--primary-dark-5))[@result];
+  --nav-gradient-bottom: .bottom-gradient(var(--primary-color), var(--primary-dark-5))[@result];
+  --nav-inline-menu-background-color: var(--primary-dark-3);
+  --nav-inline-menu-hover: var(--text-color);
+  --nav-section-border: var(--primary-dark-3);
+
+  --popout-menu-hover: var(--primary-light-40);
+  --popout-menu-highlight: var(--primary-light-50);
+}
+
+body, body.classic-teal {
+  .darker-theme(#25687D);
+}
+
+body.newfangled-red {
+  .darker-theme(#99305E);
+}
+
+body.ultimate-gorilla-blue {
+  .theme-colors(#1D87BA);
+
+  --text-color: var(--neutral-7);
+  --contrast-text-color: var(--neutral-100);
+
+  --background-color: var(--primary-color);
+  --secondary-background-color: var(--neutral-100);
+  --light-border-color: var(--neutral-80);
+
+  --alert-background-color: var(--neutral-95);
+  --alert-text: var(--text-color);
+  --alert-border-color: var(--neutral-80);
+
+  --button-background-color: var(--primary-dark-10);
+  --button-text: var(--contrast-text-color);
+  --button-hover: var(--primary-dark-20);
+  --button-secondary-background-color: var(--secondary-background-color);
+  --button-secondary-text: var(--primary-dark-10);
+  --button-secondary-border: var(--neutral-80);
+  --button-secondary-hover: var(--neutral-90);
+  --button-secondary-disabled: var(--neutral-90);
+  --button-secondary-disabled-text: var(--neutral-80);
+
+  --secondary-color: #91F9E2;
+
+  --nav-background-color: var(--primary-dark-10);
+  --nav-item-text: var(--contrast-text-color);
+  --nav-item-highlight: var(--primary-light-20);
+  --nav-item-highlight-text: var(--text-color);
+  --nav-item-hover: var(--nav-background-color);
+  --nav-item-hover-text: var(--secondary-color);
+  --nav-gradient-top: .top-gradient(var(--primary-color), var(--primary-dark-5))[@result];
+  --nav-gradient-bottom: .bottom-gradient(var(--primary-color), var(--primary-dark-5))[@result];
+  --nav-inline-menu-background-color: var(--primary-dark-3);
+  --nav-inline-menu-hover: var(--nav-background-color);
+  --nav-inline-menu-hover-text: var(--secondary-color);
+  --nav-section-border: var(--primary-dark-3);
+
+  --popout-menu-hover: var(--secondary-color);
+  --popout-menu-highlight: var(--primary-light-50);
+}
+
+//body.gorilla-blue {
+//  .lighter-theme(#99D5F1);
+//}

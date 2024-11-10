@@ -38,15 +38,18 @@ export class Room extends LoggingClass {
         this._messageHistory.add(messageData);
         if (messageData.username !== Settings.username) {
             if (Settings.activeLogId !== this.id && messageData.username !== 'Server') {
-                this._roomElement.addClass('has-messages');
+                this._roomElement.children().first().addClass('has-messages');
             }
             this._roomManager.notifyClient({name: this.name, user: messageData.username});
         }
         return this._messageHistory.size;
     }
 
-    selectThisRoom() {
-        this.template.click();
+    selectThisRoom = () => {
+        $('.current').removeClass('current');
+        this._roomElement.children().first().addClass('current');
+        this._roomElement.children().first().removeClass('has-messages');
+        this._roomManager.setActiveRoom(this.id);
     }
 
     refreshRoomElement() {
@@ -67,7 +70,7 @@ export class Room extends LoggingClass {
 
         if (this.id > 0 && this._roomManager.allowRoomEdits) {
             let menu = $('<div>').addClass('inline-menu');
-            let inviteItem = $('<span>').addClass('menu-item').text('Invite Users').prepend($('<span>').addClass('fas fa-fw fa-user-plus'))
+            let inviteItem = $('<div>').addClass('menu-item').text('Invite Users').prepend($('<span>').addClass('fas fa-fw fa-user-plus'))
                 .click(() => {
                     new Modal({
                         title: `Invite to join "${this.name}"`,
@@ -103,7 +106,7 @@ export class Room extends LoggingClass {
                     });
                 });
             let removeItem = this.isMine ?
-                $('<span>').addClass('menu-item').text('Delete Room').prepend($('<span>').addClass('far fa-fw fa-trash-alt'))
+                $('<div>').addClass('menu-item').text('Delete Room').prepend($('<span>').addClass('far fa-fw fa-trash-alt'))
                     .click(() => {
                         new Modal({
                             title: `Are you sure you want to delete '${this.name}'?`,
@@ -117,7 +120,7 @@ export class Room extends LoggingClass {
                             }
                         });
                     }) :
-                $('<span>').addClass('menu-item').text('Leave Room').prepend($('<span>').addClass('far fa-fw fa-window-close'))
+                $('<div>').addClass('menu-item').text('Leave Room').prepend($('<span>').addClass('far fa-fw fa-window-close'))
                     .click(() => {
                         new Modal({
                             content: $('<div>')
@@ -154,12 +157,7 @@ export class Room extends LoggingClass {
             this._roomElement.append(menu);
         }
 
-        this._roomElement.prepend(elementBody)
-            .click(() => {
-                $('.current').removeClass('current');
-                this._roomElement.addClass('current');
-                this._roomElement.removeClass('has-messages');
-                this._roomManager.setActiveRoom(this.id);
-            });
+        elementBody.click(this.selectThisRoom);
+        this._roomElement.prepend(elementBody);
     }
 }

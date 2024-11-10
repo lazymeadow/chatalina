@@ -5,7 +5,7 @@
 
 import Cookies from 'js-cookie';
 import {DesktopClient} from "./client";
-import {preClientInit, postClientInit} from "./lib";
+import {postClientInit, preClientInit} from "./lib";
 
 
 if (!Cookies.get('id')) {
@@ -22,7 +22,7 @@ $(() => {
     });
 
     // open main menu on click and show overlay
-    $('#main_menu').click(event => {
+    $('#main-menu').click(event => {
         event.stopPropagation();
         overlay.show();
         $('.popout-menu').toggle();

@@ -1,16 +1,30 @@
 import {LoggingClass} from "../util";
 
 export class Modal extends LoggingClass {
-    constructor({title, message, content, buttonText, buttonClickHandler, showCancel = true, cancelText = 'Cancel', onCancel = () => false, form = false, id = null}) {
+    constructor({
+                    title,
+                    message,
+                    content,
+                    buttonText,
+                    buttonClickHandler,
+                    showCancel = true,
+                    cancelText = 'Cancel',
+                    onCancel = () => false,
+                    form = false,
+                    id = 'modal'
+                }) {
         super();
         this.debug(`Creating modal "${title}"`);
         const overlay = $('.overlay');
 
         this.modal = $('<div>', {id});
-        let messageDiv = $('<div>').addClass('message').text(message);
+        let messageDiv = $('<div>', {id: `${id}-message`}).addClass('message').text(message);
         this.modal.addClass('modal').addClass(form ? 'form' : '')
+            .attr('role', 'dialog')
+            .attr('aria-labelledby', `${id}-title`)
+            .attr('aria-describedby', `${id}-message`)
             .click(event => event.stopPropagation())
-            .append($('<h1>').text(title))
+            .append($('<h1>', {id: `${id}-title`}).text(title))
             .append($('<div>')
                 .append(messageDiv)
                 .append(content)
@@ -32,8 +46,7 @@ export class Modal extends LoggingClass {
                         const error = buttonClickHandler();
                         if (error) {
                             messageDiv.addClass('error').text(error);
-                        }
-                        else {
+                        } else {
                             this.modal.remove();
                             if (overlay.is(':empty')) {
                                 overlay.hide();
@@ -43,8 +56,7 @@ export class Modal extends LoggingClass {
 
         overlay.append(this.modal).one('click', () => {
             this.modal.remove();
-            if (onCancel)
-            {
+            if (onCancel) {
                 onCancel();
             }
         }).show();

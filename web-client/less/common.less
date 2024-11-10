@@ -1,48 +1,25 @@
 @import url('https://fonts.googleapis.com/css?family=Amiko');
 
+@import 'themes';
 @import 'checkboxes';
-
-@classicTeal: #25687D;
-
-body.classic-teal {
-  --primary-color: @classicTeal;
-  --primary-dark-3: darken(@classicTeal, 3%);
-  --primary-dark-5: darken(@classicTeal, 5%);
-  --primary-dark-10: darken(@classicTeal, 10%);
-  --primary-light-5: lighten(@classicTeal, 5%);
-  --primary-light-20: lighten(@classicTeal, 20%);
-  --primary-light-30: lighten(@classicTeal, 30%);
-}
-
-@newfangledRed: #99305E;
-
-body.newfangled-red {
-  --primary-color: @newfangledRed;
-  --primary-dark-3: darken(@newfangledRed, 3%);
-  --primary-dark-5: darken(@newfangledRed, 5%);
-  --primary-dark-10: darken(@newfangledRed, 10%);
-  --primary-light-5: lighten(@newfangledRed, 5%);
-  --primary-light-20: lighten(@newfangledRed, 20%);
-  --primary-light-30: lighten(@newfangledRed, 30%);
-}
-
-@dark: #4A4A4A;
-@bodyColor: #222222;
-@lightButtonColor: #C6E2EB;
-@borderColor: @dark;
-@lightBorderColor: lightgrey;
-@lightBackgroundColor: #C9C9C9;
-@lightest: #FCFCFC;
-@buttonHoverColor: darken(@lightButtonColor, 15%);
-@errorRed: #CC0000;
 
 body {
   background: var(--primary-color);
   font: 14px 'Amiko', sans-serif;
-  color: @bodyColor;
   padding: 0;
   margin: 0;
   overflow: hidden;
+}
+
+.content {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 100vw;
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: stretch;
+  overflow: auto;
 }
 
 div {
@@ -56,82 +33,105 @@ h1 {
   font-weight: normal;
 }
 
-div.login, div.not-found, div.form {
-  width: 500px;
-  padding: 25px;
-  margin-left: auto;
-  margin-right: auto;
-  background: @lightest;
+// inputs
+button, .button {
+  min-width: 110px;
+  font: 1em 'Amiko', sans-serif;
+  text-align: center;
+  border: none;
+  background-color: var(--button-background-color);
+  color: var(--button-text);
+  padding: 5px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--button-hover);
+  }
+
+  &.secondary, &.cancel {
+    background-color: var(--button-secondary-background-color);
+    color: var(--button-secondary-text);
+    border: solid 1px var(--button-secondary-border);
+
+    &:hover {
+      background: var(--button-secondary-hover);
+    }
+
+    &:disabled {
+      background: var(--button-secondary-disabled);
+      color: var(--button-secondary-disabled-text);
+    }
+  }
+}
+
+input, textarea, select {
+  font: 1em 'Amiko', sans-serif;
+  padding: 3px 5px;
+  flex: 0 0 auto;
+  margin: 10px 0;
+  width: 250px;
+  background-color: var(--secondary-background-color);
+  border: 1px solid var(--light-border-color);
+}
+
+input[type=file] {
+  border: none;
+}
+
+select {
+  width: 150px;
+}
+
+label {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-right: 10px;
+}
+
+// form layouts
+.form {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
   align-self: center;
   align-items: center;
 
+  .flex-spacer {
+    flex: 1 0 auto;
+  }
+
   a {
     font-size: .75em;
-    color: darken(@lightBackgroundColor, 25%);
-  }
-
-  p {
-    margin: 0 20px;
-    text-align: center;
-  }
-
-  label {
-    flex: 0 0 auto;
-    align-self: center;
-    margin-right: 10px;
-
-    &.check-box {
-      margin-right: 0;
-      margin-left: 0;
-    }
+    color: var(--text-color);
+    opacity: .65;
   }
 
   button, .button {
-    min-width: 110px;
     margin-top: 10px;
-    text-align: center;
 
     &.primary {
       justify-self: end;
     }
   }
 
-  input, textarea, select {
-    flex: 0 0 auto;
-    margin: 10px 0;
-    width: 250px;
-  }
-
-  select {
-    width: 150px;
-  }
-
   & .message {
     flex: 1 1 auto;
-    padding-top: 10px;
+    margin-top: 10px;
     min-height: 19px;
     text-align: center;
 
     &.error {
-      color: @errorRed;
+      color: var(--error-color);
     }
   }
 
   .form-group {
     width: 350px;
     display: flex;
-    flex-direction: column;
     flex: 1 0 auto;
 
-    &.check-box {
-      flex-direction: row;
-
-      & label {
-        font-size: .9em;
-      }
+    &:not(.check-box) {
+      flex-direction: column;
     }
   }
 
@@ -141,79 +141,5 @@ div.login, div.not-found, div.form {
     width: 350px;
     justify-content: space-between;
     align-items: center;
-  }
-
-}
-
-.content {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  width: 100vw;
-  display: flex;
-  flex-flow: row nowrap;
-  align-items: stretch;
-  overflow: auto;
-
-  & > div:not(#alerts):not(#header):not(.login):not(.not-found) {
-    display: flex;
-    flex-flow: column nowrap;
-  }
-
-  input, textarea {
-    font: 1em 'Amiko', sans-serif;
-    padding: 3px 5px;
-  }
-
-  input {
-    &:not([type=range]) {
-      border: 1px solid @lightBorderColor;
-    }
-
-    &[type=checkbox] {
-      display: none;
-    }
-  }
-
-  textarea {
-      border: 1px solid @lightBorderColor;
-  }
-
-  button, .button {
-    font: 1em 'Amiko', sans-serif;
-    border: none;
-    background-color: var(--primary-color);
-    color: white;
-    padding: 5px;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--primary-dark-10);
-    }
-
-    &.secondary {
-      background-color: @lightest;
-      border: solid 1px @lightBorderColor;
-      color: var(--primary-color);
-
-      &:hover {
-        background: lighten(@lightBackgroundColor, 10%);
-      }
-
-      &:disabled {
-        background: lighten(@lightBackgroundColor, 10%);
-        color: lighten(@dark, 25%);
-      }
-    }
-
-    &.cancel {
-      background: lighten(@lightBackgroundColor, 10%);
-      color: darken(@lightBackgroundColor, 25%);
-
-      &:hover {
-        background: @lightBackgroundColor;
-        color: darken(@lightBackgroundColor, 35%);
-      }
-    }
   }
 }

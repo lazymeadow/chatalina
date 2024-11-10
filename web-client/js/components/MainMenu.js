@@ -10,7 +10,7 @@ export class MainMenu extends LoggingClass {
         super();
         this._chatClient = chatClient;
 
-        this._menuElement = $('#main_menu').next('.popout-menu');
+        this._menuElement = $('#main-menu').next('.popout-menu');
 
         if (this._menuElement.hasClass('mobile')) {
             this._menuContents = this._menuElement.children().first();
@@ -475,6 +475,7 @@ export class MainMenu extends LoggingClass {
                     showCancel: false,
                     title: 'About',
                     content: $('<div>')
+                        .append('<h3>4.0.3</h3><em>November 10th, 2024</em><p><strong>Ultimate Gorilla</strong></p><p>You can now choose "Ultimate Gorilla Blue" as your theme. I\'m not sure I\'d recommend it, but you can.</p>')
                         .append('<h3>4.0.2</h3><em>November 9th, 2024</em><p><strong>Misc Fixes</strong></p><p>If you saw some bots register for chat, no you didn\'t. Also nobody else can register anymore either.</p><p>Also, links to new github issues open in a new tab. Nature is healing.</p>')
                         .append('<h3>4.0.1</h3><em>November 8th, 2024</em><p><strong>Pick your theme</strong></p><p>The test environment colors were a big hit, so now you can choose between "Classic Teal" and "Newfangled Red".</p>')
                         .append('<h3>4.0.0</h3><em>November 7th, 2024</em><p><strong>IT\'S THE FUCKIN\' CHATALINA WINE MIXER BABY</strong></p><p>Yeah that\'s right bitches, we did it</p>')

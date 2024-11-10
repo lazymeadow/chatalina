@@ -24,6 +24,7 @@ export class Settings {
         return {
             'classic-teal': 'Classic Teal',
             'newfangled-red': 'Newfangled Red',
+            'ultimate-gorilla-blue': 'Ultimate Gorilla Blue',
         }
     }
 
@@ -85,7 +86,7 @@ export class Settings {
     }
 
     static get theme() {
-        return localStorage.getItem(`${Settings.userId}.theme`) || 'classic-teal';
+        return localStorage.getItem(`${Settings.userId}.theme`) || Object.keys(Settings.themes)[0];
     }
 
     static set theme(theme) {
