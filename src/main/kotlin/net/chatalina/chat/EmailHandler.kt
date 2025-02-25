@@ -8,7 +8,6 @@ import net.chatalina.database.ParasitePermissions
 import net.chatalina.database.Parasites
 import net.chatalina.isProduction
 import net.chatalina.siteName
-import org.apache.commons.mail.DefaultAuthenticator
 import org.apache.commons.mail.EmailException
 import org.apache.commons.mail.ImageHtmlEmail
 import org.apache.commons.mail.resolver.DataSourceClassPathResolver
@@ -198,16 +197,18 @@ object EmailHandler {
         try {
             val email = ImageHtmlEmail()
             email.hostName = smtpHost
+            email.setSmtpPort(smtpPort.toInt())
             if (smtpTls) {
-                email.sslSmtpPort = smtpPort
+                logger.info("sending email with tls")
                 if (!smtpUser.isNullOrBlank() && !smtpPass.isNullOrBlank()) {
-                    email.authenticator = DefaultAuthenticator(smtpUser, smtpPass)
+                    email.setAuthentication(smtpUser, smtpPass)
                 }
                 email.setSSLOnConnect(smtpTls)
                 email.isSSLCheckServerIdentity = smtpTls
+                email.isStartTLSEnabled = smtpTls
                 email.isStartTLSRequired = smtpTls
             } else {
-                email.setSmtpPort(smtpPort.toInt())
+                logger.info("sending email without tls")
             }
             email.setFrom(smtpFromAddress, "The $siteName Server <3")
 
