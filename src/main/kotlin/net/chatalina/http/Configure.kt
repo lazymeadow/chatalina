@@ -1,11 +1,5 @@
 package net.chatalina.http
 
-import net.chatalina.hostname
-import net.chatalina.http.routes.authenticationRoutes
-import net.chatalina.http.routes.mainRoutes
-import net.chatalina.isProduction
-import net.chatalina.plugins.CLIENT_VERSION
-import net.chatalina.siteName
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -19,6 +13,13 @@ import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.pebbletemplates.pebble.loader.ClasspathLoader
+import net.chatalina.hostname
+import net.chatalina.http.routes.authenticationRoutes
+import net.chatalina.http.routes.mainRoutes
+import net.chatalina.isProduction
+import net.chatalina.plugins.CLIENT_VERSION
+import net.chatalina.siteName
+import java.io.File
 
 fun Application.getPebbleContent(name: String, vararg vars: Pair<String, Any>) =
     PebbleContent(name, mapOf("prod" to this.isProduction, "siteTitle" to "${this.siteName} $CLIENT_VERSION") + vars)
@@ -54,8 +55,11 @@ fun Application.configureHTTP() {
             charset = "UTF-8"
         })
     }
+
     routing {
-        staticResources("/", "static")
+        val staticFilePath = application.environment.config.property("ktor.static_files").getString()
+        application.log.debug("Serving static files from {}", staticFilePath)
+        staticFiles("/", File(staticFilePath))
 
         authenticationRoutes()
         authenticate("auth-parasite") {
@@ -77,7 +81,7 @@ fun Application.configureHTTP() {
             call.respondRedirect(cause.toRoute)
         }
         exception<NotImplementedError> { call, cause ->
-            call.respond(HttpStatusCode.NotImplemented,"Not implemented")
+            call.respond(HttpStatusCode.NotImplemented, "Not implemented")
         }
     }
 }

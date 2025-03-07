@@ -1,5 +1,3 @@
-import com.github.gradle.node.npm.task.NpmTask
-
 val kotlinVersion: String = "1.9.22"
 val logbackVersion: String = "1.5.6"
 val exposedVersion: String = "0.52.0"
@@ -15,7 +13,6 @@ plugins {
     kotlin("jvm") version "1.9.22"
     id("io.ktor.plugin") version "2.3.12"
     id("org.flywaydb.flyway") version "10.8.1"
-    id("com.github.node-gradle.node") version "7.0.2"
 }
 
 kotlin {
@@ -31,31 +28,6 @@ version = "0.0.1"
 application {
     mainClass.set("io.ktor.server.netty.EngineMain")
 }
-
-node {
-    nodeProjectDir.set(file("web-client"))
-}
-
-val buildNpmTask = tasks.register<NpmTask>("buildNpm") {
-    dependsOn(tasks.npmInstall)
-    if (project.hasProperty("buildEnv") && project.property("buildEnv") == "PROD") {
-        npmCommand.set(listOf("run", "build"))
-    } else {
-        npmCommand.set(listOf("run", "buildDev"))
-    }
-    outputs.upToDateWhen {
-        false
-    }
-}
-
-tasks.register<Copy>("moveFrontend") {
-    dependsOn(buildNpmTask)
-    from(node.nodeProjectDir.dir("dist"))
-    into(layout.projectDirectory.dir("src/main/resources/static"))
-}
-
-tasks.processResources.get().dependsOn(tasks.named("moveFrontend").get())
-
 
 repositories {
     mavenCentral()

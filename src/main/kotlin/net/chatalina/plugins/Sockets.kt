@@ -67,7 +67,7 @@ fun Application.configureSockets() {
     }
 }
 
-const val CLIENT_VERSION = "4.0.3"
+const val CLIENT_VERSION = "4.0.4"
 
 
 class ChatSocketConnection(val session: DefaultWebSocketServerSession, val parasiteId: String) {
