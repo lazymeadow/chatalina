@@ -193,6 +193,9 @@ object ChatManager {
 
     fun updateParasiteStatus(parasiteId: EntityID<String>, newStatus: ParasiteStatus) {
         ParasiteStatusMap.setStatus(parasiteId, newStatus)
+        if (newStatus == ParasiteStatus.Active) {
+            Parasites.DAO.setLastActive(parasiteId)
+        }
         broadcastUserList()
     }
 
