@@ -94,17 +94,28 @@ export class UserManager extends LoggingClass {
         this._chatClient.sendMessageNotification('Private message from ' + username, '', 'tied');
     }
 
+    setLastRead(userId, messageId) {
+        if (this._userDataMap.has(userId)) {
+            this._userDataMap.get(userId).lastRead = messageId;
+        }
+    }
+
     setActiveThread(userId) {
-        Settings.activeLogType = 'thread';
-        Settings.activeLogId = userId;
-        let user = this._userDataMap.get(userId);
-        this._messageLog.printMessages(user._threadMessages, user.id === Settings.userId ?
-            'You can talk to yourself here!' : `There are no messages here. Anything you say here is just between you and ${user.username}!`);
-        this._chatClient.sendTyping();
-        this._chatClient.setWindowTitle();
-        _focusChatBar();
-        this.updateUserList();
-        super.debug(`Active thread set to ${user.id}.`);
+        if (this._userDataMap.has(userId)) {
+            Settings.activeLogType = 'thread';
+            Settings.activeLogId = userId;
+            let user = this._userDataMap.get(userId);
+            this._messageLog.printMessages(user._threadMessages, user.id === Settings.userId ?
+                'You can talk to yourself here!' : `There are no messages here. Anything you say here is just between you and ${user.username}!`);
+            this._chatClient.sendTyping();
+            this._chatClient.setWindowTitle();
+            this.updateUserList();
+            if (user._threadMessages.size > 0) {
+                this._chatClient.setLastRead(userId, user._threadMessages.getLastOrNull()?.id);
+            }
+            _focusChatBar();
+            super.debug(`Active thread set to ${user.id}.`);
+        }
     }
 
     getActiveThreadName() {

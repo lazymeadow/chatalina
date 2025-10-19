@@ -506,6 +506,40 @@ object ChatManager {
         }
     }
 
+    fun handleMarkRead(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        destinationId: String,
+        messageId: UUID
+    ) {
+        val destination = destinationId.toIntOrNull()?.let {
+            Rooms.DAO.find(it)?.let { destinationRoom ->
+                MessageDestination(destinationRoom)
+            } ?: let {
+                connection.logger.error(
+                    "Attempt to set last message read to {} for invalid room {}",
+                    messageId,
+                    destinationId
+                )
+                throw BadRequestException("Invalid destination")
+            }
+        } ?: let {
+            // ok, it must be a parasite id.
+            if (Parasites.DAO.exists(destinationId)) {
+                MessageDestination(destinationId, MessageDestinationTypes.Parasite)
+            } else {
+                connection.logger.error(
+                    "Attempt to set last message read to {} for invalid parasite {}",
+                    messageId,
+                    destinationId
+                )
+                throw BadRequestException("Invalid destination")
+            }
+        }
+        Messages.DAO.setLastMessageRead(parasite.id, destination, messageId)
+        broadcastToParasite(parasite.id, ServerMessage(destination, messageId))
+    }
+
     fun handleCreateRoom(connection: ChatSocketConnection, parasite: Parasites.ParasiteObject, name: String?) {
         val newRoom = Rooms.DAO.create(parasite.id, name ?: "${parasite.name}'s Room")
         sendRoomList(connection.parasiteId, newRoom)
@@ -985,15 +1019,17 @@ object ChatManager {
 
 enum class ServerMessageTypes(val value: String) {
     Alert("alert"),
-    Update("update"),
     AuthFail("auth fail"),
-    UserList("user list"),
-    RoomList("room data"),
     Invitation("invitation"),
     PrivateMessageList("private message data"),
+    RoomList("room data"),
+    SetRead("set read"),
+    ToolConfirm("tool confirm"),
     ToolList("tool list"),
     ToolResponse("data response"),
-    ToolConfirm("tool confirm");
+    Update("update"),
+    UserList("user list"),
+    ;
 
     override fun toString(): String {
         return this.value
@@ -1039,6 +1075,14 @@ data class ServerMessage(val type: ServerMessageTypes, val data: Map<String, Any
             put("tool info", toolDefinition)
             put("data", toolData)
             put("message", message)
+        }
+    })
+
+    constructor(destination: MessageDestination, messageId: UUID) : this(ServerMessageTypes.SetRead, buildMap {
+        put("message id", messageId)
+        when (destination.type) {
+            MessageDestinationTypes.Room -> put("room id", destination.id)
+            MessageDestinationTypes.Parasite -> put("parasite id", destination.id)
         }
     })
 

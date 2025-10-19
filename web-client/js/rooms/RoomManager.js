@@ -87,20 +87,31 @@ export class RoomManager extends LoggingClass {
         this._chatClient.sendMessageNotification(`New Message in ${metadata.name}`, `from: ${metadata.user}`, 'tied');
     }
 
+    setLastRead(roomId, messageId) {
+        if (this._roomDataMap.has(roomId)) {
+            this._roomDataMap.get(roomId).lastRead = messageId
+        }
+    }
+
     /**
      * Save the new roomId in the client settings, then repopulate the message log.
      * @param roomId
      */
     setActiveRoom(roomId) {
-        Settings.activeLogType = 'room';
-        Settings.activeLogId = roomId;
-        let room = this._roomDataMap.get(roomId);
-        this._messageLog.printMessages(room.messageHistory, 'There are no messages in this room. You should say something!');
-        this._chatClient.sendTyping();
-        this._chatClient.setWindowTitle();
-        this._chatClient.updateUserList();
-        _focusChatBar();
-        super.debug(`Active room set to ${roomId}.`);
+        if (this._roomDataMap.has(roomId)) {
+            Settings.activeLogType = 'room';
+            Settings.activeLogId = roomId;
+            let room = this._roomDataMap.get(roomId);
+            this._messageLog.printMessages(room.messageHistory, 'There are no messages in this room. You should say something!');
+            this._chatClient.sendTyping();
+            this._chatClient.setWindowTitle();
+            this._chatClient.updateUserList();
+            if (room.messageHistory.size > 0) {
+                this._chatClient.setLastRead(roomId, room.messageHistory.getLastOrNull()?.id);
+            }
+            _focusChatBar();
+            super.debug(`Active room set to ${roomId}.`);
+        }
     }
 
     getActiveRoomName() {

@@ -1,9 +1,10 @@
 import {LoggingClass, Settings} from "../util";
 import {Modal} from "../components";
+import {MessageHistory} from "../components/MessageLog";
 
 
 export class Room extends LoggingClass {
-    constructor({name, owner, id, history, members: memberList}, roomManager) {
+    constructor({name, owner, id, history, members: memberList, 'last read': lastRead}, roomManager) {
         super();
         this._roomManager = roomManager;
 
@@ -11,7 +12,8 @@ export class Room extends LoggingClass {
         this.isMine = owner === Settings.userId;
         this.id = id;
         this.memberList = new Set(memberList);
-        this._messageHistory = new Set(history);
+        this._messageHistory = new MessageHistory(history);
+        this._lastRead = lastRead;
 
         // create a dom element for the room
         this._roomElement = $('<div>', {id: `room_${this.id}`});
@@ -30,8 +32,17 @@ export class Room extends LoggingClass {
         this.isMine = newOwner === Settings.userId;
     }
 
+    set lastRead(newLastRead) {
+        this._lastRead = newLastRead;
+
+        if (this._messageHistory.size === 0 || this._lastRead === this._messageHistory.getLastOrNull()?.id) {
+            this._roomElement.children().first().removeClass('has-messages');
+        }
+    }
+
     resetHistory() {
-        this._messageHistory = new Set();
+        this._messageHistory = new MessageHistory();
+        this.lastRead = null;
     }
 
     addMessage(messageData) {
@@ -155,6 +166,10 @@ export class Room extends LoggingClass {
                 });
             elementBody.append(menuButton);
             this._roomElement.append(menu);
+        }
+
+        if (this._messageHistory.size > 0 && this._lastRead !== this._messageHistory.getLastOrNull()?.id) {
+            elementBody.addClass('has-messages');
         }
 
         elementBody.click(this.selectThisRoom);

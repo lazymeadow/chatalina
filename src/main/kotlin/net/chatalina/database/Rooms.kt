@@ -1,5 +1,6 @@
 package net.chatalina.database
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import kotlinx.datetime.Instant
 import net.chatalina.database.Messages.DAO.withRoomMessageHistory
 import org.jetbrains.exposed.dao.id.EntityID
@@ -8,6 +9,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.kotlin.datetime.CurrentTimestamp
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.util.*
 
 object Rooms : IntIdTable("rooms"), ChatTable {
     val owner = reference("owner_id", Parasites)
@@ -22,7 +24,8 @@ object Rooms : IntIdTable("rooms"), ChatTable {
         val created: Instant,
         val updated: Instant,
         val members: List<String>,
-        var history: List<Messages.MessageObject> = emptyList()
+        var history: List<Messages.MessageObject> = emptyList(),
+        @JsonProperty("last read") val lastRead: EntityID<UUID>? = null
     ) : ChatTable.ObjectModel()
 
     object DAO : ChatTable.DAO() {
@@ -45,7 +48,8 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                 row[owner],
                 row[created],
                 row[maxUpdated] ?: row[updated],
-                row.getOrNull(roomAccessQuery[membersCol])?.toList() ?: emptyList()
+                row.getOrNull(roomAccessQuery[membersCol])?.toList() ?: emptyList(),
+                lastRead = row.getOrNull(LastRead.message),
             )
         }
 
@@ -99,7 +103,17 @@ object Rooms : IntIdTable("rooms"), ChatTable {
         fun list(forParasite: String) = list(EntityID(forParasite, Parasites))
         fun list(forParasite: EntityID<String>) = transaction {
             val query = Rooms.innerJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
-                .select(Rooms.id, name, owner, created, updated, roomAccessQuery[membersCol], maxUpdated)
+                .leftJoin(LastRead, { Rooms.id.asString() }, { destination }, { LastRead.parasite eq forParasite })
+                .select(
+                    Rooms.id,
+                    name,
+                    owner,
+                    created,
+                    updated,
+                    roomAccessQuery[membersCol],
+                    maxUpdated,
+                    LastRead.message
+                )
                 .where { stringParam(forParasite.value) eq anyFrom(roomAccessQuery[membersCol]) }
                 .orderBy(Rooms.id)
             val historyQuery = query.withRoomMessageHistory()
@@ -138,6 +152,7 @@ object Rooms : IntIdTable("rooms"), ChatTable {
         }
 
         fun delete(roomId: EntityID<Int>) = transaction {
+            LastRead.deleteWhere { destination eq roomId.value.toString() }
             RoomInvitations.deleteWhere { room eq roomId }
             RoomAccess.deleteWhere { room eq roomId }
             Messages.deleteWhere { (destinationType eq MessageDestinationTypes.Room) and (destination eq roomId.value.toString()) }

@@ -10,6 +10,7 @@ export class MessageLog extends LoggingClass {
     constructor() {
         super();
         this._logElement = $('#log');
+        this.lastMessageId = null;
     }
 
     /**
@@ -22,6 +23,7 @@ export class MessageLog extends LoggingClass {
      *     </div>
      * </div>
      *
+     * @param id message id
      * @param time message time
      * @param username sender
      * @param color message color
@@ -31,7 +33,7 @@ export class MessageLog extends LoggingClass {
      * @param track_link gorilla groove track link
      * @param nsfw_flag image is nsfw
      */
-    printMessage({time, username, color, message, 'image url': image_url, 'image src url': image_src_url, 'nsfw flag': nsfw_flag, 'track link': track_link}) {
+    printMessage({id, time, username, color, message, 'image url': image_url, 'image src url': image_src_url, 'nsfw flag': nsfw_flag, 'track link': track_link}) {
         let messageContainer = $('<div>').addClass('chat-message');
         // set the message color
         if (color)
@@ -88,6 +90,7 @@ export class MessageLog extends LoggingClass {
 
         _parseEmojis(messageContainer[0]);
         // super.debug('Added message to log.');
+        this.lastMessageId = id;
     }
 
     /**
@@ -114,5 +117,15 @@ export class MessageLog extends LoggingClass {
      */
     clear() {
         this._logElement.empty();
+    }
+}
+
+export class MessageHistory extends Set {
+    getLastOrNull() {
+        if (this.size > 0) {
+            return this.values().drop(this.size - 1).next().value
+        } else {
+            return null
+        }
     }
 }

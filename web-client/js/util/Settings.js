@@ -38,7 +38,7 @@ export class Settings {
         Settings.permission = Cookies.get('permission');
 
         // set value overrides
-        Settings.volume = Settings.volume || Cookies.get('volume');
+        Settings.volume = Settings.volume || Cookies.get('volume') || '100';
         $('body')[0].style.fontSize = `${Settings.fontSize}px`;
         Settings.theme = Cookies.get('theme');
     }

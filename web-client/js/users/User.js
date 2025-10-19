@@ -1,4 +1,5 @@
 import {LoggingClass, Settings} from "../util";
+import {MessageHistory} from "../components/MessageLog";
 
 export class User extends LoggingClass {
     constructor({username, color, faction, status, typing, id, lastActive}, userManager) {
@@ -12,7 +13,8 @@ export class User extends LoggingClass {
         this.typing = typing;
         this.id = id;
         this.lastActive = lastActive;
-        this._threadMessages = new Set();
+        this._threadMessages = new MessageHistory();
+        this._lastRead = null;
 
         if (this.id !== Settings.userId) {
             this._iconElement = $('<span>').addClass('online-status fa-stack fa-1x')
@@ -47,6 +49,13 @@ export class User extends LoggingClass {
         return this.id !== Settings.userId ? this._userElement : undefined;
     }
 
+    set lastRead(newLastRead) {
+        this._lastRead = newLastRead;
+
+        if (this._threadMessages.size === 0 || this._lastRead === this._threadMessages.getLastOrNull()?.id) {
+            this._userElement.removeClass('has-messages');
+        }
+    }
 
     // Public functions
 
@@ -87,9 +96,12 @@ export class User extends LoggingClass {
         this.lastActive = lastActive;
     }
 
-
-    addPrivateMessageThread({messages}) {
-        this._threadMessages = new Set(messages);
+    addPrivateMessageThread({messages, 'last read': lastRead}) {
+        this._threadMessages = new MessageHistory(messages);
+        this.lastRead = lastRead;
+        if (this._threadMessages.size > 0 && lastRead !== this._threadMessages.getLastOrNull()?.id) {
+            this._userElement.addClass('has-messages');
+        }
     }
 
     addMessage(messageData, show_indicator = true) {

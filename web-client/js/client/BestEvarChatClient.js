@@ -139,6 +139,12 @@ export class BestEvarChatClient {
         }
     }
 
+    setLastRead(destinationId, messageId) {
+        if (!!messageId) {
+            this._send({'type': 'mark read', 'destination id': destinationId, 'message id': messageId})
+        }
+    }
+
     updateUserList() {
         this._userManager.updateUserList();
     }
@@ -153,6 +159,9 @@ export class BestEvarChatClient {
                 'type': 'status',
                 'status': shouldBeIdle ? 'idle' : 'active'
             });
+        }
+        if (!shouldBeIdle && isIdle) {
+            this.setLastRead(Settings.activeLogId, this._messageLog.lastMessageId);
         }
     }
 
@@ -284,6 +293,8 @@ export class BestEvarChatClient {
             this._receivedToolData(messageData);
         } else if (messageType === 'tool confirm') {
             this._receivedToolConfirm(messageData);
+        } else if (messageType === 'set read') {
+            this._receivedSetRead(messageData)
         }
     }
 
@@ -312,7 +323,6 @@ export class BestEvarChatClient {
     }
 
     _receivedUpdate(messageData) {
-
         $.each(messageData, (key, value) => {
             if (key === 'permission') {
                 if (Settings.permission !== value) {
@@ -333,14 +343,18 @@ export class BestEvarChatClient {
         });
     }
 
-    _receivedChatMessage({'room id': roomId, ...messageData}) {
+    _receivedChatMessage({'room id': roomId, 'sender id': senderId, ...messageData}) {
         this._roomManager.addMessage(messageData, roomId);
-        this._incrementUnreadMessageCount();
+        if (senderId !== Settings.userId) {
+            this._incrementUnreadMessageCount();
+        }
     }
 
     _receivedPrivateMessage(messageData) {
         this._userManager.addMessage(messageData);
-        this._incrementUnreadMessageCount();
+        if (messageData['sender id'] !== Settings.userId) {
+            this._incrementUnreadMessageCount();
+        }
     }
 
     _receivedInvitation({'room id': roomId, message}) {
@@ -398,6 +412,15 @@ export class BestEvarChatClient {
             AdminTools.instance(this).toolConfirm(message);
         } else if (permLevel === 'mod') {
             ModTools.instance(this).toolConfirm(message);
+        }
+    }
+
+    _receivedSetRead({'room id': roomId, 'parasite id': threadId, 'message id': messageId}) {
+        if (!!roomId) {
+            this._roomManager.setLastRead(roomId, messageId)
+        }
+        if (!!threadId) {
+            this._userManager.setLastRead(threadId, messageId)
         }
     }
 

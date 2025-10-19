@@ -1,5 +1,6 @@
 package net.chatalina.database
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonValue
@@ -31,7 +32,8 @@ enum class MessageDestinationTypes {
 data class MessageDestination(
     val id: String, val type: MessageDestinationTypes
 ) {
-    constructor(id: EntityID<*>, type: MessageDestinationTypes): this(id.value.toString(), type)
+    constructor(id: EntityID<*>, type: MessageDestinationTypes) : this(id.value.toString(), type)
+    constructor(room: Rooms.RoomObject) : this(room.id.value.toString(), MessageDestinationTypes.Room)
 }
 
 
@@ -79,15 +81,16 @@ object Messages : UUIDTable("messages"), ChatTable {
         val sender: EntityID<String>,
         val destination: MessageDestination,
         val data: MessageData,
-        val sent: Instant
+        val sent: Instant,
+        @JsonIgnore val lastRead: EntityID<UUID>? = null,
     ) : ChatTable.ObjectModel() {
         @JsonValue
         fun toMessageBody() = buildMap {
             put("id", id)
             put("time", sent)
+            put("sender id", sender)
             when (destination.type) {
                 MessageDestinationTypes.Parasite -> {
-                    put("sender id", sender)
                     put("recipient id", destination.id)
                 }
                 MessageDestinationTypes.Room -> {
@@ -116,7 +119,8 @@ object Messages : UUIDTable("messages"), ChatTable {
                 getVal(sender),
                 MessageDestination(getVal(destination), getVal(destinationType)),
                 messageData,
-                getVal(sent)
+                getVal(sent),
+                row.getOrNull(LastRead.message)
             )
         }
 
@@ -138,26 +142,58 @@ object Messages : UUIDTable("messages"), ChatTable {
                 } catch (e: BadPaddingException) {
                     null
                 }
+            }?.also { m ->
+                setLastMessageRead(m.sender, m.destination, m.id)
             }?.also(callback)
         }
 
-        fun list(parasiteId: EntityID<String>): List<Map<String, Any>> = transaction {
+        fun setLastMessageRead(
+            parasiteId: EntityID<String>,
+            destination: MessageDestination,
+            messageId: EntityID<UUID>
+        ) = setLastMessageRead(parasiteId, destination, messageId.value)
+
+        fun setLastMessageRead(
+            parasiteId: EntityID<String>,
+            destination: MessageDestination,
+            messageId: UUID
+        ) {
+            transaction {
+                LastRead.upsert {
+                    it[parasite] = parasiteId
+                    it[LastRead.destination] = destination.id
+                    it[message] = messageId
+                }
+            }
+        }
+
+        fun list(parasiteId: EntityID<String>): List<Map<String, Any?>> = transaction {
             val recipientCol =
                 Case().When((destination eq parasiteId.value), sender.asString()).Else(destination).alias("r")
 
             val subQuery = selectPrivateMessageHistory(recipientCol, parasiteId)
 
-            Select(subQuery.alias, subQuery.alias.fields).selectAll()
+            Select(subQuery.alias, subQuery.alias.fields)
+                .selectAll()
+                .adjustColumnSet {
+                    this.leftJoin(
+                        LastRead,
+                        { recipientCol.aliasOnlyExpression() },
+                        { destination },
+                        { LastRead.parasite eq parasiteId })
+                }
+                .adjustSelect { this.select(subQuery.alias.fields + LastRead.message) }
                 .where { subQuery.getHistoryLengthCondition() }
                 .toList()
                 .groupBy(
                     { it[recipientCol.aliasOnlyExpression()] },
                     { resultRowToObject(it, subQuery) })
-                .map { (r, m) -> mapOf("recipient id" to r, "messages" to m.sortedBy { it.sent }) }
+                .map { (r, m) -> mapOf("recipient id" to r, "messages" to m.sortedBy { it.sent }, "last read" to m.first().lastRead) }
         }
 
 
         fun moderatorClearMessages(destinationInfo: MessageDestination) = transaction {
+            LastRead.deleteWhere { (destination eq destinationInfo.id) }
             Messages.deleteWhere { (destination eq destinationInfo.id) and (destinationType eq destinationInfo.type) }
         }
 

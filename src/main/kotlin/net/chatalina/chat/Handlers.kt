@@ -378,6 +378,27 @@ object ImageUploadMessageHandler : MessageHandler {
     }
 }
 
+object MarkReadHandler : MessageHandler {
+    class MarkReadMessageBody(type: MessageTypes) : MessageBody(type) {
+        val destination: String? by other("destination id")
+        val message: UUID? by other("message id")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        parasite: Parasites.ParasiteObject,
+        body: MessageBody
+    ) {
+        onMessage<MarkReadMessageBody>(body) { messageBody ->
+            if (messageBody.destination.isNullOrBlank() || messageBody.message == null) {
+                connection.logger.error("Bad message content")
+            } else {
+                ChatManager.handleMarkRead(connection, parasite, messageBody.destination.toString(), messageBody.message!!)
+            }
+        }
+    }
+}
+
 object RoomActionHandler : MessageHandler {
     enum class RoomActionTypes {
         Create, Delete, Join, Leave, Invite;
@@ -566,6 +587,9 @@ enum class MessageTypes(val value: String) {
     },
     ImageUpload("image upload") {
         override val handler = ImageUploadMessageHandler
+    },
+    MarkRead("mark read") {
+        override val handler = MarkReadHandler
     },
     RoomAction("room action") {
         override val handler = RoomActionHandler
