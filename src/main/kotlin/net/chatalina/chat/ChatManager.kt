@@ -771,7 +771,9 @@ object ChatManager {
                             )
                         } else {
                             connection.send(ServerMessage(definition, null, error = "Insufficient permissions"))
-                            connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                            runBlocking {
+                                connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                            }
                         }
                     }
                     ToolTypes.RoomOwner -> {
@@ -829,7 +831,9 @@ object ChatManager {
                             }
                         } else {
                             connection.send(ServerMessage(definition, null, error = "Insufficient permissions"))
-                            connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                            runBlocking {
+                                connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                            }
                         }
 
                     }
@@ -861,7 +865,9 @@ object ChatManager {
                 }
             } else {
                 connection.send(ServerMessage(definition, null, error = "Insufficient permissions"))
-                connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                runBlocking {
+                    connection.session.application.sendErrorEmail("Someone tried to use a tool they don't have permission to access!\noffending parasite: ${sender.id}\nattempted tool: ${toolId}")
+                }
             }
         }
     }
@@ -962,7 +968,7 @@ object ChatManager {
         val messageBody = try {
             defaultMapper.readValue<MessageBody>(body)
         } catch (e: Throwable) {
-            if (e is  JsonMappingException && e.cause is StreamConstraintsException) {
+            if (e is JsonMappingException && e.cause is StreamConstraintsException) {
                 throw BadRequestException("Content is too long")
             } else {
                 connection.session.application.sendErrorEmail(e)

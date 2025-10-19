@@ -69,10 +69,8 @@ fun Application.module() {
     )
     EmailHandler.configure(
         environment.config.property("bec.email.from_address").getString(),
-        environment.config.property("bec.email.smtp_host").getString(),
-        environment.config.property("bec.email.smtp_port").getString(),
-        environment.config.propertyOrNull("bec.email.smtp_tls")?.getString()?.toBooleanStrictOrNull(),
-        environment.config.propertyOrNull("bec.email.smtp_user")?.getString(),
-        environment.config.propertyOrNull("bec.email.smtp_pass")?.getString(),
+        environment.config.property("bec.email.email_api").getString(),
+        environment.config.property("bec.email.email_user").getString(),
+        environment.config.property("bec.email.email_pass").getString(),
     )
 }

@@ -8,6 +8,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
+import kotlinx.coroutines.launch
 import net.chatalina.chat.EmailTypes
 import net.chatalina.chat.sendAdminEmail
 import net.chatalina.chat.sendEmail
@@ -25,6 +26,9 @@ import javax.crypto.BadPaddingException
 import javax.crypto.IllegalBlockSizeException
 
 fun Route.authenticationRoutes() {
+    route("/start-auth") {
+        startAuthSession()
+    }
     route("/login") {
         getLogin()
         postLogin()
@@ -77,6 +81,14 @@ private suspend fun ApplicationCall.requirePreAuthSession(block: suspend (PreAut
 private fun ApplicationCall.redirectIfLoggedIn() {
     sessions.get<ParasiteSession>()?.let {
         throw RedirectException("/")
+    }
+}
+
+private fun Route.startAuthSession() {
+    post {
+        call.withPreAuthSession { session ->
+            call.respond(HttpStatusCode.OK, mapOf("t" to session.t))
+        }
     }
 }
 
@@ -218,7 +230,13 @@ private fun Route.postForgotPassword() {
                     val newResetToken = Parasites.DAO.newPasswordResetToken(body.parasite)
                     val resetLink =
                         "${application.hostUrl}/reset-password?token=${newResetToken.encodeURLQueryComponent(encodeFull = true)}"
-                    application.sendEmail(EmailTypes.ForgotPassword, foundParasite, mapOf("reset_link" to resetLink))
+                    launch {
+                        application.sendEmail(
+                            EmailTypes.ForgotPassword,
+                            foundParasite,
+                            mapOf("reset_link" to resetLink)
+                        )
+                    }
                 } else {
                     application.log.debug("Password reset request failed for parasite id: ${body.parasite}")
                 }
@@ -293,7 +311,9 @@ private fun Route.postResetPassword() {
                 val success = Parasites.DAO.updatePassword(parasite.id, hashed)
                 if (success) {
                     call.respond(HttpStatusCode.Accepted)
-                    application.sendEmail(EmailTypes.ChangedPassword, parasite)
+                    launch {
+                        application.sendEmail(EmailTypes.ChangedPassword, parasite)
+                    }
                 } else {
                     throw BadRequestException("Password update failed.")
                 }
@@ -333,10 +353,12 @@ private fun Route.postReactivate() {
                     application.log.debug("Reactivation request received for active parasite id: ${body.parasite}")
                     throw RedirectException("/login?message=Your+account+is+active.+Just+log+in.")
                 } else {
-                    application.sendAdminEmail(
-                        EmailTypes.ReactivationRequest,
-                        mapOf("parasite_id" to foundParasite.id.value, "parasite_email" to foundParasite.email)
-                    )
+                    launch {
+                        application.sendAdminEmail(
+                            EmailTypes.ReactivationRequest,
+                            mapOf("parasite_id" to foundParasite.id.value, "parasite_email" to foundParasite.email)
+                        )
+                    }
                 }
             }
             call.respond(HttpStatusCode.Accepted)

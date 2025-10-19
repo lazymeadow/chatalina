@@ -1,5 +1,12 @@
 package net.chatalina.chat
 
+import io.ktor.client.*
+import io.ktor.client.engine.okhttp.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import io.pebbletemplates.pebble.PebbleEngine
@@ -8,9 +15,6 @@ import net.chatalina.database.ParasitePermissions
 import net.chatalina.database.Parasites
 import net.chatalina.isProduction
 import net.chatalina.siteName
-import org.apache.commons.mail.EmailException
-import org.apache.commons.mail.ImageHtmlEmail
-import org.apache.commons.mail.resolver.DataSourceClassPathResolver
 import org.apache.commons.validator.routines.EmailValidator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -83,7 +87,7 @@ enum class EmailTypes(
     }
 }
 
-fun Application.sendEmail(
+suspend fun Application.sendEmail(
     type: EmailTypes,
     recipient: Parasites.ParasiteObject,
     args: Map<String, String> = emptyMap()
@@ -104,7 +108,7 @@ fun Application.sendEmail(
     }
 }
 
-fun Application.sendAdminEmail(type: EmailTypes, args: Map<String, String> = emptyMap()) {
+suspend fun Application.sendAdminEmail(type: EmailTypes, args: Map<String, String> = emptyMap()) {
     val adminParasites = Parasites.DAO.list(active = true, permissionFilter = ParasitePermissions.Admin)
 
     if (this.isProduction) {
@@ -119,7 +123,7 @@ fun Application.sendAdminEmail(type: EmailTypes, args: Map<String, String> = emp
     }
 }
 
-fun Application.sendErrorEmail(error: Any?) {
+suspend fun Application.sendErrorEmail(error: Any?) {
     val errorToInclude = when (error) {
         is Throwable -> """
             ${error.message}
@@ -149,12 +153,12 @@ fun Application.sendErrorEmail(error: Any?) {
 object EmailHandler {
     private val logger: Logger = LoggerFactory.getLogger("EMAIL")
 
-    lateinit var smtpFromAddress: String
-    lateinit var smtpHost: String
-    lateinit var smtpPort: String
-    var smtpTls: Boolean = false
-    var smtpUser: String? = null
-    var smtpPass: String? = null
+    lateinit var emailFromAddress: String
+    lateinit var emailApi: String
+    lateinit var emailUser: String
+    lateinit var emailPass: String
+
+    private lateinit var ktorClient: HttpClient
 
     private val pebbleForEmails =
         PebbleEngine.Builder().loader(ClasspathLoader().apply {
@@ -164,27 +168,29 @@ object EmailHandler {
 
     fun configure(
         fromAddress: String,
-        host: String,
-        port: String,
-        tls: Boolean? = null,
-        user: String? = null,
-        pass: String? = null
+        api: String,
+        user: String,
+        pass: String,
     ) {
         logger.debug("Initializing email handler...")
-        smtpFromAddress = fromAddress
-        smtpHost = host
-        smtpPort = port
-        tls?.let { smtpTls = it }
-        if (user.isNullOrBlank() != pass.isNullOrBlank()) {
+        emailFromAddress = fromAddress
+        emailApi = api
+        if (user.isBlank() != pass.isBlank()) {
             throw ApplicationConfigurationException("User and password must both be set to work.")
         }
-        user?.let { smtpUser = it }
-        pass?.let { smtpPass = it }
+        emailUser = user
+        emailPass = pass
 
         logger.info("Email handler initialized.")
+
+        ktorClient = HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                jackson()
+            }
+        }
     }
 
-    internal fun sendEmail(
+    internal suspend fun sendEmail(
         type: EmailTypes,
         siteName: String,
         args: Map<String, String>,
@@ -195,47 +201,41 @@ object EmailHandler {
         if (recipients.isEmpty()) logger.error("Unable to send email to no recipients (type: {})", type.name)
 
         try {
-            val email = ImageHtmlEmail()
-            email.hostName = smtpHost
-            email.setSmtpPort(smtpPort.toInt())
-            if (smtpTls) {
-                logger.info("sending email with tls")
-                if (!smtpUser.isNullOrBlank() && !smtpPass.isNullOrBlank()) {
-                    email.setAuthentication(smtpUser, smtpPass)
-                }
-                email.setSSLOnConnect(smtpTls)
-                email.isSSLCheckServerIdentity = smtpTls
-                email.isStartTLSEnabled = smtpTls
-                email.isStartTLSRequired = smtpTls
-            } else {
-                logger.info("sending email without tls")
-            }
-            email.setFrom(smtpFromAddress, "The $siteName Server <3")
-
-            email.dataSourceResolver = DataSourceClassPathResolver("/static/images", true)
-
-            email.subject = type.subject
             val emailArgs = args + ("site_name" to siteName)
-            email.setHtmlMsg(type.getHtmlBody(pebbleForEmails, emailArgs))
-            email.setTextMsg(type.getTextBody(emailArgs))
+            val htmlBody = type.getHtmlBody(pebbleForEmails, emailArgs)
+            val textBody = type.getTextBody(emailArgs)
 
-            recipients.forEach { recipient ->
-                if (!EmailValidator.getInstance().isValid(recipient.email)) {
-                    logger.error(
-                        "Unable to send email - parasite has not provided a valid one (type: {}, recipient: {} ({}))",
-                        type.name,
-                        recipient.name,
-                        recipient.email
-                    )
-                } else {
-                    email.addTo(recipient.email, recipient.name)
-                }
+            val message = buildMap<String, Any> {
+                put("From", mapOf("Email" to emailFromAddress, "Name" to "The $siteName Server <3"))
+                put("To", recipients.mapNotNull { recipient ->
+                    recipient.takeIf { EmailValidator.getInstance().isValid(it.email) }?.let {
+                        mapOf("Email" to it.email, "Name" to it.name)
+                    } ?: also {
+                        logger.error(
+                            "Unable to send email - parasite has not provided a valid one (type: {}, recipient: {} ({}))",
+                            type.name,
+                            recipient.name,
+                            recipient.email
+                        )
+                    }
+                })
+                put("subject", type.subject)
+                put("HTMLPart", htmlBody)
+                put("TextPart", textBody)
             }
+            println(message)
 
-            email.send()
-
-            logger.debug("Email sent")
-        } catch (e: EmailException) {
+            val r = ktorClient.post(emailApi) {
+                setBody(mapOf("Messages" to listOf(message)))
+                contentType(ContentType.Application.Json)
+                basicAuth(emailUser, emailPass)
+            }
+            if (r.status == HttpStatusCode.OK) {
+                logger.info("Sent message: {}", r.bodyAsText())
+            } else {
+                logger.error("Failed to send email: {}", r.bodyAsText())
+            }
+        } catch (e: Exception) {
             logger.error("Error sending email:")
             throw e
         }

@@ -71,7 +71,6 @@ dependencies {
     implementation("org.flywaydb:flyway-core:$flywayVersion")
     implementation("org.flywaydb:flyway-database-postgresql:$flywayVersion")
 
-    implementation("org.apache.commons:commons-email:$apacheCommonsEmailVersion")
     implementation("commons-validator:commons-validator:$apacheCommonsValidatorVersion")
 
     implementation("org.nibor.autolink:autolink:$autolinkVersion")
