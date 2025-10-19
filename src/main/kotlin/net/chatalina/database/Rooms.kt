@@ -153,7 +153,24 @@ object Rooms : IntIdTable("rooms"), ChatTable {
                     it[updated] = CurrentTimestamp
                 }
                 RoomInvitations.DAO.deleteAll(roomId, parasiteId)
-                find(roomId)
+
+                val query = Rooms.leftJoin(roomAccessQuery, { Rooms.id }, { roomAccessQuery[RoomAccess.room] })
+                    .select(Rooms.id, name, owner, created, updated, roomAccessQuery[membersCol], maxUpdated)
+                    .where { Rooms.id eq roomId }
+
+                val historyQuery = query.withRoomMessageHistory()
+
+                query.toList()
+                    .groupBy { it[Rooms.id] }
+                    .map { (_, rows) ->
+                        val msgs = rows.mapNotNull { m ->
+                            m.getOrNull(historyQuery.alias[Messages.id])?.let {
+                                Messages.DAO.resultRowToObject(m, historyQuery)
+                            }
+                        }.sortedBy { it.sent }
+                        resultRowToObject(rows.first()).apply { history = msgs }
+                    }
+                    .firstOrNull()
             }
 
         fun removeMember(roomId: EntityID<Int>, parasiteId: EntityID<String>): RoomObject? = transaction {
@@ -184,7 +201,7 @@ object Rooms : IntIdTable("rooms"), ChatTable {
         }
 
         fun removeFromAll(parasiteId: EntityID<String>) = transaction {
-            RoomAccess.update({RoomAccess.parasite eq parasiteId}) {
+            RoomAccess.update({ RoomAccess.parasite eq parasiteId }) {
                 it[inRoom] = false
                 it[updated] = CurrentTimestamp
             }
