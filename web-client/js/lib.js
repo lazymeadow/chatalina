@@ -2,7 +2,7 @@ import twemoji from "twemoji";
 import moment from 'moment';
 import {ChatHistory, Settings} from "./util";
 
-export const CLIENT_VERSION = '4.0.4';
+export const CLIENT_VERSION = '4.0.5';
 export const INITIAL_RETRIES = 3;
 
 let idleTimeout;

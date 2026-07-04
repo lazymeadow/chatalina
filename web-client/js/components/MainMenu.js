@@ -475,6 +475,8 @@ export class MainMenu extends LoggingClass {
                     showCancel: false,
                     title: 'About',
                     content: $('<div>')
+                        .append('<h3>4.0.5</h3><em>July 4th, 2026</em><p>Once upon a time, someone asked for persistent unread indicators. Then someone else did. Then someone else...</p><p>Somehow, it never became an official feature request. But that doesn\'t matter, because now, years later, it is here. You\'re welcome.</p>')
+                        .append('<h3>4.0.4</h3><em>March 6th, 2025</em><p>Small client bugs and email provider change, I guess?</p>')
                         .append('<h3>4.0.3</h3><em>November 10th, 2024</em><p><strong>Ultimate Gorilla</strong></p><p>You can now choose "Ultimate Gorilla Blue" as your theme. I\'m not sure I\'d recommend it, but you can.</p>')
                         .append('<h3>4.0.2</h3><em>November 9th, 2024</em><p><strong>Misc Fixes</strong></p><p>If you saw some bots register for chat, no you didn\'t. Also nobody else can register anymore either.</p><p>Also, links to new github issues open in a new tab. Nature is healing.</p>')
                         .append('<h3>4.0.1</h3><em>November 8th, 2024</em><p><strong>Pick your theme</strong></p><p>The test environment colors were a big hit, so now you can choose between "Classic Teal" and "Newfangled Red".</p>')
