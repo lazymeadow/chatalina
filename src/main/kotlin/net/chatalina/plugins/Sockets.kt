@@ -79,7 +79,11 @@ class ChatSocketConnection(val session: DefaultWebSocketServerSession, val paras
     val name = "WS-${lastId.getAndIncrement()}-${parasiteId}"
     val logger = LoggerFactory.getLogger(name)
 
-    val parasite = Parasites.DAO.find(parasiteId) ?: throw AuthenticationException()
+    var parasite = Parasites.DAO.find(parasiteId) ?: throw AuthenticationException()
+
+    fun refreshParasite() {
+        parasite = Parasites.DAO.find(parasiteId) ?: throw AuthenticationException()
+    }
 
     fun launchForSocket(block: suspend () -> Unit) {
         logger.debug("launching job on socket")

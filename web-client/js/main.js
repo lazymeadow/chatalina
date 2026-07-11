@@ -17,12 +17,5 @@ $(() => {
         $('.popout-menu').hide()
     })
 
-    // open main menu on click and show overlay
-    $('#main-menu').click(event => {
-        event.stopPropagation()
-        overlay.show()
-        $('.popout-menu').toggle()
-    })
-
     initializeKeycloak((authenticated) => preClientInit(authenticated).then(() => postClientInit(new DesktopClient())))
 })

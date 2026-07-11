@@ -84,7 +84,6 @@ select {
 
 label {
   flex: 0 0 auto;
-  align-self: center;
   margin-right: 10px;
 }
 
@@ -93,17 +92,18 @@ label {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  align-self: center;
-  align-items: center;
 
   .flex-spacer {
     flex: 1 0 auto;
   }
 
   a {
-    font-size: .75em;
     color: var(--text-color);
     opacity: .65;
+
+    &:not(.big-link) {
+      font-size: .75em;
+    }
   }
 
   button, .button {
@@ -138,8 +138,6 @@ label {
   .form-element {
     flex: 1 0 auto;
     display: flex;
-    width: 350px;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
   }
 }

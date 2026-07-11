@@ -249,12 +249,29 @@ img.emoji {
       max-width: 400px;
     }
 
-    .form-element {
-      margin: 10px 0;
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: @elementPadding;
+      margin-right: @elementPadding*2;
+
+      & > h2 {
+        margin: 0;
+      }
     }
 
-    .form-group .form-element {
-      width: 375px;
+    .form-group {
+      width: 400px;
+      margin: 0 @elementPadding*2;
+    }
+
+    .form-element {
+      margin: @elementPadding 0;
+    }
+
+    .form-element.footer {
+      flex-direction: row;
     }
 
     input, select {
@@ -263,6 +280,7 @@ img.emoji {
 
     button {
       margin: 10px 0;
+      align-self: center;
 
       &:not(.secondary) {
         float: right;
@@ -273,11 +291,6 @@ img.emoji {
       max-height: 350px;
       overflow-y: auto;
       overflow-x: hidden;
-    }
-
-    .form-group, .form-element {
-      width: 400px;
-      align-items: center;
     }
 
     .tools, #tools_content {
@@ -472,4 +485,9 @@ img.emoji {
       }
     }
   }
+}
+
+#volume-control {
+  display: flex;
+  gap: @elementPadding;
 }

@@ -43,6 +43,7 @@
       .user-element();
       flex: 0 0 auto;
       background-color: var(--nav-background-color);
+      padding-right: @elementPadding;
 
       .list-content {
         padding: 10px 3px;
@@ -52,40 +53,32 @@
 
       & > span {
         flex: 0 0 auto;
-
-        &:last-of-type {
-          position: relative;
-          cursor: pointer;
-          display: flex;
-          width: 25px;
-          height: 25px;
-          align-items: center;
-          justify-content: center;
-          padding-right: @elementPadding;
-
-          & > .popout-menu {
-            min-width: 200px;
-            margin-top: 5px;
-            top: 20px;
-            left: -10px;
-          }
-        }
       }
     }
 
     .panel {
-      overflow-y: auto;
-      overflow-x: hidden;
-      background: var(--nav-gradient-top);
-      background: var(--nav-gradient-bottom);
-      background-repeat: no-repeat;
-      background-size: 100% 50px, 100% 50px, 100% 25px, 100% 25px;
+      &.expandable {
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: var(--nav-gradient-top);
+        background: var(--nav-gradient-bottom);
+        background-repeat: no-repeat;
+        background-size: 100% 50px, 100% 50px, 100% 25px, 100% 25px;
 
-      /* Opera doesn't support this in the shorthand */
-      background-attachment: local, local, scroll, scroll;
+        /* Opera doesn't support this in the shorthand */
+        background-attachment: local, local, scroll, scroll;
 
-      border-bottom: 2px solid var(--nav-section-border);
-      max-height: calc(50% - 24px);
+        border-bottom: 2px solid var(--nav-section-border);
+
+        max-height: calc(50% - 24px);
+      }
+
+      &:not(.expandable):last-of-type {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+      }
 
       & > .header {
         border-bottom: 2px solid var(--nav-section-border);
@@ -134,6 +127,22 @@
         .user-element();
         .left-item();
         .left-item-clickable();
+      }
+    }
+
+    #main-menu {
+      & > .items > div {
+        .left-item();
+        .left-item-clickable();
+        .nav-item();
+        .nav-item-clickable();
+
+        white-space: nowrap;
+        padding: @elementPadding;
+
+        & > .fas, & > .far, & > .fab {
+          margin-right: @elementPadding;
+        }
       }
     }
   }

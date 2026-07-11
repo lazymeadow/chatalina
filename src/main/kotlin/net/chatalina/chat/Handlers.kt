@@ -230,6 +230,7 @@ object SettingsMessageHandler : MessageHandler {
                 }
             }
             Parasites.DAO.update(parasite, newEmail, newSettings)
+            connection.refreshParasite()
 
             // if changes should be broadcast, do it now
             if (shouldBroadcastChange) {

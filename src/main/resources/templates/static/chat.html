@@ -13,25 +13,24 @@
     <div id="current-user" class="active">
         <span class="online-status"></span>
         <span class="list-content"></span>
-        <span>
-            <span class="fas fa-fw fa-caret-down" id="main-menu"></span>
-            <div class="popout-menu"></div>
-        </span>
     </div>
-    <div id="room-list" class="panel">
+    <div id="room-list" class="panel expandable">
         <div class="header">
             <span>Rooms</span>
             <span id="add-room" class="fas fa-fw fa-plus" role="button"></span>
         </div>
         <div id="rooms" class="items"></div>
     </div>
-    <div id="user-list" class="panel">
+    <div id="user-list" class="panel expandable">
         <div class="header">
             <span>Users</span>
         </div>
         <div id="active-user-list" class="items"></div>
         <div id="inactive-user-toggle">Show more users</div>
         <div id="inactive-user-list" class="items"></div>
+    </div>
+    <div id="main-menu" class="panel">
+        <div class="items"></div>
     </div>
 </div>
 <div id="right">
