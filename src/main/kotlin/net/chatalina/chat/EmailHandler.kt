@@ -25,33 +25,6 @@ enum class EmailTypes(
     val subject: String,
     val preview: String
 ) {
-    ForgotPassword(
-        "forgot-password.html",
-        "Maybe you got amnesia?",
-        "Someone has requested a password reset for your account."
-    ) {
-        override fun compileTextBody(args: Map<String, String>) = """
-            Password reset requested
-            
-            Well, someone has requested a password reset for ${args["parasite_id"]}.
-            
-            You'd better hurry, this link will only be good for 24 hours:
-            ${args["reset_link"]}
-            
-            If you did not request a password reset, you should probably change your password.
-            """
-    },
-    ChangedPassword(
-        "changed-password.html",
-        "Your password has been changed!",
-        "Your password for your account was changed."
-    ) {
-        override fun compileTextBody(args: Map<String, String>) = """
-            Your password for ${args["parasite_id"]} was changed.
-            
-            If you did not do this, let the admin know!
-        """
-    },
     ReactivationRequest(
         "reactivation.html",
         "Parasite reactivation requested",
@@ -223,7 +196,6 @@ object EmailHandler {
                 put("HTMLPart", htmlBody)
                 put("TextPart", textBody)
             }
-            println(message)
 
             val r = ktorClient.post(emailApi) {
                 setBody(mapOf("Messages" to listOf(message)))

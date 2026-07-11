@@ -4,6 +4,7 @@ import {BestColorPicker} from "./BestColorPicker";
 import {Alert} from "./Alert";
 import {AdminTools, ModTools} from "./Tools";
 import {CLIENT_VERSION} from "../lib";
+import { keycloak } from '../auth/keycloak'
 
 export class MainMenu extends LoggingClass {
     constructor(chatClient, allowedItems) {
@@ -60,7 +61,10 @@ export class MainMenu extends LoggingClass {
         this._menuContents.append(this._new_menu_item(
             'Log Out',
             ['fas', 'sign-out-alt'],
-            () => this._chatClient.disconnect(true)
+            () => {
+                // this._chatClient.disconnect(true)
+                keycloak.logout({redirectUri: `${location.origin}/login`})
+            }
         ));
     }
 

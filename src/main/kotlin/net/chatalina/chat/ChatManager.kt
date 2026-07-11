@@ -997,11 +997,6 @@ object ChatManager {
     }
 
     suspend fun handleMessage(connection: ChatSocketConnection, body: String) {
-        val currentParasite = Parasites.DAO.find(connection.parasiteId) ?: throw AuthenticationException()
-        if (!currentParasite.active) {
-            // deactivated parasites aren't allowed to do anything
-            throw AuthenticationException()
-        }
         val messageBody = try {
             defaultMapper.readValue<MessageBody>(body)
         } catch (e: Throwable) {
@@ -1013,7 +1008,7 @@ object ChatManager {
             }
         }
         connection.logger.debug("received message: {}", messageBody.type)
-        messageBody.type.handler.handleMessage(connection, currentParasite, messageBody)
+        messageBody.type.handler.handleMessage(connection, messageBody)
     }
 }
 

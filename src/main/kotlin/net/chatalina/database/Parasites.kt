@@ -49,6 +49,7 @@ inline fun <reified T : Any?> ParasiteSettings.setProperty(prop: KProperty1<Para
 
 object Parasites : IdTable<String>("parasites"), ChatTable {
     override val id = text("id").entityId()
+    val authId = text("auth_id")
     val email = text("email")
     val active = bool("active")
     val lastActive = systemTimestamp("last_active").nullable()
@@ -60,6 +61,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
 
     data class ParasiteObject(
         val id: EntityID<String>,
+        val authId: String,
         val email: String,
         val active: Boolean,
         val lastActive: Instant?,
@@ -79,6 +81,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             val time = Clock.System.now()
             return ParasiteObject(
                 row[id],
+                row[authId],
                 row[email],
                 row[active],
                 row.getOrNull(lastActive),
@@ -144,43 +147,13 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             Parasites.selectAll().where { Parasites.id eq parasiteId }.singleOrNull()?.let { resultRowToObject(it) }
         }
 
+        fun findByAuthId(authId: String?) : ParasiteObject? = transaction {
+            if (authId == null) return@transaction null
+            Parasites.selectAll().where { Parasites.authId eq authId }.singleOrNull()?.let { resultRowToObject(it) }
+        }
+
         fun find(vararg parasiteIds: String): List<ParasiteObject> = transaction {
             Parasites.selectAll().where { Parasites.id inList parasiteIds.toList() }.map { resultRowToObject(it) }
-        }
-
-        fun checkPassword(parasiteId: String, password: String): Boolean = transaction {
-            val hashedPassword =
-                ParasitePasswords.select(ParasitePasswords.password).where { ParasitePasswords.parasite eq parasiteId }
-                    .singleOrNull()?.get(ParasitePasswords.password)
-            hashedPassword?.let {
-                val verifyResult =
-                    BCrypt.verifyer(BCrypt.Version.VERSION_2B)
-                        .verify(password.toByteArray(), hashedPassword.toByteArray())
-                verifyResult.verified
-            } ?: false
-        }
-
-        fun newPasswordResetToken(parasiteId: String) = transaction {
-            tokenEncrypt(parasiteId).also { token ->
-                ParasitePasswords.update({ ParasitePasswords.parasite eq parasiteId }) {
-                    it[resetToken] = token
-                    it[updated] = CurrentTimestamp
-                }
-            }
-        }
-
-        fun checkToken(parasiteId: EntityID<String>, token: String): Boolean = transaction {
-            ParasitePasswords.select(ParasitePasswords.resetToken).where { ParasitePasswords.parasite eq parasiteId }
-                .singleOrNull()?.getOrNull(ParasitePasswords.resetToken) == token
-        }
-
-        fun updatePassword(parasiteId: EntityID<String>, hashedPassword: ByteArray): Boolean = transaction {
-            ParasitePasswords.upsert {
-                it[parasite] = parasiteId
-                it[password] = hashedPassword.decodeToString()
-                it[resetToken] = null
-                it[updated] = CurrentTimestamp
-            }.insertedCount > 0
         }
 
         fun isValidUsername(newUserName: String): Boolean = transaction {

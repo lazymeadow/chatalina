@@ -16,64 +16,64 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 
-data class ParasiteSession(val id: String) : Principal
-data class PreAuthSession(val t: String = tokenEncrypt(Random.nextBytes(16).decodeToString())) : Principal {
-    fun getVal() = try {
-        tokenDecrypt(t)
-    } catch (e: IllegalArgumentException) {
-        null
-    } catch (e: BadPaddingException) {
-        null
-    }
-}
-
-fun Application.configureSessions() {
-    val cookieDomain = this.hostname
-
-    install(Sessions) {
-        cookie<ParasiteSession>("parasite") {
-            if (this@configureSessions.isProduction) {
-                cookie.extensions["SameSite"] = "None"
-                cookie.secure = true
-            }
-            cookie.path = "/"
-            cookie.maxAge = 90.days
-            cookieDomain.let { cookie.domain = it }
-            transform(SessionTransportTransformerEncrypt(encryptSecret, signSecret))
-        }
-        cookie<PreAuthSession>("bec-pre-auth") {
-            if (this@configureSessions.isProduction) {
-                cookie.extensions["SameSite"] = "None"
-                cookie.secure = true
-            }
-            cookie.path = "/"
-            cookie.maxAge = 1.hours
-            cookieDomain.let { cookie.domain = it }
-            transform(SessionTransportTransformerEncrypt(encryptSecret, signSecret))
-        }
-    }
-    install(Authentication) {
-        session<ParasiteSession>("auth-parasite") {
-            validate { session ->
-                if (session.id.isBlank()) {
-                    null
-                } else {
-                    session
-                }
-            }
-            challenge {
-                call.respondRedirect("/login")
-            }
-        }
-        session<ParasiteSession>("auth-parasite-socket") {
-            validate { session ->
-                if (session.id.isBlank()) {
-                    null
-                } else {
-                    session
-                }
-            }
-            challenge { /* skip handling, let the socket deal with it */ }
-        }
-    }
-}
+//data class ParasiteSession(val id: String) : Principal
+//data class PreAuthSession(val t: String = tokenEncrypt(Random.nextBytes(16).decodeToString())) : Principal {
+//    fun getVal() = try {
+//        tokenDecrypt(t)
+//    } catch (e: IllegalArgumentException) {
+//        null
+//    } catch (e: BadPaddingException) {
+//        null
+//    }
+//}
+//
+//fun Application.configureSessions() {
+//    val cookieDomain = this.hostname
+//
+//    install(Sessions) {
+//        cookie<ParasiteSession>("parasite") {
+//            if (this@configureSessions.isProduction) {
+//                cookie.extensions["SameSite"] = "None"
+//                cookie.secure = true
+//            }
+//            cookie.path = "/"
+//            cookie.maxAge = 90.days
+//            cookieDomain.let { cookie.domain = it }
+//            transform(SessionTransportTransformerEncrypt(encryptSecret, signSecret))
+//        }
+//        cookie<PreAuthSession>("bec-pre-auth") {
+//            if (this@configureSessions.isProduction) {
+//                cookie.extensions["SameSite"] = "None"
+//                cookie.secure = true
+//            }
+//            cookie.path = "/"
+//            cookie.maxAge = 1.hours
+//            cookieDomain.let { cookie.domain = it }
+//            transform(SessionTransportTransformerEncrypt(encryptSecret, signSecret))
+//        }
+//    }
+//    install(Authentication) {
+//        session<ParasiteSession>("auth-parasite") {
+//            validate { session ->
+//                if (session.id.isBlank()) {
+//                    null
+//                } else {
+//                    session
+//                }
+//            }
+//            challenge {
+//                call.respondRedirect("/login")
+//            }
+//        }
+//        session<ParasiteSession>("auth-parasite-socket") {
+//            validate { session ->
+//                if (session.id.isBlank()) {
+//                    null
+//                } else {
+//                    session
+//                }
+//            }
+//            challenge { /* skip handling, let the socket deal with it */ }
+//        }
+//    }
+//}

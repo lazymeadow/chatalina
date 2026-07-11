@@ -3,31 +3,26 @@
  * @author Audrey Wiltsie
  */
 
-import Cookies from 'js-cookie';
-import {DesktopClient} from "./client";
-import {postClientInit, preClientInit} from "./lib";
+import { DesktopClient } from './client'
+import { postClientInit, preClientInit } from './lib'
+import { initializeKeycloak } from './auth/keycloak'
 
-
-if (!Cookies.get('id')) {
-    location = '/logout'
-}
 
 $(() => {
-    const overlay = $('.overlay');
+    const overlay = $('.overlay')
 
     // overlay dismisses and hides menu on click
     overlay.click(() => {
-        overlay.hide();
-        $('.popout-menu').hide();
-    });
+        overlay.hide()
+        $('.popout-menu').hide()
+    })
 
     // open main menu on click and show overlay
     $('#main-menu').click(event => {
-        event.stopPropagation();
-        overlay.show();
-        $('.popout-menu').toggle();
-    });
+        event.stopPropagation()
+        overlay.show()
+        $('.popout-menu').toggle()
+    })
 
-    preClientInit();
-    postClientInit(new DesktopClient());
-});
+    initializeKeycloak((authenticated) => preClientInit(authenticated).then(() => postClientInit(new DesktopClient())))
+})

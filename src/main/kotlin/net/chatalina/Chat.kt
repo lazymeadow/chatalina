@@ -7,9 +7,9 @@ import net.chatalina.chat.configureEncryption
 import net.chatalina.database.configureDatabases
 import net.chatalina.emoji.EmojiManager
 import net.chatalina.http.configureHTTP
+import net.chatalina.plugins.configureAuth
 import net.chatalina.plugins.configureMonitoring
 import net.chatalina.plugins.configureSerialization
-import net.chatalina.plugins.configureSessions
 import net.chatalina.plugins.configureSockets
 
 fun main(args: Array<String>): Unit =
@@ -44,7 +44,8 @@ fun Application.module() {
 
 //    configureSecurity()
     configureEncryption()
-    configureSessions()
+//    configureSessions()
+    configureAuth()
     configureHTTP()
     configureMonitoring()
     configureSerialization()

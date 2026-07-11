@@ -30,7 +30,7 @@ export class Settings {
 
     static init() {
         // set server values
-        Settings.username = decodeURIComponent(Cookies.get('displayName').replace(/\+/g, " "));
+        Settings.username = decodeURIComponent(Cookies.get('displayName')?.replace(/\+/g, " "));
         Settings.faction = Cookies.get('faction');
         Settings.color = Cookies.get('color');
         Settings.soundSet = Cookies.get('soundSet');

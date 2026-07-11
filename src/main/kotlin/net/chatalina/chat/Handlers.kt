@@ -1,6 +1,5 @@
 package net.chatalina.chat
 
-import at.favre.lib.crypto.bcrypt.BCrypt
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
@@ -17,7 +16,7 @@ import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
 
 interface MessageHandler {
-    suspend fun handleMessage(connection: ChatSocketConnection, parasite: Parasites.ParasiteObject, body: MessageBody)
+    suspend fun handleMessage(connection: ChatSocketConnection, body: MessageBody)
 }
 
 inline fun <reified T : MessageBody> onMessage(
@@ -30,11 +29,32 @@ inline fun <reified T : MessageBody> onMessage(
 object UnknownMessageHandler : MessageHandler {
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<MessageBody>(body) {
             connection.logger.error("Received unknown message")
+        }
+    }
+}
+
+object SocketAuthMessageHandler : MessageHandler {
+    class SocketAuthMessageBody(
+        type: MessageTypes
+    ) : MessageBody(type) {
+        val token: String? by other("token")
+    }
+
+    override suspend fun handleMessage(
+        connection: ChatSocketConnection,
+        body: MessageBody
+    ) {
+        onMessage<SocketAuthMessageBody>(body) { messageBody ->
+            println(messageBody.token)
+            // parse and verify token
+//            JWTPrincipal()
+            // look up parasite in db
+            // check parasite is active
+            // set connection parasite
         }
     }
 }
@@ -48,7 +68,6 @@ object VersionMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<VersionMessageBody>(body) { messageBody ->
@@ -77,7 +96,6 @@ object ClientLogMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<LogMessageBody>(body) { messageBody ->
@@ -102,12 +120,11 @@ object StatusMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<StatusMessageBody>(body) { messageBody ->
             val newStatus = ParasiteStatus.fromString(messageBody.status?.toString())
-            ChatManager.updateParasiteStatus(parasite.id, newStatus)
+            ChatManager.updateParasiteStatus(connection.parasite.id, newStatus)
         }
     }
 }
@@ -120,11 +137,10 @@ object TypingMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<TypingMessageBody>(body) { messageBody ->
-            ChatManager.updateParasiteTypingStatus(parasite.id, messageBody.currentDestination)
+            ChatManager.updateParasiteTypingStatus(connection.parasite.id, messageBody.currentDestination)
         }
     }
 }
@@ -136,7 +152,6 @@ object SettingsMessageHandler : MessageHandler {
 
     data class SettingsData(
         val email: String? = null,
-        val password: Map<String, String?> = emptyMap(),
         val username: String? = null,
         @JsonAnyGetter
         @JsonAnySetter
@@ -145,28 +160,13 @@ object SettingsMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<SettingsMessageBody>(body) { messageBody ->
+            val parasite = connection.parasite
             val alerts: MutableList<ServerMessage> = mutableListOf()
             val broadcastAlerts: MutableList<ServerMessage> = mutableListOf()
             val thingsToUpdate = messageBody.data ?: return
-            // if setting password, check if valid, then update password and send alerts. no broadcast.
-            val passwordBody = thingsToUpdate.password
-            if (!passwordBody["password"].isNullOrBlank()) {
-                if (passwordBody["password"] != passwordBody["password2"]) {
-                    connection.send(ServerMessage(AlertData.fade("Password entries did not match.")))
-                } else {
-                    val hashed = BCrypt.with(BCrypt.Version.VERSION_2B).hash(
-                        12,
-                        passwordBody["password"]!!.toByteArray()
-                    )
-                    val success = Parasites.DAO.updatePassword(parasite.id, hashed)
-                    if (success) connection.session.application.sendEmail(EmailTypes.ChangedPassword, parasite)
-                    alerts.add(ServerMessage(AlertData.fade("Password ${if (!success) "not " else ""}changed.")))
-                }
-            }
 
             var shouldBroadcastChange = false
             val updates: MutableMap<String, Any> = mutableMapOf()
@@ -256,7 +256,6 @@ object ChatMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<ChatMessageBody>(body) { messageBody ->
@@ -266,7 +265,7 @@ object ChatMessageHandler : MessageHandler {
             if (messageBody.message.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleRoomMessage(messageBody.roomId!!, parasite, messageBody.message!!)
+                ChatManager.handleRoomMessage(messageBody.roomId!!, connection.parasite, messageBody.message!!)
             }
         }
     }
@@ -280,14 +279,13 @@ object PrivateMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<PrivateMessageBody>(body) { messageBody ->
             if (messageBody.message.isNullOrBlank() || messageBody.recipientId.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handlePrivateMessage(messageBody.recipientId!!, parasite, messageBody.message!!)
+                ChatManager.handlePrivateMessage(messageBody.recipientId!!, connection.parasite, messageBody.message!!)
             }
         }
     }
@@ -302,7 +300,6 @@ object ImageMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<ImageMessageBody>(body) { messageBody ->
@@ -312,7 +309,7 @@ object ImageMessageHandler : MessageHandler {
                 try {
                     ChatManager.handleImageMessage(
                         messageBody.destination.toString(),
-                        parasite,
+                        connection.parasite,
                         messageBody.url.toString(),
                         messageBody.nsfw.toString().toBoolean()
                     )
@@ -343,7 +340,6 @@ object ImageUploadMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<ImageUploadMessageBody>(body) { messageBody ->
@@ -356,7 +352,7 @@ object ImageUploadMessageHandler : MessageHandler {
                 try {
                     ChatManager.handleImageUploadMessage(
                         messageBody.destination.toString(),
-                        parasite,
+                        connection.parasite,
                         messageBody.imageData.toString(),
                         messageBody.imageType.toString(),
                         messageBody.nsfw.toString().toBoolean()
@@ -386,14 +382,18 @@ object MarkReadHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<MarkReadMessageBody>(body) { messageBody ->
             if (messageBody.destination.isNullOrBlank() || messageBody.message == null) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleMarkRead(connection, parasite, messageBody.destination.toString(), messageBody.message!!)
+                ChatManager.handleMarkRead(
+                    connection,
+                    connection.parasite,
+                    messageBody.destination.toString(),
+                    messageBody.message!!
+                )
             }
         }
     }
@@ -416,20 +416,22 @@ object RoomActionHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<RoomActionMessageBody>(body) { messageBody ->
+            val parasite = connection.parasite
             val action = messageBody.action ?: throw BadRequestException("Invalid room action")
             when (action) {
                 RoomActionTypes.Create -> {
                     val newRoomName = messageBody.newRoomName
                     ChatManager.handleCreateRoom(connection, parasite, newRoomName)
                 }
+
                 RoomActionTypes.Delete -> {
                     val roomId = messageBody.roomId ?: throw BadRequestException("Invalid room id")
                     ChatManager.handleDeleteRoom(connection, parasite, roomId)
                 }
+
                 RoomActionTypes.Invite -> {
                     val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")
                     val invitees = messageBody.inviteeIds ?: throw BadRequestException("Invalid invitation")
@@ -439,11 +441,13 @@ object RoomActionHandler : MessageHandler {
                         throw BadRequestException("Nobody to invite")
                     }
                 }
+
                 RoomActionTypes.Join -> {
                     val roomId = messageBody.roomId ?: throw BadRequestException("Invalid invitation")
                     val accept = messageBody.accept ?: throw BadRequestException("Missing value for 'accept'")
                     ChatManager.handleInvitationResponse(connection, parasite, roomId, accept)
                 }
+
                 RoomActionTypes.Leave -> {
                     val roomId = messageBody.roomId ?: throw BadRequestException("Invalid room id")
                     ChatManager.handleLeaveRoom(connection, parasite, roomId)
@@ -461,12 +465,11 @@ object RemoveAlertHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<RemoveAlertMessageBody>(body) { messageBody ->
             if (messageBody.id == null) throw BadRequestException("Bad message content")
-            Alerts.DAO.delete(messageBody.id!!, parasite.id)
+            Alerts.DAO.delete(messageBody.id!!, connection.parasite.id)
         }
     }
 }
@@ -479,7 +482,6 @@ object GithubIssueMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<GithubIssueMessageBody>(body) { messageBody ->
@@ -505,14 +507,13 @@ object ToolListMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<ToolListMessageBody>(body) { messageBody ->
             if (messageBody.permissionLevel == null) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleToolListRequest(connection, parasite, messageBody.permissionLevel!!)
+                ChatManager.handleToolListRequest(connection, connection.parasite, messageBody.permissionLevel!!)
             }
         }
     }
@@ -525,14 +526,13 @@ object ToolDataMessageHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<ToolDataMessageBody>(body) { messageBody ->
             if (messageBody.toolId.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleToolDataRequest(connection, parasite, messageBody.toolId!!)
+                ChatManager.handleToolDataRequest(connection, connection.parasite, messageBody.toolId!!)
             }
         }
     }
@@ -546,14 +546,13 @@ object ToolRunRequestHandler : MessageHandler {
 
     override suspend fun handleMessage(
         connection: ChatSocketConnection,
-        parasite: Parasites.ParasiteObject,
         body: MessageBody
     ) {
         onMessage<ToolRunMessageBody>(body) { messageBody ->
             if (messageBody.toolId.isNullOrBlank()) {
                 connection.logger.error("Bad message content")
             } else {
-                ChatManager.handleToolRunRequest(connection, parasite, messageBody.toolId!!, messageBody.data)
+                ChatManager.handleToolRunRequest(connection, connection.parasite, messageBody.toolId!!, messageBody.data)
             }
         }
     }
@@ -561,6 +560,9 @@ object ToolRunRequestHandler : MessageHandler {
 
 @Suppress("unused")  // they are used actually
 enum class MessageTypes(val value: String) {
+    SocketAuth("auth") {
+        override val handler = SocketAuthMessageHandler
+    },
     Version("version") {
         override val handler = VersionMessageHandler
     },
@@ -613,7 +615,8 @@ enum class MessageTypes(val value: String) {
         override val handler = ToolRunRequestHandler
     },
 
-    @JsonEnumDefaultValue Unknown("unknown") {
+    @JsonEnumDefaultValue
+    Unknown("unknown") {
         override val handler = UnknownMessageHandler
     };
 

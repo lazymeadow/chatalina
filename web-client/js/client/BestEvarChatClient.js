@@ -3,6 +3,7 @@ import {Logger, NotificationManager, Settings, SoundManager} from "../util";
 import {Alert, MessageLog} from "../components";
 import {CLIENT_VERSION, INITIAL_RETRIES} from "../lib";
 import {AdminTools, ModTools} from "../components/Tools";
+import { keycloak } from '../auth/keycloak'
 
 
 export class BestEvarChatClient {
@@ -30,6 +31,7 @@ export class BestEvarChatClient {
     // Public functions
 
     connect() {
+        console.log('Connecting...')
         this._sock = new WebSocket(this._hostname);
 
         this._sock.onopen = () => {
@@ -62,7 +64,7 @@ export class BestEvarChatClient {
         this._ready = false;
         if (logout) {
             if (this._sock.readyState === this._sock.OPEN) this._sock.close(1000);
-            location.replace('/logout');
+            // location.replace('/logout');
         } else if (this._reconnectEnabled) {
             this._attemptReconnect();
         }

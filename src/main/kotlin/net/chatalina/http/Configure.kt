@@ -62,9 +62,7 @@ fun Application.configureHTTP() {
         staticFiles("/", File(staticFilePath))
 
         authenticationRoutes()
-        authenticate("auth-parasite") {
-            mainRoutes()
-        }
+        mainRoutes()
     }
 
     install(StatusPages) {

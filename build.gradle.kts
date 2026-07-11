@@ -1,5 +1,5 @@
 val kotlinVersion: String = "1.9.22"
-val logbackVersion: String = "1.5.6"
+val logbackVersion: String = "1.5.13"
 val exposedVersion: String = "0.52.0"
 val postgresVersion: String = "42.7.3"
 val bcryptVersion: String = "0.10.2"
@@ -50,6 +50,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:$logbackVersion")
 
     implementation("io.ktor:ktor-server-auth")
+    implementation("io.ktor:ktor-server-auth-jwt")
     implementation("io.ktor:ktor-server-sessions")
     implementation("io.ktor:ktor-server-sessions-jvm")
     implementation("at.favre.lib:bcrypt:$bcryptVersion")

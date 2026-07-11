@@ -2,43 +2,31 @@ package net.chatalina.http.routes
 
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.pebble.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import net.chatalina.database.ParasiteSettings
-import net.chatalina.database.Parasites
 import net.chatalina.emoji.EmojiManager
 import net.chatalina.http.RedirectException
 import net.chatalina.http.getPebbleContent
-import net.chatalina.plugins.ParasiteSession
-import kotlin.reflect.KProperty1
-import kotlin.reflect.full.declaredMemberProperties
 
 fun Route.mainRoutes() {
-    getMain()
-    getMobile()
-    emojiSearch()
+    authenticate("obei", optional = true) {
+        getMain()
+        getMobile()
+    }
+    authenticate("obei") {
+        emojiSearch()
+    }
 }
 
 private suspend fun ApplicationCall.handleMainRoute(getTemplateContent: () -> PebbleContent) {
-    val session = principal<ParasiteSession>() ?: let {
-        throw RedirectException("/logout")
-    }
-    val sessionParasite = Parasites.DAO.find(session.id)?.takeIf { it.active } ?: let {
-        throw RedirectException("/logout")
-    }
-
-    response.cookies.append("id", sessionParasite.id.value)
-    response.cookies.append("email", sessionParasite.email)
-    ParasiteSettings::class.declaredMemberProperties.forEach { prop: KProperty1<ParasiteSettings, *> ->
-        val propValue = if (ParasiteSettings::displayName == prop) {
-            prop.get(sessionParasite.settings)?.toString() ?: sessionParasite.id.value
-        } else {
-            prop.get(sessionParasite.settings).toString()
-        }
-        response.cookies.append(prop.name, propValue)
-    }
-    respond(getTemplateContent())
+//    val principal = this.principal<JWTPrincipal>()
+//    if (principal == null) {
+        respond(getTemplateContent())
+//    } else {
+        // set up session
+//    }
 }
 
 private fun Route.getMain() {

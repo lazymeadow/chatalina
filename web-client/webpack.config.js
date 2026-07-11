@@ -10,12 +10,8 @@ module.exports = (env) => (
         entry: {
             main: ['./js/main.js', './less/chat.less'],
             mobile: ['./js/mobile.js', './less/mobile.less'],
-            small: ['./less/login.less'],
             login: ['./js/pages/login.js'],
-            register: ['./js/pages/register.js'],
             reactivate: ['./js/pages/reactivate.js'],
-            'forgot-password': ['./js/pages/forgot-password.js'],
-            'reset-password': ['./js/pages/reset-password.js']
         },
         output: {
             clean: true,
