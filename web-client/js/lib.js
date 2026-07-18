@@ -42,7 +42,7 @@ export function _formatTime(timestamp) {
     }
     let format
     if (Settings.timestamps === 'date_time') {
-        format = 'MM/DD/YY ' + format
+        format = 'MM/DD/YY HH:mm:ss'
     } else {
         format = 'HH:mm:ss'
     }
