@@ -131,7 +131,12 @@
     }
 
     #main-menu {
+      & :not(:hover) {
+        opacity: .90;
+      }
+
       & > .items > div {
+        font-size: .95em;
         .left-item();
         .left-item-clickable();
         .nav-item();
