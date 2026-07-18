@@ -76,6 +76,7 @@ export async function preClientInit(authenticated) {
         Settings.init(parasite)
     } catch (error) {
         console.error('Failed to initialize adapter:', error)
+        throw error
     }
 
     const overlay = $('.overlay')
