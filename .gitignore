@@ -43,3 +43,6 @@ out/
 ### ignore the output from the webpack build
 /src/main/resources/static/
 /web-client/dist/
+**/node_modules/
+/web-client/.env.*
+**/.local

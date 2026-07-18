@@ -94,7 +94,7 @@ export class MainMenu extends LoggingClass {
             .append($('<div>').addClass('form-group').append($('<div>').addClass('form-element')
                 .append($('<a>', {
                     href: keycloak.createAccountUrl(),
-                    text: `Manage ${process.env.BEC_AUTH_REALM} account`,
+                    text: `Manage ${process.env.CHAT_KEYCLOAK_AUTH_REALM} account`,
                 }).addClass('big-link')),
             ))
     }
@@ -162,10 +162,10 @@ export class MainMenu extends LoggingClass {
             .append($('<div>').addClass('form-group')
                 // Browser tab title
                 .append($('<div>').addClass('form-element')
-                    .append($('<label>', { text: 'Tab Title', for: 'tab_title' }))
+                    .append($('<label>', { text: 'Tab Title Override', for: 'tab_title' }))
                     .append($('<input>', {
                         id: 'tab_title',
-                        placeholder: `<Room> | ${process.env.BEC_TITLE || 'Chat'} ${CLIENT_VERSION}`,
+                        placeholder: `<Room> | ${process.env.CHAT_TITLE || 'Chat'} ${CLIENT_VERSION}`,
                     })
                         .val(Settings.tabTitle)))
                 // Volume
@@ -391,7 +391,7 @@ export class MainMenu extends LoggingClass {
                         }
                         if (title) {
                             this._chatClient.submitBug({
-                                title: `[${process.env.BEC_TITLE}] ${title} (submitted by ${Settings.userId})`,
+                                title: `[${process.env.CHAT_TITLE}] ${title} (submitted by ${Settings.userId})`,
                                 body: $('#body').val(),
                             })
                         }
@@ -433,7 +433,7 @@ export class MainMenu extends LoggingClass {
                         }
                         if (title) {
                             this._chatClient.submitFeature({
-                                title: `[${process.env.BEC_TITLE}] ${title} (submitted by ${Settings.userId})`,
+                                title: `[${process.env.CHAT_TITLE}] ${title} (submitted by ${Settings.userId})`,
                                 body: $('#body').val(),
                             })
                         }

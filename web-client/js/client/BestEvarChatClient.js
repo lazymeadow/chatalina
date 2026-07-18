@@ -10,7 +10,7 @@ export class BestEvarChatClient {
     _mainMenu
     _ready = false
 
-    constructor(hostname = process.env.BEC_SERVER, secure = (process.env.NODE_ENV === 'production'), routingPath = 'chat') {
+    constructor(hostname = process.env.CHAT_SERVER, secure = (process.env.NODE_ENV === 'production'), routingPath = 'chat') {
         this._hostname = `${secure ? 'wss' : 'ws'}://${hostname}/${routingPath}`
 
         Settings.init()
@@ -80,7 +80,7 @@ export class BestEvarChatClient {
         } else {
             name = this._roomManager.getActiveRoomName()
         }
-        return Settings.tabTitle || `${name} | ${process.env.BEC_TITLE || 'Chat'} ${CLIENT_VERSION}`
+        return Settings.tabTitle || `${name} | ${process.env.CHAT_TITLE || 'Chat'} ${CLIENT_VERSION}`
     }
 
     setWindowTitle() {

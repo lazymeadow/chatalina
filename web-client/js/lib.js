@@ -13,7 +13,7 @@ let emojiSearchTimeout
 export function _parseEmojis(element) {
     twemoji.parse(element || document.body, {
         callback: (icon, options) => `${options.base}/${icon.toUpperCase()}.${options.ext}`,
-        base: process.env.BEC_EMOJIS,
+        base: process.env.CHAT_EMOJIS,
         ext: 'svg',
         attributes: function (icon, variant) {
             return { title: icon + variant }

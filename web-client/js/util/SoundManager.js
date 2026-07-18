@@ -5,7 +5,7 @@ export class SoundManager extends LoggingClass {
     constructor() {
         super();
 
-        this._soundAssetUrl = process.env.BEC_AUDIO;
+        this._soundAssetUrl = process.env.CHAT_AUDIO;
 
         this._receiveSound = $('<audio>').attr('type', 'audio/mpeg');
         this._sendSound = $('<audio>').attr('type', 'audio/mpeg');
