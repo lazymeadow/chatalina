@@ -1,12 +1,15 @@
 package net.chatalina.http.routes
 
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.JWTPrincipal
-import io.ktor.server.pebble.*
+import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import net.chatalina.database.Parasites
 import net.chatalina.emoji.EmojiManager
+import net.chatalina.http.AuthenticationException
+import net.chatalina.http.AuthorizationException
 import net.chatalina.http.RedirectException
 import net.chatalina.http.getPebbleContent
 
@@ -16,17 +19,9 @@ fun Route.mainRoutes() {
         getMobile()
     }
     authenticate("obei") {
+        getParasite()
         emojiSearch()
     }
-}
-
-private suspend fun ApplicationCall.handleMainRoute(getTemplateContent: () -> PebbleContent) {
-//    val principal = this.principal<JWTPrincipal>()
-//    if (principal == null) {
-        respond(getTemplateContent())
-//    } else {
-        // set up session
-//    }
 }
 
 private fun Route.getMain() {
@@ -37,13 +32,28 @@ private fun Route.getMain() {
             throw RedirectException("/m")
         }
 
-        call.handleMainRoute { application.getPebbleContent("chat.html", "emojiList" to EmojiManager.curatedEmojis) }
+        call.respond(application.getPebbleContent("chat.html", "emojiList" to EmojiManager.curatedEmojis))
     }
 }
 
 private fun Route.getMobile() {
     get("/m") {
-        call.handleMainRoute { application.getPebbleContent("mobile.html") }
+        call.respond(application.getPebbleContent("mobile.html"))
+    }
+}
+
+private fun Route.getParasite() {
+    get("/me") {
+        val principal = call.principal<JWTPrincipal>() ?: throw AuthenticationException()
+
+        val parasite = Parasites.DAO.findByAuthId(principal.subject)
+        if (parasite == null) {
+            throw AuthenticationException()
+        } else if (!parasite.active) {
+            throw AuthorizationException()
+        } else {
+            call.respond(HttpStatusCode.OK, parasite)
+        }
     }
 }
 

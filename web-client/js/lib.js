@@ -40,10 +40,13 @@ export function _formatTime(timestamp) {
     if (Settings.timestamps === 'off') {
         return ''
     }
-    let format = 'HH:mm:ss'
-    if (Settings.timestamps === 'date_time')
+    let format
+    if (Settings.timestamps === 'date_time') {
         format = 'MM/DD/YY ' + format
-    return `[${moment.unix(timestamp).format(format)}]`
+    } else {
+        format = 'HH:mm:ss'
+    }
+    return `[${moment.utc(timestamp).format(format)}]`
 }
 
 export function _focusChatBar() {
@@ -55,10 +58,17 @@ export function _focusChatBar() {
  */
 export async function preClientInit(authenticated) {
     try {
-        // const authenticated = await keycloak.init();
-        if (!authenticated || !Cookies.get('id')) {
-            console.log('not logged in')
+        if (!authenticated || !Cookies.get('parasite')) {
+            console.log('not logged in!!')
             location.replace('/login')
+            return
+        } else {
+            const response = await fetch('/me', {
+                method: 'GET',
+                headers: { 'Authorization': 'Bearer ' + keycloak.token },
+            })
+            const parasite = JSON.parse(await response.text())
+            Settings.init(parasite)
         }
     } catch (error) {
         console.error('Failed to initialize adapter:', error)

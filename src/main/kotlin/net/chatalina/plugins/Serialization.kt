@@ -25,7 +25,6 @@ import io.ktor.util.reflect.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.charsets.*
 import kotlinx.datetime.Instant
-import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.dao.id.EntityID
 import java.io.IOException
 
@@ -38,7 +37,7 @@ val defaultMapper: JsonMapper = jacksonMapperBuilder()
     .addModule(JavaTimeModule())
     .addModule(KotlinModule.Builder().build())
     .addModule(SimpleModule().addSerializer(EntityID::class.java, EntityIdSerializer()))
-    .addModule(SimpleModule().addSerializer(Instant::class.java, KotlinInstantSerializer()))
+    .addModule(SimpleModule().addSerializer(Instant::class.java, KotlinInstantStringSerializer()))
     .build()
 
 val dataMapper: JsonMapper = defaultMapper.copy().also {
@@ -96,11 +95,6 @@ class ErrorHandlingJacksonConverter(mapper: JsonMapper) : ContentConverter {
 class EntityIdSerializer : JsonSerializer<EntityID<*>>() {
     override fun serialize(value: EntityID<*>?, gen: JsonGenerator, serializers: SerializerProvider?) =
         value?.let { serializers?.defaultSerializeValue(value.value.toString(), gen) } ?: gen.writeNull()
-}
-
-class KotlinInstantSerializer : JsonSerializer<Instant>() {
-    override fun serialize(value: Instant?, gen: JsonGenerator, serializers: SerializerProvider?) =
-        value?.let { serializers?.defaultSerializeValue(value.toJavaInstant(), gen) } ?: gen.writeNull()
 }
 
 class KotlinInstantStringSerializer : JsonSerializer<Instant>() {

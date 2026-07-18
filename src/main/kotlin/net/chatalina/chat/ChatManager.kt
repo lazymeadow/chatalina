@@ -965,8 +965,14 @@ object ChatManager {
         currentSocketConnections.filter { it.parasiteId == parasiteId }
     }
 
+    private fun getConnectionsForParasite(parasiteId: EntityID<String>) = getConnectionsForParasite(parasiteId.value)
+
     private fun getOtherConnections(excludeParasite: String) = synchronized(currentSocketConnections) {
         currentSocketConnections.filterNot { it.parasiteId == excludeParasite }
+    }
+
+    fun refreshConnectionParasites(parasiteId: EntityID<String>) {
+        getConnectionsForParasite(parasiteId).forEach { it.refreshParasite() }
     }
 
     fun broadcastToParasite(parasiteId: EntityID<String>, data: Any) {

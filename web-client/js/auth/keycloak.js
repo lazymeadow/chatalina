@@ -13,11 +13,10 @@ export const keycloak = new Keycloak(
 )
 
 export const initializeKeycloak = async (onReady) => {
-    console.log('setting keycloak onReady')
-    keycloak.onReady = onReady
     console.log('initializing keycloak')
     const authenticated = await keycloak.init({ onLoad: 'login-required' })
     console.log('keycloak initialized', authenticated)
+    onReady(authenticated)
 }
 
 window.keycloak = keycloak

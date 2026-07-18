@@ -169,7 +169,7 @@ object SettingsMessageHandler : MessageHandler {
             val thingsToUpdate = messageBody.data ?: return
 
             var shouldBroadcastChange = false
-            val updates: MutableMap<String, Any> = mutableMapOf()
+            val updatesToAllClients: MutableMap<String, Any> = mutableMapOf()
             // if setting email, update email and send alerts. no broadcast
             var newEmail = thingsToUpdate.email
             if (newEmail.isNullOrBlank() || parasite.email == newEmail) {
@@ -187,7 +187,7 @@ object SettingsMessageHandler : MessageHandler {
                     if (newUsername == parasite.id.value || Parasites.DAO.isValidUsername(newUsername)) {
                         newSettings.displayName = newUsername
                         shouldBroadcastChange = true
-                        updates["username"] = newUsername
+                        updatesToAllClients["username"] = newUsername
                         alerts.add(
                             ServerMessage(
                                 ServerMessageTypes.Alert,
@@ -216,7 +216,9 @@ object SettingsMessageHandler : MessageHandler {
                     val currentVal = prop.get(parasite.settings)
                     if (it != currentVal) {
                         newSettings.setProperty(prop, it)
-                        updates[prop.name] = it
+                        if (prop.name != ParasiteSettings::soundSet.name && prop.name != ParasiteSettings::volume.name) {
+                            updatesToAllClients[prop.name] = it
+                        }
                         alerts.add(
                             ServerMessage(
                                 ServerMessageTypes.Alert,
@@ -241,8 +243,9 @@ object SettingsMessageHandler : MessageHandler {
             broadcastAlerts.forEach { ChatManager.broadcastToOthers(parasite.id.value, it) }
 
             // broadcast "update" to self connections
-            if (updates.isNotEmpty()) {
-                ChatManager.broadcastToParasite(parasite.id, ServerMessage(ServerMessageTypes.Update, updates))
+            if (updatesToAllClients.isNotEmpty()) {
+                ChatManager.refreshConnectionParasites(parasite.id)
+                ChatManager.broadcastToParasite(parasite.id, ServerMessage(ServerMessageTypes.Update, updatesToAllClients))
             }
             alerts.forEach { connection.send(it) }
         }

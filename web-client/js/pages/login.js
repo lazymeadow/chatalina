@@ -8,7 +8,7 @@ async function checkAuth(authenticated) {
             console.log('not logged in')
             await keycloak.login()
         } else {
-            if (Cookies.get('id')) {
+            if (Cookies.get('parasite')) {
                 console.log('session cookie already exists')
                 location.replace('/')
             } else {
@@ -18,8 +18,7 @@ async function checkAuth(authenticated) {
                 console.log(subject)
                 const response = await fetch('/login', {
                     method: 'POST',
-                    body: JSON.stringify({ subject }),
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    headers: { 'Authorization': 'Bearer ' + token },
                 })
                 console.log('logged in', JSON.stringify(response))
                 location.replace('/')

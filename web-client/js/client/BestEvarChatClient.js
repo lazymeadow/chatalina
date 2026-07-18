@@ -13,8 +13,6 @@ export class BestEvarChatClient {
     constructor(hostname = process.env.CHAT_SERVER, secure = (process.env.NODE_ENV === 'production'), routingPath = 'chat') {
         this._hostname = `${secure ? 'wss' : 'ws'}://${hostname}/${routingPath}`
 
-        Settings.init()
-
         this._messageLog = new MessageLog()
         this._soundManager = new SoundManager()
         this._userManager = new UserManager(this, this._messageLog, this._soundManager)

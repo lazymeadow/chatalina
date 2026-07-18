@@ -250,14 +250,16 @@ img.emoji {
     }
 
     .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: @elementPadding;
+      margin-top: @elementPadding*3;
       margin-right: @elementPadding*2;
+      margin-bottom: @elementPadding;
 
       & > h2 {
         margin: 0;
+      }
+
+      p.caption {
+        margin: 0 @elementPadding*2;
       }
     }
 
@@ -490,4 +492,8 @@ img.emoji {
 #volume-control {
   display: flex;
   gap: @elementPadding;
+}
+
+#volume-button {
+  cursor: pointer;
 }

@@ -2,20 +2,11 @@ package net.chatalina.plugins
 
 import com.auth0.jwk.JwkProvider
 import com.auth0.jwk.JwkProviderBuilder
-import io.ktor.server.application.Application
-import io.ktor.server.application.install
-import io.ktor.server.auth.Authentication
-import io.ktor.server.auth.Principal
-import io.ktor.server.auth.authentication
-import io.ktor.server.auth.jwt.JWTConfigureFunction
-import io.ktor.server.auth.jwt.JWTPrincipal
-import io.ktor.server.auth.jwt.jwt
-import io.ktor.server.auth.session
-import io.ktor.server.response.respondRedirect
-import io.ktor.server.sessions.SessionTransportTransformerEncrypt
-import io.ktor.server.sessions.Sessions
-import io.ktor.server.sessions.cookie
-import io.ktor.server.sessions.maxAge
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.response.*
+import io.ktor.server.sessions.*
 import net.chatalina.chat.encryptSecret
 import net.chatalina.chat.signSecret
 import net.chatalina.chat.tokenDecrypt
@@ -89,6 +80,7 @@ fun Application.configureAuth() {
             cookie.path = "/"
             cookie.maxAge = 90.days
             cookieDomain.let { cookie.domain = it }
+            cookie.httpOnly = false
             transform(SessionTransportTransformerEncrypt(encryptSecret, signSecret))
         }
         cookie<PreAuthSession>("bec-pre-auth") {

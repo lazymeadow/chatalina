@@ -90,67 +90,67 @@ export class MainMenu extends LoggingClass {
 
     _renderAccountSettings() {
         return $('<div>')
-            .append($('<div>').addClass('section-header').append($('<h2>', { text: 'User Settings' })))
-            .append($('<div>').addClass('form-group').append($('<div>').addClass('form-element')
-                .append($('<a>', {
-                    href: keycloak.createAccountUrl(),
-                    text: `Manage ${process.env.CHAT_KEYCLOAK_AUTH_REALM} account`,
-                }).addClass('big-link')),
-            ))
+            .append($('<div>').addClass('section-header').append($('<h2>', { text: 'Account Settings' })))
+            .append($('<div>').addClass('form-group')
+                .append($('<div>').addClass('form-element')
+                    .append($('<a>', {
+                        href: keycloak.createAccountUrl(),
+                        text: `Manage ${process.env.CHAT_KEYCLOAK_AUTH_REALM} account`,
+                    }).addClass('big-link'))))
     }
 
     _renderUserSettings(colorPicker) {
         return $('<div>')
-            .append($('<div>').addClass('section-header').append($('<h2>', { text: 'User Settings' })))
-            .append($('<div>')
-                .append($('<div>').addClass('form-group')
-                    // Display name
-                    .append($('<div>').addClass('form-element')
-                        .append($('<label>', { text: 'Display Name', for: 'username' }))
-                        .append($('<input>', { id: 'username' }).val(Settings.username)))
-                    // Email
-                    .append($('<div>').addClass('form-element')
-                        .append($('<label>', {text: 'Email Address', for: 'email'}))
-                        .append($('<input>', {
-                            id: 'email',
-                            type: 'email',
-                            autocomplete: 'email'
-                        }).val(Settings.email)))
-                    // Color
-                    .append($('<div>').addClass('form-element')
-                        .append($('<label>', { text: 'Color', for: 'color' }))
-                        .append(colorPicker.element))
-                    // Faction
-                    .append($('<div>').addClass('form-element')
-                        .append($('<label>', { text: 'Faction', for: 'faction' }))
-                        .append($('<i>').addClass(`fab fa-fw ${Settings.faction}`))
-                        .append($('<select>', { id: 'faction' })
-                            .append(Object.entries(Settings.allowedFactions).map(([ value, displayName ]) => $('<option>', {
-                                text: displayName,
-                                value: value,
-                            })))
-                            .val(Settings.faction)))
-                    // Theme
-                    .append($('<div>').addClass('form-element')
-                        .append($('<label>', { text: 'Theme', for: 'theme' }))
-                        .append($('<select>', { id: 'theme' })
-                            .append(Object.entries(Settings.themes).map(([ value, displayName ]) => $('<option>', {
-                                text: displayName,
-                                value: value,
-                            })))
-                            .val(Settings.theme))),
-                ))
+            .append($('<div>').addClass('section-header')
+                .append($('<h2>', { text: 'User Settings' }))
+                .append($('<p>', { text: `These settings are saved to the server and apply to every client` }).addClass('caption')))
+            .append($('<div>').addClass('form-group')
+                // Display name
+                .append($('<div>').addClass('form-element')
+                    .append($('<label>', { text: 'Display Name', for: 'username' }))
+                    .append($('<input>', { id: 'username' }).val(Settings.username)))
+                // Email
+                .append($('<div>').addClass('form-element')
+                    .append($('<label>', { text: 'Email Address', for: 'email' }))
+                    .append($('<input>', {
+                        id: 'email',
+                        type: 'email',
+                        autocomplete: 'email',
+                    }).val(Settings.email)))
+                // Color
+                .append($('<div>').addClass('form-element')
+                    .append($('<label>', { text: 'Color', for: 'color' }))
+                    .append(colorPicker.element))
+                // Faction
+                .append($('<div>').addClass('form-element')
+                    .append($('<label>', { text: 'Faction', for: 'faction' }))
+                    .append($('<i>').addClass(`fab fa-fw ${Settings.faction}`))
+                    .append($('<select>', { id: 'faction' })
+                        .append(Object.entries(Settings.allowedFactions).map(([ value, displayName ]) => $('<option>', {
+                            text: displayName,
+                            value: value,
+                        })))
+                        .val(Settings.faction)))
+                // Theme
+                .append($('<div>').addClass('form-element')
+                    .append($('<label>', { text: 'Theme', for: 'theme' }))
+                    .append($('<select>', { id: 'theme' })
+                        .append(Object.entries(Settings.themes).map(([ value, displayName ]) => $('<option>', {
+                            text: displayName,
+                            value: value,
+                        })))
+                        .val(Settings.theme))))
     }
 
-    _renderClientSettings() {
-        let muted = Settings.muted
-        let volume = Settings.volume
+    _renderSoundSettings() {
+        let newMuted = Settings.muted
+        let newVolume = Settings.volume
 
-        const getButtonContents = () => {
+        const getVolumeButtonContents = () => {
             let iconStackWrapper = $('<span>').addClass('fa-stack fa')
-            if (muted) {
+            if (newMuted) {
                 return iconStackWrapper.append($('<i>').addClass('fas fa-volume-off fa-stack-2x')).append($('<i>').addClass('fas fa-ban fa-stack-2x text-danger'))
-            } else if (volume > 50) {
+            } else if (newVolume > 50) {
                 return iconStackWrapper.append($('<i>').addClass('fas fa-volume-up fa-stack-2x'))
             } else {
                 return iconStackWrapper.append($('<i>').addClass('fas fa-volume-down fa-stack-2x'))
@@ -158,7 +158,55 @@ export class MainMenu extends LoggingClass {
         }
 
         return $('<div>')
-            .append($('<div>').addClass('section-header').append($('<h2>', { text: 'Client Settings' })))
+            .append($('<div>').addClass('section-header')
+                .append($('<h2>', { text: 'Saved Client Settings' }))
+                .append($('<p>', { html: `These settings will be saved to the server as defaults for <em>new</em> client connections, but do not change other clients` }).addClass('caption')))
+            .append($('<div>').addClass('form-group')
+                // Volume
+                .append($('<div>').addClass('form-element')
+                    .append($('<label>', { text: 'Volume', for: 'volume' }))
+                    .append($('<div>', { id: 'volume-control' })
+                        .append($('<input>', {
+                            id: 'volume',
+                            type: 'range',
+                            value: newVolume,
+                        }).change(event => {
+                            newVolume = event.target.value
+                            newMuted = parseInt(newVolume, 10) === 0
+                            $('#muted').val(newMuted)
+                            if (!newMuted) {
+                                this._chatClient._soundManager.playSampleSound($('#sound_set').val(), newVolume)
+                            }
+                            $('#volume-button').html(getVolumeButtonContents())
+                        }))
+                        .append($('<div>', { id: 'volume-button' })
+                            .click(() => {
+                                newMuted = !newMuted
+                                $('#volume-button').html(getVolumeButtonContents())
+                                $('#muted').val(newMuted)
+                            })
+                            .append(getVolumeButtonContents())))
+                    .append($('<input>', { type: 'hidden', id: 'muted', value: newMuted })))
+                // Sound set
+                .append($('<div>').addClass('form-element')
+                    .append($('<label>', { text: 'Sound Set', for: 'sound_set' }))
+                    .append($('<select>', { id: 'sound_set' })
+                        .append($.map([ 'AIM', 'MSN' ], item => {
+                            return $('<option>', { value: item, text: item })
+                        }))
+                        .val(Settings.soundSet)
+                        .change(() => {
+                            if (!newMuted) {
+                                this._chatClient._soundManager.playSampleSound($('#sound_set').val(), newVolume)
+                            }
+                        }))))
+    }
+
+    _renderClientSettings() {
+        return $('<div>')
+            .append($('<div>').addClass('section-header')
+                .append($('<h2>', { text: 'Client Settings' }))
+                .append($('<p>', { text: `These settings apply only to this client, and are not sent to the server` }).addClass('caption')))
             .append($('<div>').addClass('form-group')
                 // Browser tab title
                 .append($('<div>').addClass('form-element')
@@ -168,38 +216,6 @@ export class MainMenu extends LoggingClass {
                         placeholder: `<Room> | ${process.env.CHAT_TITLE || 'Chat'} ${CLIENT_VERSION}`,
                     })
                         .val(Settings.tabTitle)))
-                // Volume
-                .append($('<div>').addClass('form-element')
-                    .append($('<label>', { text: 'Volume', for: 'volume' }))
-                    .append($('<div>', { id: 'volume-control' })
-                        .append($('<input>', {
-                            id: 'volume',
-                            type: 'range',
-                            value: volume,
-                        }).change(event => {
-                            volume = event.target.value
-                            muted = parseInt(volume, 10) === 0
-                            $('#muted').val(muted)
-                            if (!muted) {
-                                this._chatClient._soundManager.playActivate(volume)
-                            }
-                            $('#volume_button').html(getButtonContents())
-                        }))
-                        .append($('<div>', { id: 'volume_button' })
-                            .click(() => {
-                                muted = !muted
-                                $('#volume_button').html(getButtonContents())
-                                $('#muted').val(muted)
-                            })
-                            .append(getButtonContents())))
-                    .append($('<input>', { type: 'hidden', id: 'muted', value: muted })))
-                // Sound set
-                .append($('<div>').addClass('form-element')
-                    .append($('<label>', { text: 'Sound Set', for: 'sound_set' }))
-                    .append($('<select>', { id: 'sound_set' })
-                        .append($.map([ 'AIM', 'MSN' ], item => {
-                            return $('<option>', { value: item, text: item })
-                        })).val(Settings.soundSet)))
                 // Client font size
                 .append($('<div>').addClass('form-element')
                     .append($('<label>', { text: 'Font Size', for: 'font_size' }))
@@ -231,9 +247,10 @@ export class MainMenu extends LoggingClass {
                         .append($('<option>', { value: 'all', text: 'All' }))
                         .append($('<option>', { value: 'message', text: 'Just Messages' }))
                         .append($('<option>', { value: 'status', text: 'Just Status' }))
+                        .append($('<option>', { value: 'off', text: 'None' }))
                         .val(Settings.notifications),
-                    )),
-            )
+                    ),
+                ))
 
     }
 
@@ -249,11 +266,14 @@ export class MainMenu extends LoggingClass {
                     content: () => {
                         return $('<div>').append(this._renderAccountSettings())
                             .append(this._renderUserSettings(colorPicker))
+                            .append(this._renderSoundSettings())
                             .append(this._renderClientSettings())
 
                     },
                     buttonText: 'Done',
+                    onCancel: () => this._chatClient._soundManager.clearSampleSound(),
                     buttonClickHandler: () => {
+                        this._chatClient._soundManager.clearSampleSound()
                         let serverChanges = {}
                         let clientChangesMade = false
 
@@ -265,13 +285,13 @@ export class MainMenu extends LoggingClass {
                             serverChanges['username'] = newUsername
                         }
 
-                        let email = $('#email');
+                        let email = $('#email')
                         if (!email[0].checkValidity()) {
-                            return 'That is an invalid email address.';
+                            return 'That is an invalid email address.'
                         }
-                        email = email.val();
+                        email = email.val()
                         if (email !== Settings.email) {
-                            serverChanges['email'] = email;
+                            serverChanges['email'] = email
                         }
 
                         const newColor = colorPicker.color
@@ -322,6 +342,9 @@ export class MainMenu extends LoggingClass {
 
                         const notifications = $('#notifications').val()
                         if (notifications !== Settings.notifications) {
+                            if (notifications === 'off') {
+                                this._chatClient.disableNotifications()
+                            }
                             Settings.notifications = notifications
                             clientChangesMade = true
                         }
