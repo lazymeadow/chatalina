@@ -54,10 +54,7 @@ export class MainMenu extends LoggingClass {
         this._menuContents.append(this._new_menu_item(
             'Log Out',
             [ 'fas', 'sign-out-alt' ],
-            () => {
-                this._chatClient.disconnect(true)
-                keycloak.logout({ redirectUri: `${location.origin}/login` })
-            },
+            async () => this._chatClient.disconnect(true),
         ))
     }
 

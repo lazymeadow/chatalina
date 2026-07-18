@@ -61,7 +61,8 @@ export class BestEvarChatClient {
         this._ready = false
         if (logout) {
             if (this._sock.readyState === this._sock.OPEN) this._sock.close(1000)
-            // location.replace('/logout');
+            fetch('/logout', { method: 'POST' })
+                .then(() => keycloak.logout({ redirectUri: `${location.origin}/login` }))
         } else if (this._reconnectEnabled) {
             this._attemptReconnect()
         }

@@ -1,5 +1,4 @@
 const webpack = require('webpack')
-const path = require('path')
 const CopyPlugin = require('copy-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const Dotenv = require('dotenv-webpack')
@@ -11,6 +10,7 @@ module.exports = (env) => (
             main: ['./js/main.js', './less/chat.less'],
             mobile: ['./js/mobile.js', './less/mobile.less'],
             login: ['./js/pages/login.js'],
+            logout: ['./js/pages/logout.js'],
             reactivate: ['./js/pages/reactivate.js'],
         },
         output: {

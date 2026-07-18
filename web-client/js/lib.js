@@ -2,6 +2,8 @@ import twemoji from 'twemoji'
 import moment from 'moment'
 import Cookies from 'js-cookie'
 import { ChatHistory, Settings } from './util'
+import { keycloak } from './auth/keycloak'
+import { postLogin } from './auth/login'
 
 export const CLIENT_VERSION = '4.0.5'
 export const INITIAL_RETRIES = 3
@@ -58,18 +60,20 @@ export function _focusChatBar() {
  */
 export async function preClientInit(authenticated) {
     try {
-        if (!authenticated || !Cookies.get('parasite')) {
+        if (!authenticated) {
             console.log('not logged in!!')
             location.replace('/login')
             return
-        } else {
-            const response = await fetch('/me', {
-                method: 'GET',
-                headers: { 'Authorization': 'Bearer ' + keycloak.token },
-            })
-            const parasite = JSON.parse(await response.text())
-            Settings.init(parasite)
+        } else if (!Cookies.get('parasite')) {
+            await postLogin()
         }
+
+        const response = await fetch('/me', {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + keycloak.token },
+        })
+        const parasite = JSON.parse(await response.text())
+        Settings.init(parasite)
     } catch (error) {
         console.error('Failed to initialize adapter:', error)
     }

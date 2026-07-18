@@ -8,7 +8,6 @@ export const keycloak = new Keycloak(
         audience: 'chatalina-test',
         silentCheckSsoFallback: false,
         checkLoginIframe: false,
-        enableLogging: true,  // TODO
     },
 )
 

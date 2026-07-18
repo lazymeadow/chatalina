@@ -69,10 +69,10 @@ private fun Route.postLogin() {
 
 private fun Route.getLogout() {
     get {
-        application.log.debug("log out called")
+        application.log.debug("log out called directly")
         call.sessions.clear<ParasiteSession>()
         call.sessions.clear<PreAuthSession>()
-        throw RedirectException("/login")
+        call.respond(application.getPebbleContent("logout.html"))
     }
 }
 
@@ -80,7 +80,6 @@ private fun Route.postLogout() {
     post {
         call.sessions.clear<ParasiteSession>()
         call.sessions.clear<PreAuthSession>()
-        throw RedirectException("/login")
     }
 }
 
