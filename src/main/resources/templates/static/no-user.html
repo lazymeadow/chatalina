@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% set title = "Loading..." %}
+
+{% block includes %}
+<link rel="stylesheet" href="small.css" type="text/css"/>
+<script src="no-user.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="content-box form">
+    <h1>UNAUTHORIZED PARASITE</h1>
+    <p>This account can not use this chat.</p>
+    <p>If you were invited to use this chat, go back to your invitation link.</p>
+    <p>If you were not invited to use this chat, go away.</p>
+    <div class="form-element">
+        <button onclick="logout()">See ya</button>
+    </div>
+</div>
+{% endblock %}

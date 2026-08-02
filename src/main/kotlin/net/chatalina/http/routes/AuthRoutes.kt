@@ -32,6 +32,9 @@ fun Route.authenticationRoutes() {
             postLogin()
         }
     }
+    route("/no-user") {
+        getNoUser()
+    }
     route("/logout") {
         getLogout()
         postLogout()
@@ -77,6 +80,12 @@ private fun Route.postLogin() {
                 call.respond(HttpStatusCode.OK, mapOf("success" to true))
             }
         }
+    }
+}
+
+private fun Route.getNoUser() {
+    get {
+        call.respond(application.getPebbleContent("no-user.html"))
     }
 }
 

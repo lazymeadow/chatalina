@@ -4,10 +4,12 @@ export async function postLogin() {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token },
     })
-    const loginResult = await response.json()
-    if (loginResult.deactivated) {
-        location.replace('/reactivate')
-    } else if (!response.ok) {
-        location.replace('/logout')
+    if (response.status === 401) {
+        throw new Error('No user')
+    } else {
+        const loginResult = await response.json()
+        if (loginResult.deactivated) {
+            location.replace('/reactivate')
+        }
     }
 }

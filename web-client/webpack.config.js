@@ -9,6 +9,8 @@ module.exports = (env) => (
         entry: {
             main: ['./js/main.js', './less/chat.less'],
             mobile: ['./js/mobile.js', './less/mobile.less'],
+            small: ['./less/small.less'],
+            'no-user': ['./js/pages/no-user.js'],
             login: ['./js/pages/login.js'],
             logout: ['./js/pages/logout.js'],
             reactivate: ['./js/pages/reactivate.js'],

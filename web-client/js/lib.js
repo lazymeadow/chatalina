@@ -68,6 +68,10 @@ export async function preClientInit(authenticated) {
             await postLogin()
         }
     } catch (error) {
+        if (error.message === 'No user') {
+            location.replace('/no-user')
+            return
+        }
         console.error('Failed to initialize adapter:', error)
         throw error
     }
