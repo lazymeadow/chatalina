@@ -14,11 +14,11 @@ import net.chatalina.http.RedirectException
 import net.chatalina.http.getPebbleContent
 
 fun Route.mainRoutes() {
-    authenticate("obei", optional = true) {
+    authenticate("beas", optional = true) {
         getMain()
         getMobile()
     }
-    authenticate("obei") {
+    authenticate("beas") {
         getParasite()
         emojiSearch()
     }
@@ -50,7 +50,7 @@ private fun Route.getParasite() {
         if (parasite == null) {
             throw AuthenticationException()
         } else if (!parasite.active) {
-            throw AuthorizationException()
+            throw AuthorizationException(mapOf("deactivated" to true))
         } else {
             call.respond(HttpStatusCode.OK, parasite)
         }

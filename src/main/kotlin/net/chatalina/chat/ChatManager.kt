@@ -887,6 +887,12 @@ object ChatManager {
                         val resultData = definition.runTool(parasite)
                         // force logout for parasite's connected sockets
                         broadcastToParasite(parasite.id, ServerMessage.AuthFail())
+                        // set up any persistent alert
+                        definition.affectedAlert?.let { alertData ->
+                            Alerts.DAO.create(parasite.id, alertData).also { a ->
+                                broadcastToParasite(parasite.id, ServerMessage(alertData, a?.id))
+                            }
+                        }
                         // update everyone's user lists
                         broadcastUserList()
                         connection.send(ServerMessage(ServerMessageTypes.ToolConfirm, resultData))

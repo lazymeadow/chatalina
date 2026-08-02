@@ -6,13 +6,17 @@ export const keycloak = new Keycloak(
         realm: process.env.CHAT_KEYCLOAK_AUTH_REALM,
         clientId: process.env.CHAT_KEYCLOAK_AUTH_CLIENT,
         silentCheckSsoFallback: false,
-        checkLoginIframe: false,
     },
 )
 
 export const initializeKeycloak = async (onReady) => {
     console.log('initializing keycloak')
-    const authenticated = await keycloak.init({ onLoad: 'login-required' })
+    const authenticated = await keycloak.init({
+        onLoad: 'check-sso',
+        silentCheckSsoRedirectUri: `${location.origin}/silent-check-sso.html`,
+        scope: 'test-shared',
+    })
+
     console.log('keycloak initialized', authenticated)
     onReady(authenticated)
 }

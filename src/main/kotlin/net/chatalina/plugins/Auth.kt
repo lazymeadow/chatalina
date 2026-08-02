@@ -85,7 +85,7 @@ fun Application.configureAuth() {
         }
     }
     install(Authentication) {
-        jwt("obei") {
+        jwt("beas") {
             verifier(becAuthentication!!.jwkProvider, issuer, becAuthentication!!.becVerifier)
             validate { credential ->
                 if (credential.payload.getClaim("username").asString() != "") {

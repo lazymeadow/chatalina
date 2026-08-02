@@ -1,24 +1,34 @@
-$(function () {
-    $('form').on('submit', async function (event) {
-        event.preventDefault();
+import { initializeKeycloak, keycloak } from '../auth/keycloak'
 
-        const data = Object.fromEntries(new FormData(this));
-        const response = await fetch("/reactivate", {
-            method: "POST",
-            body: JSON.stringify(data),
-            headers: {"Content-Type": "application/json"}
-        });
-        if (!response.ok) {
-            const message = await response.text()
-            const messageElement = $('#message');
-            messageElement.addClass('error')
-            messageElement.text(message || 'There was a problem requesting account reactivation.')
-        } else {
-            const query = new URLSearchParams({
-                message: "Reactivation request sent.",
-                parasite: data.parasite
-            })
-            window.location = `/login?${query.toString()}`
+async function checkAuth(authenticated) {
+    try {
+        if (!authenticated) {
+            await keycloak.login()
         }
-    });
-});
+    } catch (error) {
+        console.error('Failed to initialize adapter:', error)
+    }
+}
+
+window.logout = async () => await keycloak.logout({ redirectUri: `${location.origin}/login` })
+
+window.reactivate = async () => {
+    const token = keycloak.token
+    const response = await fetch('/reactivate', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+    })
+    const messageElement = $('#message')
+    if (!response.ok) {
+        const message = await response.text()
+        messageElement.text(message || 'There was a problem requesting account reactivation.')
+    } else {
+        $('#reactivate').remove()
+        messageElement.remove()
+        $('#finished').show()
+    }
+}
+
+$(() => {
+    initializeKeycloak(checkAuth)
+})

@@ -7,6 +7,15 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
+import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import net.chatalina.chat.ChatManager
+import net.chatalina.chat.EmailTypes
+import net.chatalina.chat.ServerMessage
+import net.chatalina.chat.sendAdminEmail
+import net.chatalina.database.AlertData
+import net.chatalina.database.Alerts
+import net.chatalina.database.ParasitePermissions
 import net.chatalina.database.Parasites
 import net.chatalina.http.AuthenticationException
 import net.chatalina.http.AuthorizationException
@@ -14,11 +23,12 @@ import net.chatalina.http.RedirectException
 import net.chatalina.http.getPebbleContent
 import net.chatalina.plugins.ParasiteSession
 import net.chatalina.plugins.PreAuthSession
+import kotlin.time.Duration.Companion.days
 
 fun Route.authenticationRoutes() {
     route("/login") {
         getLogin()
-        authenticate("obei") {
+        authenticate("beas") {
             postLogin()
         }
     }
@@ -37,6 +47,9 @@ fun Route.authenticationRoutes() {
     }
     route("/reactivate") {
         getReactivate()
+        authenticate("beas") {
+            postReactivate()
+        }
     }
 }
 
@@ -58,10 +71,10 @@ private fun Route.postLogin() {
             if (parasite == null) {
                 throw AuthenticationException()
             } else if (!parasite.active) {
-                throw AuthorizationException()
+                throw AuthorizationException(mapOf("deactivated" to true))
             } else {
                 call.sessions.set(ParasiteSession(parasite.id))
-                call.respond(HttpStatusCode.OK)
+                call.respond(HttpStatusCode.OK, mapOf("success" to true))
             }
         }
     }
@@ -103,6 +116,51 @@ private fun Route.getResetPassword() {
 
 private fun Route.getReactivate() {
     get {
-        throw RedirectException("/")
+        application.log.debug("reactivate visited")
+        call.respond(application.getPebbleContent("reactivate.html"))
+    }
+}
+
+private fun Route.postReactivate() {
+    post {
+        val principal = call.principal<JWTPrincipal>() ?: throw AuthenticationException()
+
+        val parasite = Parasites.DAO.findByAuthId(principal.subject)
+        if (parasite == null) {
+            application.log.debug(
+                "Reactivation reset request failed for UNKNOWN parasite using auth id: {}",
+                principal.subject
+            )
+        } else if (parasite.active) {
+            application.log.debug("Reactivation request received for ACTIVE parasite id: {}", parasite.id)
+            throw RedirectException("/login")
+        } else {
+            if (
+                parasite.reactivationRequest == null
+                || parasite.reactivationRequest < Clock.System.now().minus(3.days)
+            ) {
+                Parasites.DAO.setReactivationRequest(parasite.id)
+                val alertData = AlertData.dismiss(
+                    "Account reactivation requested! Apparently ${parasite.settings.displayName} (${parasite.id}) wants back in.",
+                    "Oh..."
+                )
+                val adminParasites = Parasites.DAO.list(active = true, permissionFilter = ParasitePermissions.Admin)
+                adminParasites.forEach {
+                    Alerts.DAO.create(it.id, alertData).also { a ->
+                        ChatManager.broadcastToParasite(it.id, ServerMessage(alertData, a?.id))
+                    }
+                }
+                application.log.debug("Reactivation request received for parasite id: {}", parasite.id)
+                launch {
+                    application.sendAdminEmail(
+                        EmailTypes.ReactivationRequest,
+                        mapOf("parasite_id" to parasite.id.value, "parasite_email" to parasite.email)
+                    )
+                }
+            } else {
+                application.log.debug("Reactivation request received AGAIN for parasite id: {}", parasite.id)
+            }
+        }
+        call.respond(HttpStatusCode.Accepted)
     }
 }

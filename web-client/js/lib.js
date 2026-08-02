@@ -67,15 +67,24 @@ export async function preClientInit(authenticated) {
         } else if (!Cookies.get('parasite')) {
             await postLogin()
         }
+    } catch (error) {
+        console.error('Failed to initialize adapter:', error)
+        throw error
+    }
 
+    try {
         const response = await fetch('/me', {
             method: 'GET',
             headers: { 'Authorization': 'Bearer ' + keycloak.token },
         })
+        if (!response.ok) {
+            location.replace('/login')
+            return
+        }
         const parasite = JSON.parse(await response.text())
         Settings.init(parasite)
     } catch (error) {
-        console.error('Failed to initialize adapter:', error)
+        console.error(error)
         throw error
     }
 

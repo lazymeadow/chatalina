@@ -69,8 +69,8 @@ fun Application.configureHTTP() {
         exception<AuthenticationException> { call, _ ->
             call.respond(HttpStatusCode.Unauthorized)
         }
-        exception<AuthorizationException> { call, _ ->
-            call.respond(HttpStatusCode.Forbidden)
+        exception<AuthorizationException> { call, error ->
+            call.respondNullable(status = HttpStatusCode.Forbidden, message = error.responseBody)
         }
         exception<BadRequestException> { call, error ->
             call.respond(HttpStatusCode.BadRequest, error.cause?.message ?: error.message ?: "")
@@ -85,5 +85,5 @@ fun Application.configureHTTP() {
 }
 
 class AuthenticationException : RuntimeException()
-class AuthorizationException : RuntimeException()
+class AuthorizationException(val responseBody: Any? = null) : RuntimeException()
 class RedirectException(val toRoute: String) : RuntimeException()

@@ -1,9 +1,8 @@
 package net.chatalina.database
 
-import at.favre.lib.crypto.bcrypt.BCrypt
+import com.fasterxml.jackson.annotation.JsonIgnore
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import net.chatalina.chat.tokenEncrypt
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.sql.*
@@ -56,6 +55,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
     val settings = jsonb<ParasiteSettings>("settings").nullable()
     val created = systemTimestamp("created")
     val updated = systemTimestamp("updated")
+    val reactivationRequest = systemTimestamp("reactivation_request").nullable()
 
     override val primaryKey = PrimaryKey(id)
 
@@ -67,7 +67,8 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         val lastActive: Instant?,
         val settings: ParasiteSettings,
         val created: Instant,
-        val updated: Instant
+        val updated: Instant,
+        @JsonIgnore val reactivationRequest: Instant? = null,
     ) : ChatTable.ObjectModel() {
         val name
             get() = this.settings.displayName ?: this.id.value
@@ -88,13 +89,14 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                 row.getOrNull(settings) ?: ParasiteSettings(),
                 // on initial insert, exposed doesn't give us these values back. just use now.
                 row.getOrNull(created) ?: time,
-                row.getOrNull(updated) ?: time
+                row.getOrNull(updated) ?: time,
+                row.getOrNull(reactivationRequest),
             )
         }
 
         fun list(active: Boolean = true, permissionFilter: ParasitePermissions? = null): List<ParasiteObject> =
             transaction {
-                val query = Parasites.selectAll().where { Parasites.active eq active }
+                val query = Parasites.selectAll().where { Parasites.active eq active }.andWhere { Parasites.authId neq "" }
                 permissionFilter?.also { query.andWhere { permissionCol eq stringParam(permissionFilter.toString()) } }
                 query.orderBy(coalesce(settings.extract("displayName"), Parasites.id))
                     .map { resultRowToObject(it) }
@@ -125,6 +127,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
         ): List<Map<String, String>> = transaction {
             Parasites.select(Parasites.id, settings)
                 .where { Parasites.id neq excludeParasiteId }
+                .andWhere { Parasites.authId neq "" }
                 .also {
                     if (hasPermission) {
                         it.andWhere { permissionCol inList permissionStrings }
@@ -136,7 +139,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                     mapOf(
                         "username" to (
                                 rowSettings.displayName?.let { "${it} (${row[Parasites.id]})" }
-                                        ?: row[Parasites.id].value
+                                    ?: row[Parasites.id].value
                                 ),
                         "id" to row[Parasites.id].value
                     )
@@ -147,7 +150,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             Parasites.selectAll().where { Parasites.id eq parasiteId }.singleOrNull()?.let { resultRowToObject(it) }
         }
 
-        fun findByAuthId(authId: String?) : ParasiteObject? = transaction {
+        fun findByAuthId(authId: String?): ParasiteObject? = transaction {
             if (authId == null) return@transaction null
             Parasites.selectAll().where { Parasites.authId eq authId }.singleOrNull()?.let { resultRowToObject(it) }
         }
@@ -164,10 +167,6 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
 
         fun exists(parasiteId: String): Boolean = transaction {
             Parasites.selectAll().where { Parasites.id eq parasiteId }.count() > 0
-        }
-
-        fun isActive(parasiteId: String): Boolean = transaction {
-            Parasites.select(active).where{Parasites.id eq parasiteId}.firstOrNull()?.get(active) ?: false
         }
 
         fun create(newUserName: String, newEmail: String, hashedPassword: ByteArray): ParasiteObject? = transaction {
@@ -201,6 +200,13 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
             }
         }
 
+        fun setReactivationRequest(parasiteId: EntityID<String>) = transaction {
+            Parasites.update({ Parasites.id eq parasiteId }) {
+                it[reactivationRequest] = CurrentTimestamp
+                it[updated] = CurrentTimestamp
+            }
+        }
+
         fun updatePermission(parasiteId: EntityID<String>, newPermission: ParasitePermissions) = transaction {
             Parasites.update({ Parasites.id eq parasiteId }) {
                 it[settings] = settings.setJsonbValue(
@@ -218,6 +224,7 @@ object Parasites : IdTable<String>("parasites"), ChatTable {
                     it[settings] = null
                 }
                 it[active] = isActive
+                it[reactivationRequest] = null
                 it[updated] = CurrentTimestamp
             }
         }

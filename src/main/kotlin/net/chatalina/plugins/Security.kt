@@ -39,13 +39,13 @@ import java.util.concurrent.TimeUnit
 //    val audience = environment.config.property("jwt.audience").getString()
 //    val client = environment.config.property("jwt.client").getString()
 //    val jwks = environment.config.property("jwt.jwks").getString()
-////    val obeiRealm = environment.config.property("jwt.realm").getString()
+////    val beasRealm = environment.config.property("jwt.realm").getString()
 //
 //    becAuthentication = BecAuthentication(issuer, audience, client, jwks)
 //
 //    authentication {
-//        jwt("obei") {
-////            realm = obeiRealm
+//        jwt("beas") {
+////            realm = beasRealm
 //            verifier(becAuthentication!!.jwkProvider, issuer, becAuthentication!!.becVerifier)
 ////            validate { becAuthentication!!.roleValidator(it, "parasite") }
 //        }
