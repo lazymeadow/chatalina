@@ -472,6 +472,7 @@ export class MainMenu extends LoggingClass {
                     showCancel: false,
                     title: 'About',
                     content: $('<div>')
+                        .append('<h3>4.1.0</h3><em>August 9th, 2026</em><p>Hello, this chat now exists in the Best Evar Auth System. Congratulation</p>')
                         .append('<h3>4.0.5</h3><em>July 4th, 2026</em><p>Once upon a time, someone asked for persistent unread indicators. Then someone else did. Then someone else...</p><p>Somehow, it never became an official feature request. But that doesn\'t matter, because now, years later, it is here. You\'re welcome.</p>')
                         .append('<h3>4.0.4</h3><em>March 6th, 2025</em><p>Small client bugs and email provider change, I guess?</p>')
                         .append('<h3>4.0.3</h3><em>November 10th, 2024</em><p><strong>Ultimate Gorilla</strong></p><p>You can now choose "Ultimate Gorilla Blue" as your theme. I\'m not sure I\'d recommend it, but you can.</p>')

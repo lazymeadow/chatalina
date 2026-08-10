@@ -5,7 +5,7 @@ import { ChatHistory, Settings } from './util'
 import { keycloak } from './auth/keycloak'
 import { postLogin } from './auth/login'
 
-export const CLIENT_VERSION = '4.0.5'
+export const CLIENT_VERSION = '4.1.0'
 export const INITIAL_RETRIES = 3
 
 let idleTimeout

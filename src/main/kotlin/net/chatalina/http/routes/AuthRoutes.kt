@@ -66,7 +66,7 @@ private fun Route.postLogin() {
     post {
         val existingSession = call.sessions.get<ParasiteSession>()
         if (existingSession != null) {
-            call.respond(HttpStatusCode.OK)
+            call.respond(HttpStatusCode.OK, mapOf("success" to true))
         } else {
             val principal = call.principal<JWTPrincipal>() ?: throw AuthenticationException()
 
