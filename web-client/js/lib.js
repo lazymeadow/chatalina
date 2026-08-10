@@ -48,7 +48,7 @@ export function _formatTime(timestamp) {
     } else {
         format = 'HH:mm:ss'
     }
-    return `[${moment.utc(timestamp).format(format)}]`
+    return `[${moment(timestamp).format(format)}]`
 }
 
 export function _focusChatBar() {

@@ -135,7 +135,7 @@ export class UserManager extends LoggingClass {
         }
 
         // if a user isn't online, they can be in the active list if they've been active in the last week
-        if (user.status !== 'offline' || (user.lastActive && moment.utc(user.lastActive).isSameOrAfter(moment().subtract(7, 'days')))) {
+        if (user.status !== 'offline' || (user.lastActive && moment(user.lastActive).isSameOrAfter(moment().subtract(7, 'days')))) {
             this._activeUserListElement.append(user.template);
         } else {
             this._inactiveUserListElement.append(user.template);
